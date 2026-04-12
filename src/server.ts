@@ -192,6 +192,29 @@ app.get("/api/logs", async (_req, res) => {
   proc.on("close", () => res.json({ logs: output.trim().split("\n").filter(Boolean) }));
 });
 
+app.delete("/api/sessions/:id", (req, res) => {
+  const sessionId = req.params.id;
+  if (!fs.existsSync(SESSIONS_DIR)) return res.status(404).json({ error: "Not found" });
+  let deleted = false;
+  for (const dir of fs.readdirSync(SESSIONS_DIR)) {
+    const dp = path.join(SESSIONS_DIR, dir);
+    if (!fs.statSync(dp).isDirectory()) continue;
+    const files = fs.readdirSync(dp).filter(f => f.includes(sessionId));
+    for (const f of files) {
+      const fp = path.join(dp, f);
+      if (f.endsWith(".jsonl") && f.includes(sessionId)) {
+        fs.unlinkSync(fp);
+        deleted = true;
+      }
+    }
+  }
+  if (deleted) {
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: "Session not found" });
+  }
+});
+
 // ── Auth middleware for WebSocket ──
 function authenticateWs(ws: WebSocket, req: any): boolean {
   if (!AUTH_TOKEN) return true;
@@ -889,10 +912,30 @@ function setupWebSocket(wss: WebSocketServer) {
       if (msg.type === "get_messages") {
         const cr = findSessionForClient(ws);
         if (cr) {
+          // Collect active tool executions (tool_call_start without matching end)
+          const activeToolExecutions = new Map<string, { name: string; args?: any }>();
+          // We track via the session's message history — scan for in-progress tool calls
+          const messages = cr.session.messages;
+          const toolCallStates: Array<{ id?: string; name: string; isRunning: boolean }> = [];
+          for (const msg of messages) {
+            if (msg.role === "assistant" && Array.isArray(msg.content)) {
+              for (const part of msg.content) {
+                if (part.type === "toolCall" && part.id) {
+                  toolCallStates.push({ id: part.id, name: part.name || "unknown", isRunning: false });
+                }
+              }
+            }
+          }
+          // Check for ongoing tool executions by looking at recent events
+          // The SDK doesn't expose a direct API for this, so we use the idle flag
           broadcastToClients(cr, {
             type: "rpc_response",
             command: "get_messages",
-            data: { messages: cr.session.messages }
+            data: {
+              messages,
+              isWorking: !cr.idle,
+              sessionId: cr.session.sessionId,
+            }
           });
         }
       }
@@ -1059,6 +1102,16 @@ function setupWebSocket(wss: WebSocketServer) {
               isWorking: !existingCr.idle,
               cwd: existingCr.cwd,
             });
+            // Also send messages so client has full conversation history
+            broadcastToClients(existingCr, {
+              type: "rpc_response",
+              command: "get_messages",
+              data: {
+                messages: s.messages,
+                isWorking: !existingCr.idle,
+                sessionId: s.sessionId,
+              }
+            });
           }, 100);
           console.log(`📖 Session ${sessionId} already active for ${cwd}, state preserved`);
           return;
@@ -1075,7 +1128,7 @@ function setupWebSocket(wss: WebSocketServer) {
           sessionId: cr.session.sessionId,
           sessionFile: cr.session.sessionFile,
         });
-        
+
         // Send current state after a short delay
         setTimeout(() => {
           const s = cr.session;
@@ -1090,8 +1143,18 @@ function setupWebSocket(wss: WebSocketServer) {
             isWorking: !cr.idle,
             cwd: cr.cwd,
           });
+          // Also send messages so client has full conversation history
+          broadcastToClients(cr, {
+            type: "rpc_response",
+            command: "get_messages",
+            data: {
+              messages: s.messages,
+              isWorking: !cr.idle,
+              sessionId: s.sessionId,
+            }
+          });
         }, 100);
-        
+
         console.log(`📖 Loaded session ${sessionId} for ${cwd}`);
       }
 

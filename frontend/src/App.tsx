@@ -251,10 +251,17 @@ export default function App() {
           let copy = [...prev];
           let state = currentAssistantRef.current;
           if (!state) {
-            state = { thinking: '', thinkingFinished: false, text: '', toolCalls: [] };
+            // Check if last message is already an assistant message (from reconnection)
+            const lastMsg = copy[copy.length - 1];
+            if (lastMsg?.type === 'assistant') {
+              state = lastMsg.assistantState || { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length - 1;
+            } else {
+              state = { thinking: '', thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length;
+              copy.push({ type: 'assistant', text: '', assistantState: state });
+            }
             currentAssistantRef.current = state;
-            msgIdxRef.current = copy.length;
-            copy.push({ type: 'assistant', text: '', assistantState: state });
           }
           state.thinking = '';
           state.thinkingFinished = false;
@@ -270,10 +277,17 @@ export default function App() {
           let copy = [...prev];
           let state = currentAssistantRef.current;
           if (!state) {
-            state = { thinking: '', thinkingFinished: false, text: '', toolCalls: [] };
+            // Check if last message is already an assistant message (from reconnection)
+            const lastMsg = copy[copy.length - 1];
+            if (lastMsg?.type === 'assistant') {
+              state = lastMsg.assistantState || { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length - 1;
+            } else {
+              state = { thinking: '', thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length;
+              copy.push({ type: 'assistant', text: '', assistantState: state });
+            }
             currentAssistantRef.current = state;
-            msgIdxRef.current = copy.length;
-            copy.push({ type: 'assistant', text: '', assistantState: state });
           }
           state.thinking = (state.thinking || '') + event.text;
           if (msgIdxRef.current !== null) {
@@ -300,10 +314,17 @@ export default function App() {
           let copy = [...prev];
           let state = currentAssistantRef.current;
           if (!state) {
-            state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+            // Check if last message is already an assistant message (from reconnection)
+            const lastMsg = copy[copy.length - 1];
+            if (lastMsg?.type === 'assistant') {
+              state = lastMsg.assistantState || { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length - 1;
+            } else {
+              state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length;
+              copy.push({ type: 'assistant', text: '', assistantState: state });
+            }
             currentAssistantRef.current = state;
-            msgIdxRef.current = copy.length;
-            copy.push({ type: 'assistant', text: '', assistantState: state });
           }
           state.text = '';
           if (msgIdxRef.current !== null) {
@@ -318,10 +339,17 @@ export default function App() {
           let copy = [...prev];
           let state = currentAssistantRef.current;
           if (!state) {
-            state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+            // Check if last message is already an assistant message (from reconnection)
+            const lastMsg = copy[copy.length - 1];
+            if (lastMsg?.type === 'assistant') {
+              state = lastMsg.assistantState || { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length - 1;
+            } else {
+              state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length;
+              copy.push({ type: 'assistant', text: '', assistantState: state });
+            }
             currentAssistantRef.current = state;
-            msgIdxRef.current = copy.length;
-            copy.push({ type: 'assistant', text: '', assistantState: state });
           }
           state.text += event.text;
           if (msgIdxRef.current !== null) {
@@ -344,10 +372,17 @@ export default function App() {
           let copy = [...prev];
           let state = currentAssistantRef.current;
           if (!state) {
-            state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+            // Check if last message is already an assistant message (from reconnection)
+            const lastMsg = copy[copy.length - 1];
+            if (lastMsg?.type === 'assistant') {
+              state = lastMsg.assistantState || { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length - 1;
+            } else {
+              state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length;
+              copy.push({ type: 'assistant', text: '', assistantState: state });
+            }
             currentAssistantRef.current = state;
-            msgIdxRef.current = copy.length;
-            copy.push({ type: 'assistant', text: '', assistantState: state });
           }
           state.toolCalls.push({ name: event.tool, args: '', argsRaw: '', isRunning: true });
           if (msgIdxRef.current !== null) {
@@ -398,16 +433,24 @@ export default function App() {
           let copy = [...prev];
           let state = currentAssistantRef.current;
           if (!state) {
-            state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+            // Check if last message is already an assistant message (from reconnection)
+            const lastMsg = copy[copy.length - 1];
+            if (lastMsg?.type === 'assistant') {
+              state = lastMsg.assistantState || { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length - 1;
+            } else {
+              state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+              msgIdxRef.current = copy.length;
+              copy.push({ type: 'assistant', text: '', assistantState: state });
+            }
             currentAssistantRef.current = state;
-            msgIdxRef.current = copy.length;
-            copy.push({ type: 'assistant', text: '', assistantState: state });
           }
           state.toolCalls.push({
             name: event.tool,
             args: event.args ? JSON.stringify(event.args).slice(0, 80) : '',
             argsRaw: event.args ? JSON.stringify(event.args) : '',
             isRunning: true,
+            toolCallId: event.toolCallId,
           });
           if (msgIdxRef.current !== null) {
             copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
@@ -420,10 +463,28 @@ export default function App() {
         setMessages(prev => {
           let copy = [...prev];
           let state = currentAssistantRef.current;
+          if (!state) {
+            // Try to find existing assistant state from reconnected messages
+            for (let i = copy.length - 1; i >= 0; i--) {
+              if (copy[i].type === 'assistant' && copy[i].assistantState) {
+                state = copy[i].assistantState!;
+                msgIdxRef.current = i;
+                currentAssistantRef.current = state;
+                break;
+              }
+            }
+          }
           if (state) {
-            const last = state.toolCalls[state.toolCalls.length - 1];
-            if (last) {
-              last.result = (last.result || '') + event.text;
+            // Try to find tool call by toolCallId first, otherwise use last
+            let targetToolCall: { name: string; args: string; argsRaw: string; result?: string; isRunning: boolean; isError?: boolean; toolCallId?: string } | undefined;
+            if (event.toolCallId) {
+              targetToolCall = state.toolCalls.find(tc => tc.toolCallId === event.toolCallId);
+            }
+            if (!targetToolCall) {
+              targetToolCall = state.toolCalls[state.toolCalls.length - 1];
+            }
+            if (targetToolCall) {
+              targetToolCall.result = (targetToolCall.result || '') + event.text;
             }
             if (msgIdxRef.current !== null) {
               copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
@@ -437,13 +498,31 @@ export default function App() {
         setMessages(prev => {
           let copy = [...prev];
           let state = currentAssistantRef.current;
+          if (!state) {
+            // Try to find existing assistant state from reconnected messages
+            for (let i = copy.length - 1; i >= 0; i--) {
+              if (copy[i].type === 'assistant' && copy[i].assistantState) {
+                state = copy[i].assistantState!;
+                msgIdxRef.current = i;
+                currentAssistantRef.current = state;
+                break;
+              }
+            }
+          }
           if (state) {
-            const last = state.toolCalls[state.toolCalls.length - 1];
-            if (last) {
-              last.isRunning = false;
-              last.isError = event.isError;
+            // Try to find tool call by toolCallId first, otherwise use last
+            let targetToolCall: { name: string; args: string; argsRaw: string; result?: string; isRunning: boolean; isError?: boolean; toolCallId?: string } | undefined;
+            if (event.toolCallId) {
+              targetToolCall = state.toolCalls.find(tc => tc.toolCallId === event.toolCallId);
+            }
+            if (!targetToolCall) {
+              targetToolCall = state.toolCalls[state.toolCalls.length - 1];
+            }
+            if (targetToolCall) {
+              targetToolCall.isRunning = false;
+              targetToolCall.isError = event.isError;
               if (event.result?.content) {
-                last.result = event.result.content
+                targetToolCall.result = event.result.content
                   .filter((c: any) => c.type === 'text')
                   .map((c: any) => c.text)
                   .join('')
@@ -545,6 +624,61 @@ export default function App() {
             });
           }
         }
+        if (event.command === 'get_messages') {
+          const inMemoryMessages = event.data?.messages;
+          const isWorking = event.data?.isWorking;
+          if (Array.isArray(inMemoryMessages)) {
+            const newMessages: Message[] = [];
+            for (const msg of inMemoryMessages) {
+              if (msg.role === 'user') {
+                const text = extractMsgText(msg.content);
+                const imgs = extractMsgImages(msg.content);
+                if (text || imgs.length) {
+                  newMessages.push({ type: 'user', text, images: imgs.length ? imgs : undefined });
+                }
+              } else if (msg.role === 'assistant') {
+                const state: AssistantMessageState = {
+                  thinking: null,
+                  thinkingFinished: false,
+                  text: '',
+                  toolCalls: [],
+                };
+                const content = msg.content;
+                if (typeof content === 'string') {
+                  state.text = content;
+                } else if (Array.isArray(content)) {
+                  for (const part of content) {
+                    if (part.type === 'thinking' && part.thinking) {
+                      state.thinking = part.thinking;
+                      state.thinkingFinished = true;
+                    } else if (part.type === 'toolCall') {
+                      state.toolCalls.push({
+                        name: part.name || 'unknown',
+                        args: part.arguments ? JSON.stringify(part.arguments).slice(0, 80) : '',
+                        argsRaw: part.arguments ? JSON.stringify(part.arguments) : '',
+                        isRunning: part.isRunning ?? false,
+                        toolCallId: part.id,
+                      });
+                    } else if (part.type === 'text' && part.text) {
+                      state.text += (state.text ? '\n' : '') + part.text;
+                    }
+                  }
+                }
+                if (state.text || state.thinking || state.toolCalls.length > 0) {
+                  newMessages.push({ type: 'assistant', text: state.text, assistantState: state });
+                }
+              }
+            }
+            if (newMessages.length > 0) {
+              setMessages(newMessages);
+              setMessagesLoaded(true);
+              // Set isBusy from the server response
+              if (isWorking !== undefined) {
+                setIsBusy(isWorking);
+              }
+            }
+          }
+        }
         break;
 
       case 'agent_start':
@@ -579,7 +713,7 @@ export default function App() {
     onEvent: handleEvent,
     onConnected: () => {
       setShowDisconnect(false);
-      
+
       // Refresh sessions list on reconnect
       if (selectedCwd) {
         fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
@@ -587,16 +721,16 @@ export default function App() {
           .then(data => setSessions(data))
           .catch(() => {});
       }
-      
-      // Load session via WS to sync state
-      if (selectedCwd && activeSessionId) {
-        send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId });
-      }
-      
+
       // Poll for current state
       if (selectedCwd) {
         send({ type: 'get_state', cwd: selectedCwd });
-        send({ type: 'get_session_stats', cwd: selectedCwd });
+        send({ type: 'get_available_models', cwd: selectedCwd });
+      }
+
+      // Load session via WS to sync state — get_messages will be called after session_loaded
+      if (selectedCwd && activeSessionId) {
+        send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId });
       }
     },
     onDisconnected: () => {
@@ -751,6 +885,26 @@ export default function App() {
     setQueueInfo({ steering: 0, followUp: 0 });
   }, [selectedCwd, send, updateUrl]);
 
+  // Delete session
+  const handleDeleteSession = useCallback(async (sessionId: string) => {
+    if (!confirm('Delete this session? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+      if (res.ok) {
+        // Remove from sessions list
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        // If deleted session was active, clear selection
+        if (activeSessionId === sessionId) {
+          updateUrl(selectedCwd, null);
+          setMessages([]);
+          setMessagesLoaded(false);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to delete session:', e);
+    }
+  }, [activeSessionId, selectedCwd, updateUrl]);
+
   // Select model
   const handleSelectModel = useCallback((provider: string, modelId: string) => {
     if (!selectedCwd) return;
@@ -786,6 +940,7 @@ export default function App() {
         onSelectCwd={handleSelectCwd}
         onSelectSession={loadSession}
         onNewSession={handleNewSession}
+        onDeleteSession={handleDeleteSession}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 

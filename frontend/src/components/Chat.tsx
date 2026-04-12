@@ -3,6 +3,8 @@ import { renderMarkdown, highlightCodeBlocks } from '../utils/markdown';
 
 // ── Types ──
 export interface ToolCall {
+  id?: string;
+  toolCallId?: string;
   name: string;
   args: string;
   result?: string;
