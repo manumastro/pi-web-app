@@ -179,8 +179,13 @@ I modelli disponibili vengono caricati da `models.json` (generato da `pi --list-
 | `PI_WEB_AUTH_TOKEN` | *(vuoto)* | Token per autenticazione WebSocket |
 | `PI_WEB_IDLE_TIMEOUT_MS` | `0` | Timeout idle processi pi (0 = disabled) |
 | `PI_WEB_CWD` | `$HOME` | Directory di lavoro default |
+| `OPENCODE_API_KEY` | *(vuoto)* | API key per provider opencode/opencode-go |
 
 Vedi `pi-web.service` per la configurazione systemd.
+
+> **Nota:** Alcuni provider (es. `opencode`, `minimax`) usano variabili d'ambiente invece di `auth.json`.
+> Assicurati che siano configurate nel servizio systemd (es. `Environment=OPENCODE_API_KEY=...`).
+> Senza di esse, la selezione del modello fallirà con "No API key for provider/model".
 
 ## 📡 Protocollo WebSocket
 
@@ -195,6 +200,7 @@ Tutti i comandi accettano `cwd` opzionale (default: HOME).
 { "type": "new_session", "cwd": "/path" }
 { "type": "load_session", "cwd": "/path", "sessionId": "uuid" }
 { "type": "set_model", "provider": "anthropic", "modelId": "claude-sonnet-4", "cwd": "/path" }
+{ "type": "cycle_model", "cwd": "/path" }
 { "type": "get_available_models", "cwd": "/path" }
 { "type": "compact", "customInstructions": "...", "cwd": "/path" }
 ```
@@ -204,6 +210,15 @@ Streaming: `thinking_start/delta/end`, `text_start/delta/end`, `toolcall_start/d
 Tool exec: `tool_exec_start/update/end`
 Lifecycle: `agent_start/end`, `done`, `compaction_start/end`
 Info: `model_info`, `queue_update`, `rpc_response`, `rpc_error`, `error`
+
+## 🆕 Changelog
+
+### 2026-04-12
+- **Fix:** `set_model` ora gestisce correttamente errori e rejection (no più "Unhandled rejection: {}")
+- **Fix:** se non esiste una sessione attiva, ne crea una per impostare il modello
+- **Fix:** errori `set_model` mostrati come feedback visibile nella chat
+- **Fix:** aggiunto `try/catch` su `cycle_model`, `set_thinking_level`, `cycle_thinking_level`
+- **Config:** aggiunto `OPENCODE_API_KEY` al servizio systemd per provider opencode
 
 ## 🛠️ Troubleshooting
 
@@ -229,4 +244,10 @@ node --experimental-strip-types -e "
 
 # Rebuild frontend
 cd frontend && npm run build
+
+# Errore "No API key for provider/model"?
+# Controlla che le variabili d'ambiente del provider siano nel servizio systemd:
+sudo systemctl show pi-web -p Environment | grep API_KEY
+# Oppure aggiungi la variabile mancante in /etc/systemd/system/pi-web.service
+# e riavvia: sudo systemctl daemon-reload && sudo systemctl restart pi-web
 ```

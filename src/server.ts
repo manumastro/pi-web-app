@@ -764,25 +764,43 @@ function setupWebSocket(wss: WebSocketServer) {
       }
 
       if (msg.type === "set_model") {
-        // Persist to settings.json
+        const cwd = getCwd(msg);
         try {
-          const settingsPath = path.join(AGENT_DIR, "settings.json");
-          if (fs.existsSync(settingsPath)) {
-            const s = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-            s.defaultProvider = msg.provider;
-            s.defaultModel = msg.modelId;
-            fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2));
-          }
-        } catch (e: any) { console.error(`[set_model] write error: ${e.message}`); }
+          // Persist to settings.json
+          try {
+            const settingsPath = path.join(AGENT_DIR, "settings.json");
+            if (fs.existsSync(settingsPath)) {
+              const s = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+              s.defaultProvider = msg.provider;
+              s.defaultModel = msg.modelId;
+              fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2));
+            }
+          } catch (e: any) { console.error(`[set_model] write error: ${e.message}`); }
 
-        const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
-        if (cr) {
+          let cr = findSessionForClient(ws) || cwdSessions.get(cwd);
+          if (!cr) {
+            // No active session yet — create one so the model can be set
+            console.log(`[set_model] No active session for ${cwd}, creating one...`);
+            cr = await createCwdSession(cwd);
+          }
+          cr.clients.add(ws);
+
           const model = await resolveModelWithAuth(msg.provider, msg.modelId);
           if (model) {
             await cr.session.setModel(model);
             broadcastToClients(cr, { type: "model_info", model: `${msg.provider}/${msg.modelId}` });
+            console.log(`[set_model] Set model to ${msg.provider}/${msg.modelId} for ${cwd}`);
           } else {
             console.error(`[set_model] Model not found: ${msg.provider}/${msg.modelId}`);
+            broadcastToClients(cr, { type: "rpc_error", command: "set_model", error: `Model not found: ${msg.provider}/${msg.modelId}` });
+          }
+        } catch (e: any) {
+          console.error(`[set_model] Failed: ${e.message}`);
+          const cr = cwdSessions.get(cwd);
+          if (cr) {
+            broadcastToClients(cr, { type: "rpc_error", command: "set_model", error: e.message });
+          } else {
+            ws.send(JSON.stringify({ type: "error", message: `Failed to set model: ${e.message}` }));
           }
         }
       }
@@ -790,21 +808,32 @@ function setupWebSocket(wss: WebSocketServer) {
       if (msg.type === "cycle_model") {
         const cr = findSessionForClient(ws);
         if (cr) {
-          const result = await cr.session.cycleModel();
-          if (result?.model) {
-            broadcastToClients(cr, { type: "model_info", model: result.model.id });
+          try {
+            const result = await cr.session.cycleModel();
+            if (result?.model) {
+              broadcastToClients(cr, { type: "model_info", model: result.model.id });
+            }
+          } catch (e: any) {
+            console.error(`[cycle_model] Failed: ${e.message}`);
+            broadcastToClients(cr, { type: "rpc_error", command: "cycle_model", error: e.message });
           }
         }
       }
 
       if (msg.type === "set_thinking_level") {
         const cr = findSessionForClient(ws);
-        if (cr) cr.session.setThinkingLevel(msg.level);
+        if (cr) {
+          try { cr.session.setThinkingLevel(msg.level); }
+          catch (e: any) { console.error(`[set_thinking_level] Failed: ${e.message}`); }
+        }
       }
 
       if (msg.type === "cycle_thinking_level") {
         const cr = findSessionForClient(ws);
-        if (cr) cr.session.cycleThinkingLevel();
+        if (cr) {
+          try { cr.session.cycleThinkingLevel(); }
+          catch (e: any) { console.error(`[cycle_thinking_level] Failed: ${e.message}`); }
+        }
       }
 
       if (msg.type === "get_messages") {
@@ -821,23 +850,22 @@ function setupWebSocket(wss: WebSocketServer) {
       if (msg.type === "get_available_models") {
         const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
         try {
-          // Create fresh registry at request time to get full model list
           // Get models from shared registry
           const available = await modelRegistry.getAvailable();
-          
+
           // Load models from pre-generated CLI output (models.json)
           const cliModelsPath = path.join(__dirname, '..', 'models.json');
           const cliModels = fs.existsSync(cliModelsPath)
             ? JSON.parse(fs.readFileSync(cliModelsPath, 'utf8'))
             : [];
-          
+
           for (const m of cliModels) {
             if (!available.some(a => a.provider === m.provider && a.id === m.id)) {
               available.push(m);
             }
           }
 
-          // Include custom models from getCustomModels
+          // Include custom models from getCustomModels (they have their own auth handling)
           const custom = getCustomModels();
           const customModelsList = Object.values(custom).map((m: any) => ({
             id: m.id,
@@ -857,7 +885,6 @@ function setupWebSocket(wss: WebSocketServer) {
 
           const target = cr || { clients: new Set([ws]) } as CwdSession;
           broadcastToClients(target, { type: "rpc_response", command: "get_available_models", data: { models: all } });
-          broadcastToClients(target, { type: "model_info", model: "qwen-oauth/coder-model" });
         } catch (e: any) {
           console.error(`[get_available_models] Failed: ${e.message}`);
         }

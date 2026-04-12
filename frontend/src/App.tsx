@@ -287,7 +287,13 @@ export default function App() {
         break;
 
       case 'rpc_error':
-        setMessages(prev => [...prev, { type: 'system', text: `RPC error [${event.command}]: ${event.error}`, color: 'var(--color-red)' }]);
+        if (event.command === 'set_model') {
+          // Show model selection error as a toast-like message
+          setMessages(prev => [...prev, { type: 'system', text: `⚠️ ${event.error}`, color: 'var(--color-red)' }]);
+          setCurrentModel(prev => prev || ''); // keep previous
+        } else {
+          setMessages(prev => [...prev, { type: 'system', text: `RPC error [${event.command}]: ${event.error}`, color: 'var(--color-red)' }]);
+        }
         break;
 
       case 'rpc_info':
