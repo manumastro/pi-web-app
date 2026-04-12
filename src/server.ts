@@ -520,12 +520,16 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
     case "agent_start":
       wsMsg = { type: "agent_start" };
       cr.idle = false;
+      // Broadcast to all clients of this CWD (even if they just reconnected)
+      broadcastToClients(cr, { type: "agent_start", isWorking: true });
       break;
     case "agent_end":
       wsMsg = { type: "done", messages: event.messages };
       cr.idle = true;
       cr.lastPromptMsg = null;
       cr.lastPromptImages = null;
+      // Broadcast done to all clients
+      broadcastToClients(cr, { type: "done", isWorking: false });
       resetIdleTimer(cr);
       break;
     case "turn_start":
@@ -765,15 +769,33 @@ function setupWebSocket(wss: WebSocketServer) {
       }
 
       if (msg.type === "abort") {
-        const cr = findSessionForClient(ws);
-        if (cr) cr.session.abort().catch(console.error);
+        const cwd = getCwd(msg);
+        let cr = findSessionForClient(ws) || cwdSessions.get(cwd);
+        
+        if (!cr) {
+          // No session for this client - check if there's any active session for this cwd
+          console.log(`[abort] No active session for client, checking CWD ${cwd}`);
+          // Can't abort if no session exists
+          ws.send(JSON.stringify({ type: "error", message: "No active session to stop" }));
+          return;
+        }
+        
+        cr.session.abort().then(() => {
+          console.log(`[abort] Successfully triggered abort for ${cwd}`);
+          broadcastToClients(cr, { type: "rpc_info", message: "Stop command sent" });
+        }).catch((e: Error) => {
+          console.error(`[abort] Failed: ${e.message}`);
+          broadcastToClients(cr, { type: "error", message: `Stop failed: ${e.message}` });
+        });
       }
 
       // ── State & Model ──
       if (msg.type === "get_state") {
-        const cr = findSessionForClient(ws);
+        const cwd = getCwd(msg);
+        const cr = findSessionForClient(ws) || cwdSessions.get(cwd);
         if (cr) {
           const s = cr.session;
+          // Include idle state so client knows if agent is working
           broadcastToClients(cr, {
             type: "state",
             model: s.model?.id,
@@ -782,7 +804,12 @@ function setupWebSocket(wss: WebSocketServer) {
             messages: s.messages.length,
             sessionId: s.sessionId,
             sessionFile: s.sessionFile,
+            isWorking: !cr.idle,
+            cwd: cr.cwd,
           });
+        } else {
+          // No session exists for this cwd yet - this is fine for new sessions
+          ws.send(JSON.stringify({ type: "state", cwd, isWorking: false }));
         }
       }
 

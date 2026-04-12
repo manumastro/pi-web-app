@@ -342,6 +342,32 @@ export default function App() {
           setAllModels(models);
           setModelsLoaded(true);
         }
+        if (event.command === 'get_state') {
+          const data = event.data || {};
+          const isWorking = data.isWorking ?? false;
+          if (isWorking) setIsBusy(true);
+          if (data.model) {
+            const provider = data.provider || '';
+            setCurrentModel(provider ? `${provider}/${data.model}` : data.model);
+          }
+        }
+        break;
+
+      case 'agent_start':
+        setIsBusy(true);
+        break;
+
+      case 'done':
+        setIsBusy(false);
+        currentAssistantRef.current = null;
+        msgIdxRef.current = null;
+        // Reload sessions
+        if (selectedCwd) {
+          fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
+            .then(r => r.json())
+            .then(data => setSessions(data))
+            .catch(() => {});
+        }
         break;
 
       case 'server_log':
@@ -353,7 +379,15 @@ export default function App() {
 
   const { connected, send } = useWebSocket({
     onEvent: handleEvent,
-    onConnected: () => setShowDisconnect(false),
+    onConnected: () => {
+      setShowDisconnect(false);
+      // Poll for current state after connection (agent might be working)
+      setTimeout(() => {
+        if (selectedCwd) {
+          send({ type: 'get_state', cwd: selectedCwd });
+        }
+      }, 500);
+    },
     onDisconnected: () => {
       setShowDisconnect(true);
       setIsBusy(false);
@@ -363,11 +397,19 @@ export default function App() {
     authToken,
   });
 
-  // Fetch available models when connected and cwd is selected
+  // Poll for state periodically to detect if agent is working when reconnecting
   useEffect(() => {
     if (!connected || !selectedCwd) return;
-    setModelsLoaded(false);
+    
+    const pollInterval = setInterval(() => {
+      send({ type: 'get_state', cwd: selectedCwd });
+    }, 3000); // Poll every 3 seconds
+    
+    // Initial poll
+    send({ type: 'get_state', cwd: selectedCwd });
     send({ type: 'get_available_models', cwd: selectedCwd });
+    
+    return () => clearInterval(pollInterval);
   }, [connected, selectedCwd, send]);
 
   // Send message
