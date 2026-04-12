@@ -377,10 +377,42 @@ export default function App() {
     }
   }, [selectedCwd, messages.length]);
 
-  const { connected, send } = useWebSocket({
+  const { connected, send, reconnect } = useWebSocket({
     onEvent: handleEvent,
     onConnected: () => {
       setShowDisconnect(false);
+      // Refresh sessions list on reconnect
+      if (selectedCwd) {
+        fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
+          .then(r => r.json())
+          .then(data => setSessions(data))
+          .catch(() => {});
+        
+        // If we have an active session, reload its messages
+        if (activeSessionId) {
+          fetch(`/api/sessions/${activeSessionId}`)
+            .then(r => r.json())
+            .then(data => {
+              // Reconstruct messages from session history
+              setMessages([]);
+              if (data.messages) {
+                for (const entry of data.messages) {
+                  if (entry.type === 'message' && entry.message) {
+                    const msg = entry.message;
+                    if (msg.role === 'user') {
+                      const text = extractMsgText(msg.content);
+                      const imgs = extractMsgImages(msg.content);
+                      if (text || imgs.length) {
+                        setMessages(prev => [...prev, { type: 'user', text, images: imgs.length ? imgs : undefined }]);
+                      }
+                    }
+                  }
+                }
+              }
+            })
+            .catch(() => {});
+        }
+      }
       // Poll for current state after connection (agent might be working)
       setTimeout(() => {
         if (selectedCwd) {
