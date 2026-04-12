@@ -385,18 +385,39 @@ async function resolveModelWithAuth(provider: string, modelId: string): Promise<
 async function createCwdSession(cwd: string, sessionManager?: SessionManager): Promise<CwdSession> {
   const settingsManager = SettingsManager.create(cwd, AGENT_DIR);
 
-  // Load extensions manually via paths (avoids npm install of packages)
+  // Load extensions dynamically from settings.json packages + base extensions
+  const settingsPath = path.join(AGENT_DIR, "settings.json");
+  let settingsData: any = {};
+  let settingsPackages: string[] = [];
+  try {
+    if (fs.existsSync(settingsPath)) {
+      settingsData = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      settingsPackages = settingsData.packages || [];
+    }
+  } catch (e: any) {
+    console.error(`[loadExtensions] settings read error: ${e.message}`);
+  }
+
+  const baseExtensions = [
+    "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-agent-browser/index.ts",
+  ];
+  // Resolve relative paths to absolute
+  const resolvePath = (p: string) => {
+    if (p.startsWith("../../")) {
+      return path.join(HOME, ".nvm/versions/node/v24.12.0/lib/node_modules", p.replace(/^\.\.\/\.\.\//, ""));
+    }
+    if (p.startsWith("npm:")) {
+      const pkgName = p.replace("npm:", "");
+      return path.join(HOME, ".nvm/versions/node/v24.12.0/lib/node_modules", pkgName, "index.ts");
+    }
+    return p;
+  };
+  const allExtensionPaths = [...baseExtensions, ...settingsPackages.map(resolvePath)].filter(p => p && fs.existsSync(p));
+
   const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir: AGENT_DIR,
-    additionalExtensionPaths: [
-      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-qwen-oauth/index.ts",
-      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-agent-browser/index.ts",
-      // Context management extensions
-      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-context-saver/extensions/context-saver.ts",
-      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-mono-context-guard/index.ts",
-      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-dcp/index.ts",
-    ],
+    additionalExtensionPaths: allExtensionPaths,
   });
   await resourceLoader.reload();
 
@@ -419,18 +440,14 @@ async function createCwdSession(cwd: string, sessionManager?: SessionManager): P
     sessionManager: sm,
   });
 
-  // Apply settings from settings.json
-  const settingsPath = path.join(AGENT_DIR, "settings.json");
+  // Apply other settings from settings.json
   try {
-    if (fs.existsSync(settingsPath)) {
-      const s = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-      if (s.compaction) settingsManager.applyOverrides({ compaction: s.compaction });
-      if (s.retry) settingsManager.applyOverrides({ retry: s.retry });
-      if (s.defaultThinkingLevel) session.setThinkingLevel(s.defaultThinkingLevel);
-      if (s.defaultProvider && s.defaultModel) {
-        const model = await resolveModelWithAuth(s.defaultProvider, s.defaultModel);
-        if (model) await session.setModel(model);
-      }
+    if (settingsData.compaction) settingsManager.applyOverrides({ compaction: settingsData.compaction });
+    if (settingsData.retry) settingsManager.applyOverrides({ retry: settingsData.retry });
+    if (settingsData.defaultThinkingLevel) session.setThinkingLevel(settingsData.defaultThinkingLevel);
+    if (settingsData.defaultProvider && settingsData.defaultModel) {
+      const model = await resolveModelWithAuth(settingsData.defaultProvider, settingsData.defaultModel);
+      if (model) await session.setModel(model);
     }
   } catch (e: any) {
     console.error(`[createCwdSession] settings load error: ${e.message}`);
