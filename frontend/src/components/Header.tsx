@@ -113,7 +113,11 @@ export function Header({ cwdLabel, currentModel, queueInfo, connected, modelsLoa
                 placeholder="Search models (e.g. minimax, opencode)..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-3 py-1.5 text-xs text-[var(--color-text)] placeholder-[var(--color-text-dim)] outline-none focus:border-[var(--color-cyan)]"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded px-3 py-1.5 text-base text-[var(--color-text)] placeholder-[var(--color-text-dim)] outline-none focus:border-[var(--color-cyan)] [-webkit-text-size-adjust:100%]"
               />
             </div>
 

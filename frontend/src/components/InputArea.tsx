@@ -139,7 +139,11 @@ export function InputArea({ onSend, onStop, isBusy, disabled }: InputAreaProps) 
           placeholder="Ask pi anything…"
           rows={1}
           disabled={disabled}
-          className="flex-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-[10px] px-3.5 py-2.5 text-[var(--color-text)] text-sm outline-none resize-none min-h-[42px] max-h-[180px] leading-relaxed focus:border-[var(--color-accent)] disabled:opacity-50 placeholder:text-[var(--color-text-dim)]"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          className="flex-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-[10px] px-3.5 py-2.5 text-[var(--color-text)] text-base outline-none resize-none min-h-[42px] max-h-[180px] leading-relaxed focus:border-[var(--color-accent)] disabled:opacity-50 placeholder:text-[var(--color-text-dim)]"
         />
         {isBusy ? (
           <button
