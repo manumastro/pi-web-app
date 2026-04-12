@@ -10,6 +10,7 @@ interface SidebarProps {
   onSelectCwd: (cwd: string) => void;
   onSelectSession: (session: SessionInfo) => void;
   onNewSession: () => void;
+  onDeleteSession: (sessionId: string) => void;
   onToggle: () => void;
 }
 
@@ -23,6 +24,7 @@ export function Sidebar({
   onSelectCwd,
   onSelectSession,
   onNewSession,
+  onDeleteSession,
   onToggle,
 }: SidebarProps) {
   const totalSessions = cwds.reduce((s, c) => s + c.sessionCount, 0);
@@ -86,7 +88,7 @@ export function Sidebar({
           {sessions.map(s => (
             <div
               key={s.id}
-              className={`px-3 py-2 cursor-pointer border-l-[3px] border-transparent transition-colors
+              className={`group px-3 py-2 cursor-pointer border-l-[3px] border-transparent transition-colors relative
                 ${s.id === activeSessionId
                   ? 'bg-[var(--color-surface-3)] border-l-[var(--color-accent)]'
                   : 'hover:bg-[var(--color-surface-2)]'
@@ -107,6 +109,16 @@ export function Sidebar({
               <div className="text-[10px] text-[var(--color-text-dim)] font-mono mt-0.5 truncate">
                 {s.cwdLabel}
               </div>
+              {/* Delete button */}
+              <button
+                onClick={(e) => { e.stopPropagation(); onDeleteSession(s.id); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-60 hover:opacity-100 hover:bg-[var(--color-red)]/20 text-[var(--color-red)] transition-opacity"
+                title="Delete session"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
             </div>
           ))}
         </div>
