@@ -122,10 +122,10 @@ function getAllSessions(): SessionInfo[] {
 function getSessionsForCwd(cwd: string): SessionInfo[] {
   const dp = path.join(SESSIONS_DIR, encodeDirName(cwd));
   if (!fs.existsSync(dp)) return [];
-  return fs.readdirSync(dp).filter(x => x.endsWith(".jsonl"))
+  const sessions = fs.readdirSync(dp).filter(x => x.endsWith(".jsonl"))
     .map(f => parseSessionFilePath(path.join(dp, f), cwd, cwd.replace(HOME, "~")))
-    .filter(Boolean) as SessionInfo[]
-    .sort((a, b) => b!.lastModified - a!.lastModified);
+    .filter((s): s is SessionInfo => s !== null);
+  return sessions.sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
 }
 
 function findSessionFileBySessionId(cwd: string, sessionId: string): string | null {
