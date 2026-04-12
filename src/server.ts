@@ -1036,6 +1036,7 @@ function setupWebSocket(wss: WebSocketServer) {
 
         // Check if there's already an active session for this cwd
         const existingCr = cwdSessions.get(cwd);
+        console.log(`[load_session] existingCr=${!!existingCr}, existingSessionId=${existingCr?.session.sessionId}, reqSessionId=${sessionId}`);
         if (existingCr && existingCr.session.sessionId === sessionId) {
           // Same session already active, just add this client and preserve state
           existingCr.clients.add(ws);

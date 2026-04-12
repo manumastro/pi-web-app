@@ -187,12 +187,38 @@ export function WorkingIndicator() {
 // ── Message List ──
 export function MessageList({ messages, isWorking }: { messages: Message[]; isWorking: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number>(0);
 
+  // Scroll to bottom when messages change or working state changes
   useEffect(() => {
     if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      const container = containerRef.current;
+      const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          // Always scroll to bottom when messages change or isWorking is true
+          containerRef.current.scrollTo({
+            top: containerRef.current.scrollHeight,
+            behavior: isWorking ? 'auto' : 'smooth'
+          });
+        }
+      });
     }
   }, [messages, isWorking]);
+
+  // Additional scroll when assistant state changes (for streaming)
+  useEffect(() => {
+    if (isWorking && containerRef.current) {
+      // Poll more frequently during working state to catch streaming updates
+      const interval = setInterval(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  }, [isWorking, messages.length]);
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-3 scroll-smooth min-h-0">

@@ -232,9 +232,8 @@ export default function App() {
           const provider = event.provider || '';
           setCurrentModel(provider ? `${provider}/${event.model}` : event.model);
         }
-        if (event.isWorking) {
-          setIsBusy(true);
-        }
+        // Always set isBusy to the actual value from server state
+        setIsBusy(event.isWorking || false);
         if (event.sessionId) {
           // Sync URL with server session
           if (event.sessionId !== activeSessionId) {
@@ -248,49 +247,45 @@ export default function App() {
         break;
 
       case 'thinking_start':
-        if (!currentAssistantRef.current) {
-          const state: AssistantMessageState = { thinking: '', thinkingFinished: false, text: '', toolCalls: [] };
-          currentAssistantRef.current = state;
-          const idx = messages.length;
-          msgIdxRef.current = idx;
-          setMessages(prev => [...prev, { type: 'assistant', text: '', assistantState: state }]);
-        }
-        currentAssistantRef.current.thinking = '';
-        currentAssistantRef.current.thinkingFinished = false;
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (!state) {
+            state = { thinking: '', thinkingFinished: false, text: '', toolCalls: [] };
+            currentAssistantRef.current = state;
+            msgIdxRef.current = copy.length;
+            copy.push({ type: 'assistant', text: '', assistantState: state });
+          }
+          state.thinking = '';
+          state.thinkingFinished = false;
+          if (msgIdxRef.current !== null) {
+            copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+          }
+          return copy;
+        });
         break;
 
       case 'thinking_delta':
-        if (currentAssistantRef.current) {
-          currentAssistantRef.current.thinking = (currentAssistantRef.current.thinking || '') + event.text;
-          setMessages(prev => {
-            if (msgIdxRef.current === null) return prev;
-            const copy = [...prev];
-            copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...currentAssistantRef.current! } };
-            return copy;
-          });
-        }
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (!state) {
+            state = { thinking: '', thinkingFinished: false, text: '', toolCalls: [] };
+            currentAssistantRef.current = state;
+            msgIdxRef.current = copy.length;
+            copy.push({ type: 'assistant', text: '', assistantState: state });
+          }
+          state.thinking = (state.thinking || '') + event.text;
+          if (msgIdxRef.current !== null) {
+            copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+          }
+          return copy;
+        });
         break;
 
       case 'thinking_end':
         if (currentAssistantRef.current) {
           currentAssistantRef.current.thinkingFinished = true;
-        }
-        break;
-
-      case 'text_start':
-        if (!currentAssistantRef.current) {
-          const state: AssistantMessageState = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
-          currentAssistantRef.current = state;
-          const idx = messages.length;
-          msgIdxRef.current = idx;
-          setMessages(prev => [...prev, { type: 'assistant', text: '', assistantState: state }]);
-        }
-        currentAssistantRef.current.text = '';
-        break;
-
-      case 'text_delta':
-        if (currentAssistantRef.current) {
-          currentAssistantRef.current.text += event.text;
           setMessages(prev => {
             if (msgIdxRef.current === null) return prev;
             const copy = [...prev];
@@ -298,6 +293,42 @@ export default function App() {
             return copy;
           });
         }
+        break;
+
+      case 'text_start':
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (!state) {
+            state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+            currentAssistantRef.current = state;
+            msgIdxRef.current = copy.length;
+            copy.push({ type: 'assistant', text: '', assistantState: state });
+          }
+          state.text = '';
+          if (msgIdxRef.current !== null) {
+            copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+          }
+          return copy;
+        });
+        break;
+
+      case 'text_delta':
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (!state) {
+            state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+            currentAssistantRef.current = state;
+            msgIdxRef.current = copy.length;
+            copy.push({ type: 'assistant', text: '', assistantState: state });
+          }
+          state.text += event.text;
+          if (msgIdxRef.current !== null) {
+            copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+          }
+          return copy;
+        });
         break;
 
       case 'text_end':
@@ -309,81 +340,122 @@ export default function App() {
         break;
 
       case 'toolcall_start':
-        if (!currentAssistantRef.current) {
-          const state: AssistantMessageState = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
-          currentAssistantRef.current = state;
-          const idx = messages.length;
-          msgIdxRef.current = idx;
-          setMessages(prev => [...prev, { type: 'assistant', text: '', assistantState: state }]);
-        }
-        currentAssistantRef.current.toolCalls.push({
-          name: event.tool,
-          args: '',
-          argsRaw: '',
-          isRunning: true,
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (!state) {
+            state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+            currentAssistantRef.current = state;
+            msgIdxRef.current = copy.length;
+            copy.push({ type: 'assistant', text: '', assistantState: state });
+          }
+          state.toolCalls.push({ name: event.tool, args: '', argsRaw: '', isRunning: true });
+          if (msgIdxRef.current !== null) {
+            copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+          }
+          return copy;
         });
         break;
 
       case 'toolcall_delta':
-        if (currentAssistantRef.current) {
-          const last = currentAssistantRef.current.toolCalls[currentAssistantRef.current.toolCalls.length - 1];
-          if (last) {
-            last.argsRaw += event.text;
-            last.args = last.argsRaw.slice(0, 80) + (last.argsRaw.length > 80 ? '…' : '');
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (state) {
+            const last = state.toolCalls[state.toolCalls.length - 1];
+            if (last) {
+              last.argsRaw += event.text;
+              last.args = last.argsRaw.slice(0, 80) + (last.argsRaw.length > 80 ? '…' : '');
+            }
+            if (msgIdxRef.current !== null) {
+              copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+            }
           }
-        }
+          return copy;
+        });
         break;
 
       case 'toolcall_end':
-        if (currentAssistantRef.current) {
-          const last = currentAssistantRef.current.toolCalls[currentAssistantRef.current.toolCalls.length - 1];
-          if (last) {
-            last.isRunning = false;
-            if (event.tool) last.name = event.tool;
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (state) {
+            const last = state.toolCalls[state.toolCalls.length - 1];
+            if (last) {
+              last.isRunning = false;
+              if (event.tool) last.name = event.tool;
+            }
+            if (msgIdxRef.current !== null) {
+              copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+            }
           }
-        }
+          return copy;
+        });
         break;
 
       case 'tool_exec_start':
-        if (!currentAssistantRef.current) {
-          const state: AssistantMessageState = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
-          currentAssistantRef.current = state;
-          const idx = messages.length;
-          msgIdxRef.current = idx;
-          setMessages(prev => [...prev, { type: 'assistant', text: '', assistantState: state }]);
-        }
-        currentAssistantRef.current.toolCalls.push({
-          name: event.tool,
-          args: event.args ? JSON.stringify(event.args).slice(0, 80) : '',
-          argsRaw: event.args ? JSON.stringify(event.args) : '',
-          isRunning: true,
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (!state) {
+            state = { thinking: null, thinkingFinished: false, text: '', toolCalls: [] };
+            currentAssistantRef.current = state;
+            msgIdxRef.current = copy.length;
+            copy.push({ type: 'assistant', text: '', assistantState: state });
+          }
+          state.toolCalls.push({
+            name: event.tool,
+            args: event.args ? JSON.stringify(event.args).slice(0, 80) : '',
+            argsRaw: event.args ? JSON.stringify(event.args) : '',
+            isRunning: true,
+          });
+          if (msgIdxRef.current !== null) {
+            copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+          }
+          return copy;
         });
         break;
 
       case 'tool_exec_update':
-        if (currentAssistantRef.current) {
-          const last = currentAssistantRef.current.toolCalls[currentAssistantRef.current.toolCalls.length - 1];
-          if (last) {
-            last.result = (last.result || '') + event.text;
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (state) {
+            const last = state.toolCalls[state.toolCalls.length - 1];
+            if (last) {
+              last.result = (last.result || '') + event.text;
+            }
+            if (msgIdxRef.current !== null) {
+              copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
+            }
           }
-        }
+          return copy;
+        });
         break;
 
       case 'tool_exec_end':
-        if (currentAssistantRef.current) {
-          const last = currentAssistantRef.current.toolCalls[currentAssistantRef.current.toolCalls.length - 1];
-          if (last) {
-            last.isRunning = false;
-            last.isError = event.isError;
-            if (event.result?.content) {
-              last.result = event.result.content
-                .filter((c: any) => c.type === 'text')
-                .map((c: any) => c.text)
-                .join('')
-                .slice(0, 1000);
+        setMessages(prev => {
+          let copy = [...prev];
+          let state = currentAssistantRef.current;
+          if (state) {
+            const last = state.toolCalls[state.toolCalls.length - 1];
+            if (last) {
+              last.isRunning = false;
+              last.isError = event.isError;
+              if (event.result?.content) {
+                last.result = event.result.content
+                  .filter((c: any) => c.type === 'text')
+                  .map((c: any) => c.text)
+                  .join('')
+                  .slice(0, 1000);
+              }
+            }
+            if (msgIdxRef.current !== null) {
+              copy[msgIdxRef.current] = { ...copy[msgIdxRef.current], assistantState: { ...state } };
             }
           }
-        }
+          return copy;
+        });
         break;
 
       case 'done':
@@ -486,33 +558,6 @@ export default function App() {
 
       case 'session_loaded':
         // Don't change messages on session_loaded - they're already in cache/URL
-        // Update stats
-        if (event.sessionId) {
-          fetch(`/api/sessions/${event.sessionId}`)
-            .then(r => r.json())
-            .then(data => {
-              if (data.messages && messages.length === 0) {
-                // Only load if we have no cached messages
-                const newMessages: Message[] = [];
-                for (const entry of data.messages) {
-                  if (entry.type === 'message' && entry.message) {
-                    const msg = entry.message;
-                    if (msg.role === 'user') {
-                      const text = extractMsgText(msg.content);
-                      const imgs = extractMsgImages(msg.content);
-                      if (text || imgs.length) {
-                        newMessages.push({ type: 'user', text, images: imgs.length ? imgs : undefined });
-                      }
-                    }
-                  }
-                }
-                if (newMessages.length > 0) {
-                  setMessages(newMessages);
-                }
-              }
-            })
-            .catch(() => {});
-        }
         break;
 
       case 'session_created':
@@ -528,7 +573,7 @@ export default function App() {
         }
         break;
     }
-  }, [selectedCwd, activeSessionId, messages.length, updateUrl]);
+  }, [selectedCwd, activeSessionId, updateUrl]);
 
   const { connected, send, reconnect } = useWebSocket({
     onEvent: handleEvent,
