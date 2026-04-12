@@ -12,6 +12,7 @@ export function InputArea({ onSend, onStop, isBusy, disabled }: InputAreaProps) 
   const [images, setImages] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
@@ -94,6 +95,7 @@ export function InputArea({ onSend, onStop, isBusy, disabled }: InputAreaProps) 
       )}
 
       <div className="flex gap-2.5 max-w-[1000px] mx-auto items-end">
+        {/* Gallery button - select from device */}
         <input
           type="file"
           accept="image/*"
@@ -106,9 +108,27 @@ export function InputArea({ onSend, onStop, isBusy, disabled }: InputAreaProps) 
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled && !isBusy}
           className="w-[42px] h-[42px] rounded-full border border-[var(--color-border)] text-[var(--color-text-dim)] flex items-center justify-center hover:bg-[var(--color-surface-2)] shrink-0 disabled:opacity-50"
-          title="Add Image"
+          title="Add from Gallery"
         >
           +
+        </button>
+
+        {/* Camera button - take photo */}
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          ref={cameraInputRef}
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <button
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={disabled && !isBusy}
+          className="w-[42px] h-[42px] rounded-full border border-[var(--color-border)] text-[var(--color-text-dim)] flex items-center justify-center hover:bg-[var(--color-surface-2)] shrink-0 disabled:opacity-50"
+          title="Take Photo"
+        >
+          📷
         </button>
         <textarea
           ref={textareaRef}

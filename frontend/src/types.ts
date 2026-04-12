@@ -32,6 +32,21 @@ export interface SessionEntry {
   };
 }
 
+// Extended model info for UI display
+export interface ModelInfo {
+  id: string;
+  name?: string;
+  provider: string;
+  reasoning?: boolean;
+  input?: string[];  // ['text'] or ['text', 'image']
+  contextWindow?: number;
+  maxTokens?: number;
+  cost?: {
+    input: number;
+    output: number;
+  };
+}
+
 // ── WebSocket Events (Server → Client) ──
 export type WsEvent =
   | { type: 'model_info'; model: string }

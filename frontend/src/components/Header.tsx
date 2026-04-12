@@ -1,10 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-
-interface ModelInfo {
-  id: string;
-  name?: string;
-  provider: string;
-}
+import type { ModelInfo } from '../types';
 
 interface HeaderProps {
   cwdLabel: string;
@@ -138,19 +133,39 @@ export function Header({ cwdLabel, currentModel, queueInfo, connected, modelsLoa
                     <div className="px-3 py-1 text-[10px] uppercase text-[var(--color-text-dim)] font-semibold">
                       {provider} ({providerModels.length})
                     </div>
-                    {providerModels.map(m => (
-                      <div
-                        key={`${m.provider}/${m.id}`}
-                        className={`px-3 py-2 rounded-md cursor-pointer flex items-center gap-2 text-xs
-                          ${`${m.provider}/${m.id}` === currentModel ? 'bg-[var(--color-accent)] text-white' : 'hover:bg-[var(--color-surface-3)]'}`}
-                        onClick={() => handleSelect(m)}
-                      >
-                        <span className="font-medium">{m.name || m.id}</span>
-                        <span className={`ml-auto text-[10px] ${`${m.provider}/${m.id}` === currentModel ? 'text-white/70' : 'text-[var(--color-text-dim)]'}`}>
-                          {m.provider}
-                        </span>
-                      </div>
-                    ))}
+                    {providerModels.map(m => {
+                      const supportsImages = m.input?.includes('image');
+                      const contextSize = m.contextWindow ? (m.contextWindow / 1000000).toFixed(1) + 'M' : '?';
+                      const maxOut = m.maxTokens ? (m.maxTokens / 1000).toFixed(0) + 'K' : '?';
+                      return (
+                        <div
+                          key={`${m.provider}/${m.id}`}
+                          className={`px-3 py-2 rounded-md cursor-pointer flex flex-col gap-1 text-xs
+                            ${`${m.provider}/${m.id}` === currentModel ? 'bg-[var(--color-accent)] text-white' : 'hover:bg-[var(--color-surface-3)]'}`}
+                          onClick={() => handleSelect(m)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{m.name || m.id}</span>
+                            {m.reasoning && (
+                              <span className={`text-[9px] px-1 py-0.5 rounded ${`${m.provider}/${m.id}` === currentModel ? 'bg-white/20' : 'bg-[var(--color-cyan)]/20 text-[var(--color-cyan)]'}`}>
+                                🧠 reasoning
+                              </span>
+                            )}
+                            <span className={`ml-auto text-[10px] ${`${m.provider}/${m.id}` === currentModel ? 'text-white/70' : 'text-[var(--color-text-dim)]'}`}>
+                              {m.provider}
+                            </span>
+                          </div>
+                          <div className={`flex gap-2 text-[10px] ${`${m.provider}/${m.id}` === currentModel ? 'text-white/60' : 'text-[var(--color-text-dim)]'}`}>
+                            <span>📥 {supportsImages ? 'text+image' : 'text only'}</span>
+                            <span>📚 {contextSize}</span>
+                            <span>📤 max {maxOut}</span>
+                            {m.cost && m.cost.input === 0 && m.cost.output === 0 && (
+                              <span className="text-[var(--color-green)]">✓ free</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 ))
               )}

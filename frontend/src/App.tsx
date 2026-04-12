@@ -4,7 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { MessageList, type AssistantMessageState, type Message } from './components/Chat';
 import { InputArea } from './components/InputArea';
-import type { WsEvent, SessionInfo, CwdInfo } from './types';
+import type { WsEvent, SessionInfo, CwdInfo, ModelInfo } from './types';
 
 
 
@@ -86,7 +86,7 @@ export default function App() {
   const [queueInfo, setQueueInfo] = useState({ steering: 0, followUp: 0 });
   const [showDisconnect, setShowDisconnect] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
-  const [allModels, setAllModels] = useState<any[]>([]);
+  const [allModels, setAllModels] = useState<ModelInfo[]>([]);
   const [serverLogs, setServerLogs] = useState<ServerLog[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -329,7 +329,16 @@ export default function App() {
 
       case 'rpc_response':
         if (event.command === 'get_available_models') {
-          const models = event.data?.models || event.data || [];
+          const models: ModelInfo[] = (event.data?.models || event.data || []).map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            provider: m.provider,
+            reasoning: m.reasoning,
+            input: m.input,
+            contextWindow: m.contextWindow,
+            maxTokens: m.maxTokens,
+            cost: m.cost,
+          }));
           setAllModels(models);
           setModelsLoaded(true);
         }
