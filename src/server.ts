@@ -392,6 +392,10 @@ async function createCwdSession(cwd: string, sessionManager?: SessionManager): P
     additionalExtensionPaths: [
       "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-qwen-oauth/index.ts",
       "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-agent-browser/index.ts",
+      // Context management extensions
+      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-context-saver/extensions/context-saver.ts",
+      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-mono-context-guard/index.ts",
+      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-dcp/index.ts",
     ],
   });
   await resourceLoader.reload();
