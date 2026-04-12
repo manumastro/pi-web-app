@@ -1,0 +1,18 @@
+{
+  "name": "pi-web-app",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Pi Web — AI Coding Agent nel Browser (RPC Bridge)",
+  "scripts": {
+    "start": "node --experimental-strip-types src/server.ts",
+    "dev:server": "node --experimental-strip-types --watch src/server.ts",
+    "dev:ui": "cd frontend && vite",
+    "build:ui": "cd frontend && tsc -b && vite build",
+    "install:all": "npm install && cd frontend && npm install"
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "^0.66.1",
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  }
+}

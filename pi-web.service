@@ -1,0 +1,41 @@
+[Unit]
+Description=Pi Web App - AI Coding Agent (SDK in-process)
+After=network.target
+
+[Service]
+Type=simple
+User=manu
+WorkingDirectory=/home/manu/pi-web-app
+
+# Graceful shutdown
+ExecStop=/bin/bash -c 'kill -TERM $MAINPID; sleep 3; kill -9 $MAINPID 2>/dev/null; exit 0'
+ExecStartPre=/bin/bash -c 'fuser -k 3210/tcp 2>/dev/null; sleep 2; exit 0'
+ExecStart=/home/manu/.nvm/versions/node/v24.12.0/bin/node --experimental-strip-types /home/manu/pi-web-app/src/server.ts
+
+# FIX: Restart=always for always-on service
+Restart=always
+RestartSec=5
+
+# Environment
+Environment=NODE_ENV=production
+Environment=PI_WEB_CWD=/home/manu
+Environment=PI_WEB_PORT=3210
+Environment=HOME=/home/manu
+Environment=NVM_DIR=/home/manu/.nvm
+Environment=PATH=/home/manu/.nvm/versions/node/v24.12.0/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NPM_CONFIG_PREFIX=/home/manu/.nvm/versions/node/v24.12.0
+# Environment=PI_WEB_AUTH_TOKEN=your-secret-token-here
+# Environment=PI_WEB_IDLE_TIMEOUT_MS=300000
+
+ReadWritePaths=/home/manu/.pi/agent /home/manu /tmp /home/manu/pi-web-app
+
+# FIX: Increase file descriptor limit for many WebSocket connections
+LimitNOFILE=65536
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pi-web
+
+[Install]
+WantedBy=multi-user.target

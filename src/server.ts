@@ -1,0 +1,1082 @@
+/**
+ * Pi Web App — SDK Bridge (v3)
+ *
+ * Backend: pi SDK direttamente in-process (nessun subprocess)
+ * - AgentSessionRuntime per CWD con gestione sessioni nativa
+ * - Eventi via session.subscribe()
+ * - Session management via SessionManager + AgentSessionRuntime
+ */
+import express from "express";
+import { WebSocket, WebSocketServer } from "ws";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+import { execSync } from "child_process";
+import {
+  type Model,
+  type AgentSession,
+  createAgentSession,
+  SessionManager,
+  SettingsManager,
+  AuthStorage,
+  ModelRegistry,
+  DefaultResourceLoader,
+  getAgentDir,
+} from "@mariozechner/pi-coding-agent";
+import type { AgentSessionEvent } from "@mariozechner/pi-agent-core";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ── Configuration ──
+const PORT = parseInt(process.env.PI_WEB_PORT || "3210");
+const HOME = process.env.HOME || "/home/manu";
+const AGENT_DIR = path.join(HOME, ".pi", "agent");
+const SESSIONS_DIR = path.join(AGENT_DIR, "sessions");
+const AUTH_TOKEN = process.env.PI_WEB_AUTH_TOKEN || "";
+
+// ── Express Setup ──
+const app = express();
+
+app.use(express.json({ limit: "50mb" }));
+app.use(express.static(path.join(__dirname, "..", "public"), {
+  setHeaders: (res, filePath) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
+}));
+
+// ── Session Discovery (reads JSONL files directly — no running process needed) ──
+function decodeDirName(encoded: string): string {
+  const inner = encoded.replace(/^-+|-+$/g, "");
+  if (inner === "home-manu") return HOME;
+  if (inner.startsWith("home-manu-")) return HOME + "/" + inner.slice("home-manu-".length);
+  return "/" + inner.replace(/--/g, "/");
+}
+
+function encodeDirName(dirPath: string): string {
+  if (dirPath === HOME) return "--home-manu--";
+  if (dirPath.startsWith(HOME + "/")) return "--home-manu-" + dirPath.slice((HOME + "/").length) + "--";
+  return "--" + dirPath.replace(/^\//, "").replace(/\//g, "--") + "--";
+}
+
+function extractText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.filter((c: any) => c?.type === "text").map((c: any) => c.text || "").join(" ");
+  return "";
+}
+
+interface SessionInfo {
+  id: string; cwd: string; cwdLabel: string; createdAt: string;
+  name: string | null; messageCount: number; lastMessage: string | null;
+  lastMessageType: string | null; model: string | null;
+}
+
+function parseSessionFilePath(filePath: string, cwdHint?: string, cwdLabelHint?: string): SessionInfo | null {
+  try {
+    const lines = fs.readFileSync(filePath, "utf-8").trim().split("\n").filter(Boolean);
+    if (!lines.length) return null;
+    const fileName = path.basename(filePath);
+    const id = fileName.replace(".jsonl", "").split("_").slice(1).join("_");
+    const dm = fileName.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+    const createdAt = dm ? `${dm[1]}T${dm[2]}:${dm[3]}:${dm[4]}Z` : "";
+    let name: string | null = null, lastMessage: string | null = null, lastMessageType: string | null = null;
+    let userMsgCount = 0, assistantMsgCount = 0, model: string | null = null;
+    let cwd = cwdHint || null, cwdLabel = cwdLabelHint || null;
+    for (const line of lines) {
+      try {
+        const e = JSON.parse(line);
+        if (e.type === "session" && e.cwd && !cwd) {
+          cwd = e.cwd;
+          cwdLabel = cwd.replace(HOME, "~");
+        }
+        if (e.type === "model_change" && e.modelId && !model) model = e.provider ? `${e.provider}/${e.modelId}` : e.modelId;
+        if (e.type === "message" && e.message) {
+          if (e.message.role === "user") { userMsgCount++; if (!name) name = extractText(e.message.content).substring(0, 80); lastMessage = extractText(e.message.content).substring(0, 120) || null; lastMessageType = "user"; }
+          else if (e.message.role === "assistant") { assistantMsgCount++; const t = extractText(e.message.content).substring(0, 120); if (t) { lastMessage = t; lastMessageType = "assistant"; } if (!model && e.message.model) model = e.message.model; }
+        }
+      } catch {}
+    }
+    if (!cwd) cwd = "unknown";
+    if (!cwdLabel) cwdLabel = cwd.replace(HOME, "~");
+    return { id, cwd, cwdLabel, createdAt, name, messageCount: userMsgCount + assistantMsgCount, lastMessage, lastMessageType, model };
+  } catch { return null; }
+}
+
+function getAllSessions(): SessionInfo[] {
+  const sessions: SessionInfo[] = [];
+  if (!fs.existsSync(SESSIONS_DIR)) return sessions;
+  for (const entry of fs.readdirSync(SESSIONS_DIR)) {
+    const fp = path.join(SESSIONS_DIR, entry);
+    if (!fs.statSync(fp).isDirectory()) continue;
+    const cwd = decodeDirName(entry);
+    for (const f of fs.readdirSync(fp).filter(x => x.endsWith(".jsonl"))) {
+      const info = parseSessionFilePath(path.join(fp, f), cwd, cwd.replace(HOME, "~"));
+      if (info) sessions.push(info);
+    }
+  }
+  return sessions.sort((a, b) => (b.createdAt ? new Date(b.createdAt).getTime() : 0) - (a.createdAt ? new Date(a.createdAt).getTime() : 0));
+}
+
+function getSessionsForCwd(cwd: string): SessionInfo[] {
+  const dp = path.join(SESSIONS_DIR, encodeDirName(cwd));
+  if (!fs.existsSync(dp)) return [];
+  return fs.readdirSync(dp).filter(x => x.endsWith(".jsonl")).reverse()
+    .map(f => parseSessionFilePath(path.join(dp, f), cwd, cwd.replace(HOME, "~")))
+    .filter(Boolean) as SessionInfo[];
+}
+
+function findSessionFileBySessionId(cwd: string, sessionId: string): string | null {
+  const dp = path.join(SESSIONS_DIR, encodeDirName(cwd));
+  if (!fs.existsSync(dp)) return null;
+  for (const f of fs.readdirSync(dp)) {
+    if (f.endsWith(".jsonl") && f.includes(sessionId)) {
+      return path.join(dp, f);
+    }
+  }
+  return null;
+}
+
+function getAllCwds() {
+  if (!fs.existsSync(SESSIONS_DIR)) return [];
+  return fs.readdirSync(SESSIONS_DIR).filter(f => fs.statSync(path.join(SESSIONS_DIR, f)).isDirectory())
+    .map(dir => { const cwd = decodeDirName(dir); return { path: cwd, label: cwd.replace(HOME, "~"), sessionCount: fs.readdirSync(path.join(SESSIONS_DIR, dir)).filter(x => x.endsWith(".jsonl")).length }; })
+    .sort((a, b) => b.sessionCount - a.sessionCount);
+}
+
+// ── REST API ──
+app.get("/api/sessions", (req, res) => {
+  const cwd = req.query.cwd as string | undefined;
+  const limit = parseInt(req.query.limit as string) || 100;
+  res.json((cwd ? getSessionsForCwd(cwd) : getAllSessions()).slice(0, limit));
+});
+
+app.get("/api/sessions/:id", (req, res) => {
+  if (!fs.existsSync(SESSIONS_DIR)) return res.status(404).json({ error: "Not found" });
+  for (const dir of fs.readdirSync(SESSIONS_DIR)) {
+    const dp = path.join(SESSIONS_DIR, dir);
+    if (!fs.statSync(dp).isDirectory()) continue;
+    const files = fs.readdirSync(dp).filter(f => f.includes(req.params.id));
+    if (files.length) {
+      const messages = fs.readFileSync(path.join(dp, files[0]), "utf-8").trim().split("\n")
+        .filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      return res.json({ id: req.params.id, cwd: decodeDirName(dir), messages });
+    }
+  }
+  res.status(404).json({ error: "Session not found" });
+});
+
+app.get("/api/cwds", (_req, res) => res.json(getAllCwds()));
+app.get("/api/settings", (_req, res) => {
+  const p = path.join(AGENT_DIR, "settings.json");
+  try { res.json(fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf-8")) : {}); }
+  catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+app.get("/api/enabled-models", (_req, res) => {
+  const p = path.join(AGENT_DIR, "settings.json");
+  try {
+    const s = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf-8")) : {};
+    res.json({ models: s.enabledModels || [] });
+  } catch { res.json({ models: [] }); }
+});
+
+app.get("/api/logs", async (_req, res) => {
+  const { spawn } = await import("child_process");
+  const lines = parseInt(_req.query.lines as string) || 100;
+  const proc = spawn("journalctl", ["-u", "pi-web", "-n", String(lines), "--no-pager", "-o", "cat"]);
+  let output = "";
+  proc.stdout.on("data", d => output += d.toString());
+  proc.stderr.on("data", d => output += d.toString());
+  proc.on("close", () => res.json({ logs: output.trim().split("\n").filter(Boolean) }));
+});
+
+// ── Auth middleware for WebSocket ──
+function authenticateWs(ws: WebSocket, req: any): boolean {
+  if (!AUTH_TOKEN) return true;
+  const url = new URL(req.url || "/", `http://localhost:${PORT}`);
+  const token = url.searchParams.get("token");
+  if (token !== AUTH_TOKEN) {
+    ws.send(JSON.stringify({ type: "error", message: "Authentication required." }));
+    ws.close(1008, "Unauthorized");
+    return false;
+  }
+  return true;
+}
+
+// ── SDK Session Manager ──
+interface CwdSession {
+  cwd: string;
+  session: AgentSession;
+  clients: Set<WebSocket>;
+  unsubscribe: (() => void) | null;
+  idle: boolean;
+  lastPromptMsg: string | null;
+  lastPromptImages: any[] | null;
+  idleTimer: ReturnType<typeof setTimeout> | null;
+  lastActivity: number;
+  settingsManager: SettingsManager;
+}
+
+const cwdSessions = new Map<string, CwdSession>();
+
+// Auth & model registry (shared) — with explicit paths
+const authStorage = AuthStorage.create(path.join(HOME, ".pi", "agent", "auth.json"));
+const modelRegistry = ModelRegistry.create(authStorage, path.join(HOME, ".pi", "agent"));
+
+/** Create a new SDK session for a CWD */
+async function createSdkSession(cwd: string, sessionFile?: string): Promise<AgentSession> {
+  const settingsManager = SettingsManager.create(cwd, AGENT_DIR);
+  const resourceLoader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir() });
+  await resourceLoader.reload();
+
+  let sm: SessionManager;
+  if (sessionFile) {
+    sm = SessionManager.open(sessionFile);
+  } else {
+    try {
+      sm = await SessionManager.continueRecent(cwd);
+    } catch {
+      sm = SessionManager.create(cwd);
+    }
+  }
+
+  const { session } = await createAgentSession({
+    cwd,
+    agentDir: AGENT_DIR,
+    authStorage,
+    modelRegistry,
+    resourceLoader,
+    settingsManager,
+    sessionManager: sm,
+  });
+
+  return session;
+}
+
+// ── Custom models (providers registered by extensions, not built-in) ──
+const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+/** Build custom models for all qwen-oauth accounts from profiles file */
+function getCustomModels(): Record<string, Model<any>> {
+  const models: Record<string, Model<any>> = {};
+
+  // Default qwen-oauth model
+  models["qwen-oauth/coder-model"] = {
+    id: "coder-model",
+    name: "Qwen Coder",
+    provider: "qwen-oauth",
+    reasoning: true,
+    input: ["text"],
+    cost: ZERO_COST,
+    contextWindow: 1000000,
+    maxTokens: 65536,
+    baseUrl: "https://portal.qwen.ai/v1",
+    api: "openai-completions",
+    compat: {
+      supportsDeveloperRole: false,
+      maxTokensField: "max_tokens",
+      thinkingFormat: "qwen",
+    },
+    headers: {
+      "X-DashScope-AuthType": "qwen-oauth",
+    },
+  };
+
+  // Additional accounts from qwen-oauth-profiles.json
+  try {
+    const profilesPath = path.join(AGENT_DIR, "qwen-oauth-profiles.json");
+    if (fs.existsSync(profilesPath)) {
+      const profiles = JSON.parse(fs.readFileSync(profilesPath, "utf-8"));
+      if (profiles.accounts && Array.isArray(profiles.accounts)) {
+        for (const account of profiles.accounts) {
+          if (account.provider === "qwen-oauth") continue; // already added
+          const label = account.label || account.provider.split("-").pop();
+          models[`${account.provider}/coder-model`] = {
+            id: "coder-model",
+            name: `Qwen Coder (${label})`,
+            provider: account.provider,
+            reasoning: true,
+            input: ["text"],
+            cost: ZERO_COST,
+            contextWindow: 1000000,
+            maxTokens: 65536,
+            baseUrl: "https://portal.qwen.ai/v1",
+            api: "openai-completions",
+            compat: {
+              supportsDeveloperRole: false,
+              maxTokensField: "max_tokens",
+              thinkingFormat: "qwen",
+            },
+            headers: {
+              "X-DashScope-AuthType": "qwen-oauth",
+            },
+          };
+        }
+      }
+    }
+  } catch (e: any) {
+    console.error(`[qwen-profiles] Error reading profiles: ${e.message}`);
+  }
+
+  return models;
+}
+
+/** Resolve model: built-in registry first, then custom models */
+function resolveModel(provider: string, modelId: string): Model<any> | undefined {
+  const custom = getCustomModels();
+  const key = `${provider}/${modelId}`;
+  if (custom[key]) return custom[key];
+  return modelRegistry.find(provider, modelId);
+}
+
+//** Normalize payload for Qwen Portal API — system messages must be content parts */
+function normalizeQwenPayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || !Array.isArray((payload as any).messages)) return payload;
+  const p = payload as Record<string, unknown>;
+  const messages = [...(p.messages as any[])];
+  const sysIdx = messages.findIndex((m: any) => m?.role === "system");
+  if (sysIdx >= 0) {
+    const sys = messages[sysIdx];
+    if (typeof sys.content === "string") {
+      messages[sysIdx] = { ...sys, content: [{ type: "text", text: sys.content }] };
+    }
+  } else {
+    messages.unshift({ role: "system", content: [{ type: "text", text: "" }] });
+  }
+  return { ...p, messages };
+}
+
+/** Get OAuth access token for a qwen-oauth provider from auth.json */
+function getQwenOAuthToken(provider: string): string | null {
+  try {
+    const authPath = path.join(AGENT_DIR, "auth.json");
+    if (!fs.existsSync(authPath)) return null;
+    const auth = JSON.parse(fs.readFileSync(authPath, "utf-8"));
+    const entry = auth[provider];
+    if (!entry || typeof entry !== "object") return null;
+    if (entry.access && typeof entry.access === "string" && entry.expires && typeof entry.expires === "number") {
+      if (Date.now() < entry.expires) return entry.access;
+    }
+  } catch (e: any) {
+    console.error(`[${provider}] Auth read error: ${e.message}`);
+  }
+  return null;
+}
+
+/** Resolve model with current auth (for custom OAuth providers) */
+async function resolveModelWithAuth(provider: string, modelId: string): Promise<Model<any> | undefined> {
+  const model = resolveModel(provider, modelId);
+  if (!model) return undefined;
+
+  // For qwen-oauth providers, register runtime API key so the SDK can resolve it
+  if (provider.startsWith("qwen-oauth")) {
+    const token = getQwenOAuthToken(provider);
+    if (token) {
+      authStorage.setRuntimeApiKey(provider, token);
+      return model;
+    } else {
+      console.error(`[${provider}] No valid token — please run /login ${provider}`);
+    }
+  }
+  return model;
+}
+
+/** Factory: crea un runtime bound a un CWD */
+async function createCwdSession(cwd: string, sessionManager?: SessionManager): Promise<CwdSession> {
+  const settingsManager = SettingsManager.create(cwd, AGENT_DIR);
+
+  // Load extensions manually via paths (avoids npm install of packages)
+  const resourceLoader = new DefaultResourceLoader({
+    cwd,
+    agentDir: AGENT_DIR,
+    additionalExtensionPaths: [
+      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-qwen-oauth/index.ts",
+      "/home/manu/.nvm/versions/node/v24.12.0/lib/node_modules/pi-agent-browser/index.ts",
+    ],
+  });
+  await resourceLoader.reload();
+
+  let sm = sessionManager;
+  if (!sm) {
+    try {
+      sm = await SessionManager.continueRecent(cwd);
+    } catch {
+      sm = SessionManager.create(cwd);
+    }
+  }
+
+  const { session } = await createAgentSession({
+    cwd,
+    agentDir: AGENT_DIR,
+    authStorage,
+    modelRegistry,
+    resourceLoader,
+    settingsManager,
+    sessionManager: sm,
+  });
+
+  // Apply settings from settings.json
+  const settingsPath = path.join(AGENT_DIR, "settings.json");
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const s = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      if (s.compaction) settingsManager.applyOverrides({ compaction: s.compaction });
+      if (s.retry) settingsManager.applyOverrides({ retry: s.retry });
+      if (s.defaultThinkingLevel) session.setThinkingLevel(s.defaultThinkingLevel);
+      if (s.defaultProvider && s.defaultModel) {
+        const model = await resolveModelWithAuth(s.defaultProvider, s.defaultModel);
+        if (model) await session.setModel(model);
+      }
+    }
+  } catch (e: any) {
+    console.error(`[createCwdSession] settings load error: ${e.message}`);
+  }
+
+  await session.bindExtensions({});
+
+  const cr: CwdSession = {
+    cwd,
+    session,
+    clients: new Set(),
+    unsubscribe: null,
+    idle: true,
+    lastPromptMsg: null,
+    lastPromptImages: null,
+    idleTimer: null,
+    lastActivity: Date.now(),
+    settingsManager,
+  };
+
+  cr.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
+    forwardEvent(cr, event);
+  });
+
+  cwdSessions.set(cwd, cr);
+  return cr;
+}
+
+/** Forward SDK events to WebSocket clients */
+function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
+  if (cr.clients.size === 0) return;
+
+  // Map SDK events to frontend-compatible WS messages
+  let wsMsg: any = null;
+
+  switch (event.type) {
+    case "message_update": {
+      const ae = event.assistantMessageEvent;
+      if (!ae) break;
+      if (["thinking_start", "thinking_delta", "thinking_end",
+           "text_start", "text_delta", "text_end",
+           "toolcall_start", "toolcall_delta", "toolcall_end"].includes(ae.type)) {
+        wsMsg = { type: ae.type };
+        if (ae.delta !== undefined) wsMsg.text = ae.delta;
+        if (ae.content !== undefined) wsMsg.text = ae.content;
+        if (ae.text !== undefined) wsMsg.text = ae.text;
+        if (ae.toolCall?.name) wsMsg.tool = ae.toolCall.name;
+        if (ae.toolCall) wsMsg.toolCall = ae.toolCall;
+      }
+      break;
+    }
+
+    case "tool_execution_start":
+      wsMsg = { type: "tool_exec_start", tool: event.toolName, args: event.args, toolCallId: event.toolCallId };
+      break;
+    case "tool_execution_update":
+      if (event.partialResult?.content) {
+        const text = event.partialResult.content
+          .filter((c: any) => c.type === "text")
+          .map((c: any) => c.text).join("");
+        wsMsg = { type: "tool_exec_update", tool: event.toolName, text, toolCallId: event.toolCallId };
+      }
+      break;
+    case "tool_execution_end":
+      wsMsg = { type: "tool_exec_end", tool: event.toolName, isError: event.isError, result: event.result, toolCallId: event.toolCallId };
+      break;
+
+    case "agent_start":
+      wsMsg = { type: "agent_start" };
+      cr.idle = false;
+      break;
+    case "agent_end":
+      wsMsg = { type: "done", messages: event.messages };
+      cr.idle = true;
+      cr.lastPromptMsg = null;
+      cr.lastPromptImages = null;
+      resetIdleTimer(cr);
+      break;
+    case "turn_start":
+      wsMsg = { type: "turn_start" };
+      break;
+    case "turn_end":
+      wsMsg = { type: "turn_end", message: event.message, toolResults: event.toolResults };
+      break;
+
+    case "message_start":
+      if (event.message?.model) {
+        const m = event.message.model;
+        if (!['ready', 'idle', 'busy', 'loading', 'waiting'].includes(m.toLowerCase())) {
+          broadcastToClients(cr, { type: "model_info", model: m });
+        }
+      }
+      wsMsg = { type: "message_start", message: event.message };
+      break;
+    case "message_end":
+      wsMsg = { type: "message_end", message: event.message };
+      break;
+
+    case "compaction_start":
+      wsMsg = { type: "compaction_start", reason: event.reason };
+      break;
+    case "compaction_end":
+      wsMsg = { type: "compaction_end", reason: event.reason, aborted: event.aborted, willRetry: event.willRetry, summary: event.result?.summary, firstKeptEntryId: event.result?.firstKeptEntryId };
+      break;
+
+    case "auto_retry_start":
+      wsMsg = { type: "auto_retry_start", attempt: event.attempt, maxAttempts: event.maxAttempts, delayMs: event.delayMs, errorMessage: event.errorMessage };
+      break;
+    case "auto_retry_end":
+      wsMsg = { type: "auto_retry_end", success: event.success, attempt: event.attempt, finalError: event.finalError };
+      break;
+
+    case "queue_update":
+      wsMsg = { type: "queue_update", steering: event.steering || [], followUp: event.followUp || [] };
+      break;
+
+    case "error":
+      wsMsg = { type: "error", message: event.message || event.error };
+      break;
+  }
+
+  if (wsMsg) broadcastToClients(cr, wsMsg);
+}
+
+function broadcastToClients(cr: CwdSession, msg: any) {
+  const data = JSON.stringify(msg);
+  for (const client of cr.clients) {
+    if (client.readyState === WebSocket.OPEN) client.send(data);
+  }
+}
+
+function resetIdleTimer(cr: CwdSession) {
+  if (cr.idleTimer) clearTimeout(cr.idleTimer);
+  cr.lastActivity = Date.now();
+}
+
+async function getOrCreateSession(cwd: string, forceNew: boolean = false, sessionId?: string): Promise<CwdSession> {
+  let existing = cwdSessions.get(cwd);
+
+  if (existing) {
+    if (sessionId) {
+      const sessionPath = findSessionFileBySessionId(cwd, sessionId);
+      if (sessionPath) {
+        console.log(`📂 Switching to session ${sessionId} for ${cwd}`);
+        await disposeSession(cwd);
+        return await createCwdSession(cwd, SessionManager.open(sessionPath));
+      }
+    }
+    resetIdleTimer(existing);
+    return existing;
+  }
+
+  // Create new session
+  let sessionManager: SessionManager | undefined;
+  if (sessionId) {
+    const sessionPath = findSessionFileBySessionId(cwd, sessionId);
+    if (sessionPath) {
+      console.log(`📂 Opening session ${sessionId} for ${cwd}`);
+      sessionManager = SessionManager.open(sessionPath);
+    }
+  }
+
+  if (!sessionManager) {
+    if (forceNew) {
+      console.log(`🆕 New session for ${cwd}`);
+      sessionManager = SessionManager.create(cwd);
+    } else {
+      console.log(`🔄 Continue recent session for ${cwd}`);
+      try {
+        sessionManager = await SessionManager.continueRecent(cwd);
+      } catch (e: any) {
+        console.log(`⚠️  continueRecent failed for ${cwd}: ${e.message}, creating new session`);
+        sessionManager = SessionManager.create(cwd);
+      }
+    }
+  }
+
+  return await createCwdSession(cwd, sessionManager);
+}
+
+async function disposeSession(cwd: string) {
+  const cr = cwdSessions.get(cwd);
+  if (!cr) return;
+  cr.unsubscribe?.();
+  try { await cr.session(); } catch {}
+  cwdSessions.delete(cwd);
+  console.log(`🗑️ Disposed runtime for ${cwd}`);
+}
+
+// ── WebSocket ──
+let wss: WebSocketServer | null = null;
+let server: ReturnType<typeof app.listen> | null = null;
+let pingTimer: ReturnType<typeof setInterval> | null = null;
+
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+function broadcastLog(level: "info"|"error", ...args: any[]) {
+  const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  if (wss) {
+    for (const client of wss.clients) {
+      if (client.readyState === 1) {
+        client.send(JSON.stringify({ type: "server_log", level, message }));
+      }
+    }
+  }
+}
+
+console.log = function(...args: any[]) {
+  originalConsoleLog.apply(console, args);
+  broadcastLog("info", ...args);
+};
+
+console.error = function(...args: any[]) {
+  originalConsoleError.apply(console, args);
+  broadcastLog("error", ...args);
+};
+
+function startServer(retryCount = 0) {
+  server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🌐 Pi Web SDK → http://0.0.0.0:${PORT} (in-process, no subprocess)`);
+    if (AUTH_TOKEN) console.log(`🔐 Auth enabled`);
+    const cwds = getAllCwds();
+    console.log(`📂 ${cwds.length} directories, ${cwds.reduce((s, c) => s + c.sessionCount, 0)} total sessions`);
+  });
+
+  server.on("error", (err: any) => {
+    if (err.code === "EADDRINUSE") {
+      if (retryCount < 5) {
+        console.log(`⚠️  Port ${PORT} in use, retrying... (attempt ${retryCount + 1}/5)`);
+        setTimeout(() => startServer(retryCount + 1), 2000);
+      } else {
+        console.error(`💥 Port ${PORT} still in use — exiting`);
+        process.exit(1);
+      }
+    }
+  });
+
+  wss = new WebSocketServer({ server });
+  setupWebSocket(wss);
+}
+
+startServer();
+
+function setupWebSocket(wss: WebSocketServer) {
+  const PING_INTERVAL = 30000;
+  pingTimer = setInterval(() => {
+    for (const client of wss.clients) {
+      if ((client as any).isAlive === false) {
+        client.terminate();
+      }
+      (client as any).isAlive = false;
+      client.ping();
+    }
+  }, PING_INTERVAL);
+
+  function getCwd(msg: any): string { return msg.cwd || HOME; }
+
+  function findSessionForClient(ws: WebSocket): CwdSession | null {
+    for (const [, cr] of cwdSessions) {
+      if (cr.clients.has(ws)) return cr;
+    }
+    return null;
+  }
+
+  wss.on("connection", (ws: WebSocket, req) => {
+    if (!authenticateWs(ws, req)) return;
+
+    console.log(`🔌 Client connected`);
+    (ws as any).isAlive = true;
+
+    ws.on("pong", () => { (ws as any).isAlive = true; });
+
+    ws.on("message", async (data: Buffer) => {
+      let msg: any;
+      try { msg = JSON.parse(data.toString()); } catch { return; }
+
+      if (msg.type === "prompt") {
+        const cwd = getCwd(msg);
+        try {
+          const cr = await getOrCreateSession(cwd, false, undefined);
+          cr.clients.add(ws);
+          cr.lastPromptMsg = msg.text;
+          cr.lastPromptImages = msg.images || null;
+
+          const promptOpts: any = {};
+          if (!cr.idle) {
+            promptOpts.streamingBehavior = "steer";
+          }
+          if (msg.images?.length) {
+            promptOpts.images = msg.images;
+          }
+
+          cr.idle = false;
+          cr.session.prompt(msg.text, promptOpts).catch((err: Error) => {
+            console.error(`[prompt error] ${cwd}: ${err.message}`);
+            broadcastToClients(cr, { type: "error", message: err.message });
+          });
+        } catch (e: any) {
+          console.error(`[prompt] Runtime creation failed: ${e.message}`);
+          ws.send(JSON.stringify({ type: "error", message: `Failed to create session: ${e.message}` }));
+        }
+      }
+
+      if (msg.type === "steer") {
+        const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
+        if (cr) cr.session.steer(msg.text).catch(console.error);
+      }
+
+      if (msg.type === "follow_up") {
+        const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
+        if (cr) cr.session.followUp(msg.text).catch(console.error);
+      }
+
+      if (msg.type === "abort") {
+        const cr = findSessionForClient(ws);
+        if (cr) cr.session.abort().catch(console.error);
+      }
+
+      // ── State & Model ──
+      if (msg.type === "get_state") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          const s = cr.session;
+          broadcastToClients(cr, {
+            type: "state",
+            model: s.model?.id,
+            provider: s.model?.provider,
+            thinkingLevel: s.thinkingLevel,
+            messages: s.messages.length,
+            sessionId: s.sessionId,
+            sessionFile: s.sessionFile,
+          });
+        }
+      }
+
+      if (msg.type === "set_model") {
+        // Persist to settings.json
+        try {
+          const settingsPath = path.join(AGENT_DIR, "settings.json");
+          if (fs.existsSync(settingsPath)) {
+            const s = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+            s.defaultProvider = msg.provider;
+            s.defaultModel = msg.modelId;
+            fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2));
+          }
+        } catch (e: any) { console.error(`[set_model] write error: ${e.message}`); }
+
+        const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
+        if (cr) {
+          const model = await resolveModelWithAuth(msg.provider, msg.modelId);
+          if (model) {
+            await cr.session.setModel(model);
+            broadcastToClients(cr, { type: "model_info", model: `${msg.provider}/${msg.modelId}` });
+          } else {
+            console.error(`[set_model] Model not found: ${msg.provider}/${msg.modelId}`);
+          }
+        }
+      }
+
+      if (msg.type === "cycle_model") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          const result = await cr.session.cycleModel();
+          if (result?.model) {
+            broadcastToClients(cr, { type: "model_info", model: result.model.id });
+          }
+        }
+      }
+
+      if (msg.type === "set_thinking_level") {
+        const cr = findSessionForClient(ws);
+        if (cr) cr.session.setThinkingLevel(msg.level);
+      }
+
+      if (msg.type === "cycle_thinking_level") {
+        const cr = findSessionForClient(ws);
+        if (cr) cr.session.cycleThinkingLevel();
+      }
+
+      if (msg.type === "get_messages") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          broadcastToClients(cr, {
+            type: "rpc_response",
+            command: "get_messages",
+            data: { messages: cr.session.messages }
+          });
+        }
+      }
+
+      if (msg.type === "get_available_models") {
+        const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
+        try {
+          // Create fresh registry at request time to get full model list
+          // Get models from shared registry
+          const available = await modelRegistry.getAvailable();
+          
+          // Load models from pre-generated CLI output (models.json)
+          const cliModelsPath = path.join(__dirname, '..', 'models.json');
+          const cliModels = fs.existsSync(cliModelsPath)
+            ? JSON.parse(fs.readFileSync(cliModelsPath, 'utf8'))
+            : [];
+          
+          for (const m of cliModels) {
+            if (!available.some(a => a.provider === m.provider && a.id === m.id)) {
+              available.push(m);
+            }
+          }
+
+          // Include custom models from getCustomModels
+          const custom = getCustomModels();
+          const customModelsList = Object.values(custom).map((m: any) => ({
+            id: m.id,
+            name: m.name || m.id,
+            provider: m.provider,
+            reasoning: m.reasoning || false,
+            input: m.input || ["text"],
+          }));
+
+          // Merge and deduplicate by provider/id
+          const all = [...available];
+          for (const cm of customModelsList) {
+            if (!all.some(m => m.provider === cm.provider && m.id === cm.id)) {
+              all.push(cm);
+            }
+          }
+
+          const target = cr || { clients: new Set([ws]) } as CwdSession;
+          broadcastToClients(target, { type: "rpc_response", command: "get_available_models", data: { models: all } });
+          broadcastToClients(target, { type: "model_info", model: "qwen-oauth/coder-model" });
+        } catch (e: any) {
+          console.error(`[get_available_models] Failed: ${e.message}`);
+        }
+      }
+
+      if (msg.type === "get_session_stats") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          const s = cr.session;
+          broadcastToClients(cr, {
+            type: "rpc_response",
+            command: "get_session_stats",
+            data: {
+              sessionId: s.sessionId,
+              sessionFile: s.sessionFile,
+              messages: s.messages.length,
+              model: s.model?.id,
+              thinkingLevel: s.thinkingLevel,
+            }
+          });
+        }
+      }
+
+      if (msg.type === "get_commands") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          broadcastToClients(cr, {
+            type: "rpc_response",
+            command: "get_commands",
+            data: { commands: [] }
+          });
+        }
+      }
+
+      // ── Session Management ──
+      if (msg.type === "create_session" || msg.type === "new_session") {
+        const cwd = getCwd(msg);
+        console.log(`[${msg.type}] cwd=${cwd}`);
+
+        // Dispose old runtime
+        await disposeSession(cwd);
+
+        // Create fresh runtime
+        const cr = await createCwdSession(cwd, SessionManager.create(cwd));
+        cr.clients.add(ws);
+        cr.idle = true;
+        cr.lastPromptMsg = null;
+        cr.lastPromptImages = null;
+
+        broadcastToClients(cr, {
+          type: "session_created",
+          sessionId: cr.session.sessionId,
+          sessionFile: cr.session.sessionFile,
+        });
+        console.log(`🆕 ${msg.type} ready for ${cwd}`);
+      }
+
+      if (msg.type === "resume_session") {
+        const cwd = getCwd(msg);
+        const cr = await getOrCreateSession(cwd, false, undefined);
+        cr.clients.add(ws);
+      }
+
+      if (msg.type === "load_session") {
+        const cwd = getCwd(msg);
+        const sessionId = msg.sessionId;
+        console.log(`[load_session] cwd=${cwd}, sessionId=${sessionId}`);
+
+        const sessionPath = findSessionFileBySessionId(cwd, sessionId);
+        if (!sessionPath) {
+          ws.send(JSON.stringify({ type: "error", message: `Session file not found: ${sessionId}` }));
+          return;
+        }
+
+        // Dispose old runtime and create new one with this session
+        await disposeSession(cwd);
+        const cr = await createCwdSession(cwd, SessionManager.open(sessionPath));
+        cr.clients.add(ws);
+        cr.idle = true;
+
+        broadcastToClients(cr, {
+          type: "session_loaded",
+          sessionId: cr.session.sessionId,
+          sessionFile: cr.session.sessionFile,
+        });
+        console.log(`📖 Loaded session ${sessionId} for ${cwd}`);
+      }
+
+      if (msg.type === "switch_session") {
+        const cr = findSessionForClient(ws);
+        if (cr && msg.sessionPath) {
+          // Dispose old, create new with target session
+          await disposeSession(cr.cwd);
+          const newCr = await createCwdSession(cr.cwd, SessionManager.open(msg.sessionPath));
+          for (const c of cr.clients) newCr.clients.add(c);
+          broadcastToClients(newCr, {
+            type: "session_switched",
+            sessionId: newCr.session.sessionId,
+          });
+        }
+      }
+
+      if (msg.type === "fork") {
+        const cr = findSessionForClient(ws);
+        if (cr && msg.entryId) {
+          // Fork via session tree: create branched session
+          const sm = SessionManager.open(cr.session.sessionFile!);
+          sm.createBranchedSession(msg.entryId);
+          // Reload with the new session
+          await disposeSession(cr.cwd);
+          const newCr = await createCwdSession(cr.cwd, SessionManager.continueRecent(cr.cwd));
+          for (const c of cr.clients) newCr.clients.add(c);
+          broadcastToClients(newCr, {
+            type: "session_forked",
+            sessionId: newCr.session.sessionId,
+          });
+        }
+      }
+
+      if (msg.type === "set_session_name") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          // Session naming is handled via the session file
+          console.log(`[set_session_name] ${msg.name}`);
+        }
+      }
+
+      // ── Compaction & Retry ──
+      if (msg.type === "compact") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          cr.session.compact(msg.customInstructions).catch(console.error);
+        }
+      }
+
+      if (msg.type === "set_auto_compaction") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          cr.settingsManager.applyOverrides({ compaction: { enabled: msg.enabled } });
+          await cr.settingsManager.flush();
+        }
+      }
+
+      if (msg.type === "set_auto_retry") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          cr.settingsManager.applyOverrides({ retry: { enabled: msg.enabled } });
+          await cr.settingsManager.flush();
+        }
+      }
+
+      if (msg.type === "set_steering_mode") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          cr.settingsManager.applyOverrides({ steeringMode: msg.mode });
+          await cr.settingsManager.flush();
+        }
+      }
+
+      if (msg.type === "set_follow_up_mode") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          cr.settingsManager.applyOverrides({ followUpMode: msg.mode });
+          await cr.settingsManager.flush();
+        }
+      }
+
+      if (msg.type === "bash") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          // SDK doesn't have direct bash — use prompt
+          cr.session.prompt(`!${msg.command}`).catch(console.error);
+        }
+      }
+
+      if (msg.type === "export_html") {
+        const cr = findSessionForClient(ws);
+        if (cr) {
+          // Export via session file — handled by frontend or separate endpoint
+          console.log(`[export_html] outputPath=${msg.outputPath}`);
+        }
+      }
+    });
+
+    ws.on("close", () => {
+      console.log("🔌 Client disconnected");
+      const cr = findSessionForClient(ws);
+      if (cr) {
+        cr.clients.delete(ws);
+        if (cr.clients.size === 0) {
+          cr.idle = true;
+          resetIdleTimer(cr);
+        }
+      }
+    });
+  });
+}
+
+// Graceful shutdown
+let shuttingDown = false;
+async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log("\n👋 Shutting down...");
+  if (pingTimer) clearInterval(pingTimer);
+  for (const [, cr] of cwdSessions) {
+    try { await cr.session(); } catch {}
+  }
+  wss?.close();
+  server?.close();
+  setTimeout(() => process.exit(0), 2000).unref();
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+process.on("uncaughtException", (err) => {
+  if (err.message.includes("EADDRINUSE")) return;
+  console.error("💥 Uncaught exception:", err.message);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("💥 Unhandled rejection:", reason);
+});
