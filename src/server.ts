@@ -68,7 +68,7 @@ function extractText(content: unknown): string {
 
 interface SessionInfo {
   id: string; cwd: string; cwdLabel: string; createdAt: string;
-  name: string | null; messageCount: number; lastMessage: string | null;
+  lastModified: number; name: string | null; messageCount: number; lastMessage: string | null;
   lastMessageType: string | null; model: string | null;
 }
 
@@ -80,6 +80,7 @@ function parseSessionFilePath(filePath: string, cwdHint?: string, cwdLabelHint?:
     const id = fileName.replace(".jsonl", "").split("_").slice(1).join("_");
     const dm = fileName.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
     const createdAt = dm ? `${dm[1]}T${dm[2]}:${dm[3]}:${dm[4]}Z` : "";
+    const lastModified = fs.statSync(filePath).mtimeMs;
     let name: string | null = null, lastMessage: string | null = null, lastMessageType: string | null = null;
     let userMsgCount = 0, assistantMsgCount = 0, model: string | null = null;
     let cwd = cwdHint || null, cwdLabel = cwdLabelHint || null;
@@ -99,7 +100,7 @@ function parseSessionFilePath(filePath: string, cwdHint?: string, cwdLabelHint?:
     }
     if (!cwd) cwd = "unknown";
     if (!cwdLabel) cwdLabel = cwd.replace(HOME, "~");
-    return { id, cwd, cwdLabel, createdAt, name, messageCount: userMsgCount + assistantMsgCount, lastMessage, lastMessageType, model };
+    return { id, cwd, cwdLabel, createdAt, lastModified, name, messageCount: userMsgCount + assistantMsgCount, lastMessage, lastMessageType, model };
   } catch { return null; }
 }
 
@@ -115,15 +116,16 @@ function getAllSessions(): SessionInfo[] {
       if (info) sessions.push(info);
     }
   }
-  return sessions.sort((a, b) => (b.createdAt ? new Date(b.createdAt).getTime() : 0) - (a.createdAt ? new Date(a.createdAt).getTime() : 0));
+  return sessions.sort((a, b) => b.lastModified - a.lastModified);
 }
 
 function getSessionsForCwd(cwd: string): SessionInfo[] {
   const dp = path.join(SESSIONS_DIR, encodeDirName(cwd));
   if (!fs.existsSync(dp)) return [];
-  return fs.readdirSync(dp).filter(x => x.endsWith(".jsonl")).reverse()
+  return fs.readdirSync(dp).filter(x => x.endsWith(".jsonl"))
     .map(f => parseSessionFilePath(path.join(dp, f), cwd, cwd.replace(HOME, "~")))
-    .filter(Boolean) as SessionInfo[];
+    .filter(Boolean) as SessionInfo[]
+    .sort((a, b) => b!.lastModified - a!.lastModified);
 }
 
 function findSessionFileBySessionId(cwd: string, sessionId: string): string | null {
