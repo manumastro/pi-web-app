@@ -260,7 +260,7 @@ export default function App() {
                 .filter((c: any) => c.type === 'text')
                 .map((c: any) => c.text)
                 .join('')
-                .slice(0, 200);
+                .slice(0, 1000); // Increased from 200 to 1000
             }
           }
         }

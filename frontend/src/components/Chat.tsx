@@ -72,24 +72,60 @@ export function ThinkingBlock({ text, finished }: { text: string; finished: bool
 // ── Tool Block ──
 export function ToolBlock({ tool }: { tool: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
-  const argsDisplay = tool.argsRaw.length > 80 ? tool.argsRaw.slice(0, 80) + '…' : tool.argsRaw;
+  const isBash = tool.name === 'Bash' || tool.name === 'bash';
+  
+  // Show more for bash: 300 chars for args, full result
+  const argsDisplay = isBash 
+    ? (tool.argsRaw.length > 300 ? tool.argsRaw.slice(0, 300) + '…' : tool.argsRaw)
+    : (tool.argsRaw.length > 80 ? tool.argsRaw.slice(0, 80) + '…' : tool.argsRaw);
 
   return (
-    <div className="bg-[var(--color-tool-bg)] border border-[var(--color-tool-border)] rounded-md px-2.5 py-1.5 mb-1 text-xs text-[var(--color-text-muted)] flex items-center gap-1.5">
-      <span className="text-[var(--color-accent)] font-medium font-mono">{tool.name}</span>
-      {argsDisplay && (
-        <span className="text-[var(--color-text-dim)] font-mono text-[11px] ml-auto max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap" title={tool.argsRaw}>
-          {argsDisplay}
+    <div className="bg-[var(--color-tool-bg)] border border-[var(--color-tool-border)] rounded-md mb-1.5 overflow-hidden">
+      {/* Tool header */}
+      <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-[var(--color-tool-border)] bg-[rgba(0,0,0,0.2)]">
+        <span className="text-[var(--color-accent)] font-medium font-mono text-xs">{tool.name}</span>
+        {tool.isRunning && (
+          <div className="w-3 h-3 border-2 border-[var(--color-tool-border)] border-t-[var(--color-accent)] rounded-full animate-spin" />
+        )}
+        <span className="ml-auto text-[10px] text-[var(--color-text-dim)]">
+          {tool.isRunning ? 'running...' : tool.isError ? 'error' : 'done'}
         </span>
+      </div>
+      
+      {/* Input/Command (for bash, show more) */}
+      {argsDisplay && (
+        <div className="px-2.5 py-1.5 text-[11px] font-mono text-[var(--color-text-dim)] border-b border-[var(--color-tool-border)]">
+          <span className="text-[var(--color-cyan)] opacity-70">$ </span>
+          <span className="text-[var(--color-text-muted)]">{argsDisplay}</span>
+        </div>
       )}
-      {tool.isRunning && (
-        <div className="w-3 h-3 border-2 border-[var(--color-tool-border)] border-t-[var(--color-accent)] rounded-full animate-spin" />
-      )}
-      {!tool.isRunning && (
-        <button className={`ml-auto text-[11px] ${tool.isError ? 'text-[var(--color-red)]' : 'text-[var(--color-green)]'}`}
-          onClick={() => tool.result && setExpanded(!expanded)}>
-          {tool.isError ? '❌ error' : '✅ done'} {tool.result ? '▼' : ''}
-        </button>
+      
+      {/* Output/Result */}
+      {tool.result && (
+        <div className="px-2.5 py-1.5">
+          {isBash ? (
+            // For bash: show output in terminal style
+            <pre className={`text-[11px] font-mono whitespace-pre-wrap break-all max-h-[200px] overflow-y-auto ${tool.isError ? 'text-[var(--color-red)]' : 'text-[var(--color-text)]'}`}>
+              {expanded ? tool.result : tool.result.slice(0, 500) + (tool.result.length > 500 ? '\n... (click to expand)' : '')}
+            </pre>
+          ) : (
+            // For other tools: compact view
+            <div 
+              className="text-[11px] font-mono text-[var(--color-text-dim)] cursor-pointer hover:text-[var(--color-text)]"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? tool.result : tool.result.slice(0, 200) + (tool.result.length > 200 ? ' ...' : '')}
+            </div>
+          )}
+          {tool.result.length > 500 && !expanded && (
+            <button 
+              className="text-[10px] text-[var(--color-cyan)] mt-1 hover:underline"
+              onClick={() => setExpanded(true)}
+            >
+              Show more
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
