@@ -17,6 +17,20 @@ export interface SessionInfo {
   model: string | null;
 }
 
+export interface SessionStats {
+  sessionId: string;
+  sessionFile: string;
+  messages: number;
+  model: string;
+  thinkingLevel: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  tokensBefore: number;
+  contextUsage: number;
+  contextWindow: number;
+}
+
 export interface SessionContent {
   id: string;
   cwd: string;
@@ -49,6 +63,7 @@ export interface ModelInfo {
 
 // ── WebSocket Events (Server → Client) ──
 export type WsEvent =
+  | { type: 'state'; model?: string; provider?: string; thinkingLevel?: string; messages: number; sessionId?: string; sessionFile?: string; isWorking: boolean; cwd?: string }
   | { type: 'model_info'; model: string }
   | { type: 'thinking_start' }
   | { type: 'thinking_delta'; text: string }
@@ -79,7 +94,11 @@ export type WsEvent =
   | { type: 'rpc_info'; info: string; message: string }
   | { type: 'rpc_response'; command: string; data: any }
   | { type: 'extension_error'; extensionPath: string; event: string; error: string }
-  | { type: 'server_log'; level: 'info' | 'error'; message: string };
+  | { type: 'server_log'; level: 'info' | 'error'; message: string }
+  | { type: 'session_created'; sessionId: string; sessionFile: string }
+  | { type: 'session_loaded'; sessionId: string; sessionFile: string }
+  | { type: 'session_switched'; sessionId: string }
+  | { type: 'session_forked'; sessionId: string };
 
 // ── WebSocket Commands (Client → Server) ──
 export type WsCommand = {

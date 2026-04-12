@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import type { ModelInfo } from '../types';
+import type { ModelInfo, SessionStats } from '../types';
 
 interface HeaderProps {
   cwdLabel: string;
@@ -8,13 +8,14 @@ interface HeaderProps {
   connected: boolean;
   modelsLoaded: boolean;
   allModels: ModelInfo[];
+  sessionStats?: SessionStats | null;
   onToggleSidebar: () => void;
   onSelectModel: (provider: string, modelId: string) => void;
   onGetModels: () => void;
   onToggleLogs?: () => void;
 }
 
-export function Header({ cwdLabel, currentModel, queueInfo, connected, modelsLoaded, allModels, onToggleSidebar, onSelectModel, onGetModels, onToggleLogs }: HeaderProps) {
+export function Header({ cwdLabel, currentModel, queueInfo, connected, modelsLoaded, allModels, sessionStats, onToggleSidebar, onSelectModel, onGetModels, onToggleLogs }: HeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -184,6 +185,27 @@ export function Header({ cwdLabel, currentModel, queueInfo, connected, modelsLoa
           {queueInfo.steering > 0 && `⚡ ${queueInfo.steering} steer `}
           {queueInfo.followUp > 0 && `💬 ${queueInfo.followUp} follow-up`}
         </span>
+      )}
+
+      {/* Context Usage Info */}
+      {sessionStats && sessionStats.contextWindow > 0 && (
+        <div className="flex items-center gap-1.5 text-[10px]">
+          <span className="text-[var(--color-text-dim)]">Tokens:</span>
+          <div className="flex items-center gap-1">
+            <div className="w-16 h-1.5 bg-[var(--color-surface-2)] rounded-full overflow-hidden border border-[var(--color-border)]">
+              <div 
+                className={`h-full rounded-full transition-all ${sessionStats.contextUsage > 80 ? 'bg-[var(--color-orange)]' : sessionStats.contextUsage > 60 ? 'bg-[var(--color-purple)]' : 'bg-[var(--color-accent)]'}`}
+                style={{ width: `${Math.min(100, (sessionStats.tokensBefore / sessionStats.contextWindow) * 100)}%` }}
+              />
+            </div>
+            <span className="text-[var(--color-text-muted)] font-mono">
+              {Math.round(sessionStats.tokensBefore / 1000)}k / {Math.round(sessionStats.contextWindow / 1000)}k
+            </span>
+            <span className={`text-[var(--color-text-dim)] ${sessionStats.contextUsage > 80 ? 'text-[var(--color-orange)]' : ''}`}>
+              ({Math.round((sessionStats.tokensBefore / sessionStats.contextWindow) * 100)}%)
+            </span>
+          </div>
+        </div>
       )}
 
       {/* Connection status */}

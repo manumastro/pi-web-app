@@ -102,7 +102,7 @@ export function ToolBlock({ tool }: { tool: ToolCall }) {
       
       {/* Output/Result */}
       {tool.result && (
-        <div className="px-2.5 py-1.5">
+        <div className="px-2.5 py-1.5 overflow-x-auto">
           {isBash ? (
             // For bash: show output in terminal style
             <pre className={`text-[11px] font-mono whitespace-pre-wrap break-all max-h-[200px] overflow-y-auto ${tool.isError ? 'text-[var(--color-red)]' : 'text-[var(--color-text)]'}`}>
@@ -195,7 +195,7 @@ export function MessageList({ messages, isWorking }: { messages: Message[]; isWo
   }, [messages, isWorking]);
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden p-5 flex flex-col gap-3 scroll-smooth min-h-0">
+    <div ref={containerRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-3 scroll-smooth min-h-0">
       {messages.map((msg, i) => {
         if (msg.type === 'user') return <UserMessage key={i} text={msg.text} images={msg.images} />;
         if (msg.type === 'system') return <SystemMessage key={i} text={msg.text} color={msg.color} />;

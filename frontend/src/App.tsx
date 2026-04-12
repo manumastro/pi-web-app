@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { MessageList, type AssistantMessageState, type Message } from './components/Chat';
 import { InputArea } from './components/InputArea';
-import type { WsEvent, SessionInfo, CwdInfo, ModelInfo } from './types';
+import type { WsEvent, SessionInfo, CwdInfo, ModelInfo, SessionStats } from './types';
 
 
 
@@ -29,7 +30,7 @@ function WelcomeScreen({ cwdCount, sessionCount }: { cwdCount: number; sessionCo
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-[var(--color-text-muted)] text-center gap-3">
       <div className="text-[56px] mb-1">🥧</div>
-      <h2 className="text-[var(--color-text)] font-normal text-[22px]">Pi Web — AI Coding Agent</h2>
+      <h2 className="text-[color-text)] font-normal text-[22px]">Pi Web — AI Coding Agent</h2>
       <p className="text-sm max-w-[450px] leading-relaxed">
         Full access to all your sessions across every project directory. Chat, code, debug — right from the browser.
       </p>
@@ -73,14 +74,29 @@ interface ServerLog {
   message: string;
 }
 
+// ── Message Cache ──
+interface CachedMessages {
+  sessionId: string;
+  messages: Message[];
+  timestamp: number;
+}
+
+const messageCache = new Map<string, CachedMessages>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 // ── Main App ──
 export default function App() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // URL as source of truth
+  const selectedCwd = searchParams.get('cwd') || '';
+  const activeSessionId = searchParams.get('session');
+  
   const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth > 768 ? false : true);
   const [cwds, setCwds] = useState<CwdInfo[]>([]);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [selectedCwd, setSelectedCwd] = useState('');
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesLoaded, setMessagesLoaded] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [currentModel, setCurrentModel] = useState('');
   const [queueInfo, setQueueInfo] = useState({ steering: 0, followUp: 0 });
@@ -89,6 +105,7 @@ export default function App() {
   const [allModels, setAllModels] = useState<ModelInfo[]>([]);
   const [serverLogs, setServerLogs] = useState<ServerLog[]>([]);
   const [showLogs, setShowLogs] = useState(false);
+  const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // For streaming assistant message
@@ -98,14 +115,23 @@ export default function App() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const authToken = (import.meta as any).env?.VITE_AUTH_TOKEN || '';
 
-  // Load initial data
+  // Update URL helper
+  const updateUrl = useCallback((cwd: string | null, sessionId: string | null) => {
+    const newParams = new URLSearchParams();
+    if (cwd) newParams.set('cwd', cwd);
+    if (sessionId) newParams.set('session', sessionId);
+    setSearchParams(newParams, { replace: true });
+  }, [setSearchParams]);
+
+  // Load initial CWDs
   useEffect(() => {
     fetch('/api/cwds')
       .then(r => r.json())
       .then((data: CwdInfo[]) => {
         setCwds(data);
-        if (data && data.length > 0) {
-          setSelectedCwd(data[0].path);
+        // If no cwd in URL, use first available
+        if (!selectedCwd && data.length > 0) {
+          updateUrl(data[0].path, null);
         }
       })
       .catch(() => {});
@@ -120,9 +146,103 @@ export default function App() {
     }).catch(() => {});
   }, [selectedCwd]);
 
+  // Lazy load messages only when session is selected
+  useEffect(() => {
+    if (!activeSessionId || !selectedCwd) {
+      setMessages([]);
+      setMessagesLoaded(false);
+      return;
+    }
+
+    // Check cache first
+    const cached = messageCache.get(activeSessionId);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      setMessages(cached.messages);
+      setMessagesLoaded(true);
+      return;
+    }
+
+    // Load from API
+    setMessagesLoaded(false);
+    fetch(`/api/sessions/${activeSessionId}`)
+      .then(r => r.json())
+      .then(data => {
+        const newMessages: Message[] = [];
+        if (data.messages) {
+          for (const entry of data.messages) {
+            if (entry.type === 'message' && entry.message) {
+              const msg = entry.message;
+              if (msg.role === 'user') {
+                const text = extractMsgText(msg.content);
+                const imgs = extractMsgImages(msg.content);
+                if (text || imgs.length) {
+                  newMessages.push({ type: 'user', text, images: imgs.length ? imgs : undefined });
+                }
+              } else if (msg.role === 'assistant') {
+                const state: AssistantMessageState = {
+                  thinking: null,
+                  thinkingFinished: false,
+                  text: '',
+                  toolCalls: [],
+                };
+                const content = msg.content;
+                if (typeof content === 'string') {
+                  state.text = content;
+                } else if (Array.isArray(content)) {
+                  for (const part of content) {
+                    if (part.type === 'thinking' && part.thinking) {
+                      state.thinking = part.thinking;
+                      state.thinkingFinished = true;
+                    } else if (part.type === 'toolCall') {
+                      state.toolCalls.push({
+                        name: part.name || 'unknown',
+                        args: part.arguments ? JSON.stringify(part.arguments).slice(0, 80) : '',
+                        argsRaw: part.arguments ? JSON.stringify(part.arguments) : '',
+                        isRunning: false,
+                      });
+                    } else if (part.type === 'text' && part.text) {
+                      state.text += (state.text ? '\n' : '') + part.text;
+                    }
+                  }
+                }
+                if (state.text || state.thinking || state.toolCalls.length > 0) {
+                  newMessages.push({ type: 'assistant', text: state.text, assistantState: state });
+                }
+              }
+            }
+          }
+        }
+        setMessages(newMessages);
+        // Cache the messages
+        messageCache.set(activeSessionId, { sessionId: activeSessionId, messages: newMessages, timestamp: Date.now() });
+        setMessagesLoaded(true);
+      })
+      .catch(() => {
+        setMessages([]);
+        setMessagesLoaded(true);
+      });
+  }, [activeSessionId, selectedCwd]);
+
   // Handle incoming WebSocket events
   const handleEvent = useCallback((event: WsEvent) => {
     switch (event.type) {
+      case 'state':
+        // Restore session state
+        if (event.model) {
+          const provider = event.provider || '';
+          setCurrentModel(provider ? `${provider}/${event.model}` : event.model);
+        }
+        if (event.isWorking) {
+          setIsBusy(true);
+        }
+        if (event.sessionId) {
+          // Sync URL with server session
+          if (event.sessionId !== activeSessionId) {
+            updateUrl(selectedCwd, event.sessionId);
+          }
+        }
+        break;
+
       case 'model_info':
         setCurrentModel(event.model);
         break;
@@ -260,7 +380,7 @@ export default function App() {
                 .filter((c: any) => c.type === 'text')
                 .map((c: any) => c.text)
                 .join('')
-                .slice(0, 1000); // Increased from 200 to 1000
+                .slice(0, 1000);
             }
           }
         }
@@ -288,9 +408,8 @@ export default function App() {
 
       case 'rpc_error':
         if (event.command === 'set_model') {
-          // Show model selection error as a toast-like message
           setMessages(prev => [...prev, { type: 'system', text: `⚠️ ${event.error}`, color: 'var(--color-red)' }]);
-          setCurrentModel(prev => prev || ''); // keep previous
+          setCurrentModel(prev => prev || '');
         } else {
           setMessages(prev => [...prev, { type: 'system', text: `RPC error [${event.command}]: ${event.error}`, color: 'var(--color-red)' }]);
         }
@@ -321,12 +440,6 @@ export default function App() {
         setQueueInfo({ steering: event.steering?.length || 0, followUp: event.followUp?.length || 0 });
         break;
 
-      case 'agent_start':
-        break;
-
-      case 'agent_end':
-        break;
-
       case 'rpc_response':
         if (event.command === 'get_available_models') {
           const models: ModelInfo[] = (event.data?.models || event.data || []).map((m: any) => ({
@@ -342,13 +455,22 @@ export default function App() {
           setAllModels(models);
           setModelsLoaded(true);
         }
-        if (event.command === 'get_state') {
-          const data = event.data || {};
-          const isWorking = data.isWorking ?? false;
-          if (isWorking) setIsBusy(true);
-          if (data.model) {
-            const provider = data.provider || '';
-            setCurrentModel(provider ? `${provider}/${data.model}` : data.model);
+        if (event.command === 'get_session_stats') {
+          const stats = event.data;
+          if (stats) {
+            setSessionStats({
+              sessionId: stats.sessionId,
+              sessionFile: stats.sessionFile,
+              messages: stats.messages,
+              model: stats.model,
+              thinkingLevel: stats.thinkingLevel,
+              inputTokens: stats.inputTokens || 0,
+              outputTokens: stats.outputTokens || 0,
+              totalTokens: stats.totalTokens || 0,
+              tokensBefore: stats.tokensBefore || 0,
+              contextUsage: stats.contextUsage || 0,
+              contextWindow: stats.contextWindow || 0,
+            });
           }
         }
         break;
@@ -357,45 +479,21 @@ export default function App() {
         setIsBusy(true);
         break;
 
-      case 'done':
-        setIsBusy(false);
-        currentAssistantRef.current = null;
-        msgIdxRef.current = null;
-        // Reload sessions
-        if (selectedCwd) {
-          fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
-            .then(r => r.json())
-            .then(data => setSessions(data))
-            .catch(() => {});
-        }
-        break;
-
       case 'server_log':
         setServerLogs(logs => [...logs, { time: new Date(), level: event.level, message: event.message }].slice(-500));
         setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         break;
-    }
-  }, [selectedCwd, messages.length]);
 
-  const { connected, send, reconnect } = useWebSocket({
-    onEvent: handleEvent,
-    onConnected: () => {
-      setShowDisconnect(false);
-      // Refresh sessions list on reconnect
-      if (selectedCwd) {
-        fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
-          .then(r => r.json())
-          .then(data => setSessions(data))
-          .catch(() => {});
-        
-        // If we have an active session, reload its messages
-        if (activeSessionId) {
-          fetch(`/api/sessions/${activeSessionId}`)
+      case 'session_loaded':
+        // Don't change messages on session_loaded - they're already in cache/URL
+        // Update stats
+        if (event.sessionId) {
+          fetch(`/api/sessions/${event.sessionId}`)
             .then(r => r.json())
             .then(data => {
-              // Reconstruct messages from session history
-              setMessages([]);
-              if (data.messages) {
+              if (data.messages && messages.length === 0) {
+                // Only load if we have no cached messages
+                const newMessages: Message[] = [];
                 for (const entry of data.messages) {
                   if (entry.type === 'message' && entry.message) {
                     const msg = entry.message;
@@ -403,52 +501,95 @@ export default function App() {
                       const text = extractMsgText(msg.content);
                       const imgs = extractMsgImages(msg.content);
                       if (text || imgs.length) {
-                        setMessages(prev => [...prev, { type: 'user', text, images: imgs.length ? imgs : undefined }]);
+                        newMessages.push({ type: 'user', text, images: imgs.length ? imgs : undefined });
                       }
                     }
                   }
+                }
+                if (newMessages.length > 0) {
+                  setMessages(newMessages);
                 }
               }
             })
             .catch(() => {});
         }
-      }
-      // Poll for current state after connection (agent might be working)
-      setTimeout(() => {
-        if (selectedCwd) {
-          send({ type: 'get_state', cwd: selectedCwd });
+        break;
+
+      case 'session_created':
+        if (event.sessionId) {
+          updateUrl(selectedCwd, event.sessionId);
         }
-      }, 500);
+        break;
+
+      case 'session_switched':
+      case 'session_forked':
+        if (event.sessionId) {
+          updateUrl(selectedCwd, event.sessionId);
+        }
+        break;
+    }
+  }, [selectedCwd, activeSessionId, messages.length, updateUrl]);
+
+  const { connected, send, reconnect } = useWebSocket({
+    onEvent: handleEvent,
+    onConnected: () => {
+      setShowDisconnect(false);
+      
+      // Refresh sessions list on reconnect
+      if (selectedCwd) {
+        fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
+          .then(r => r.json())
+          .then(data => setSessions(data))
+          .catch(() => {});
+      }
+      
+      // Load session via WS to sync state
+      if (selectedCwd && activeSessionId) {
+        send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId });
+      }
+      
+      // Poll for current state
+      if (selectedCwd) {
+        send({ type: 'get_state', cwd: selectedCwd });
+        send({ type: 'get_session_stats', cwd: selectedCwd });
+      }
     },
     onDisconnected: () => {
       setShowDisconnect(true);
-      setIsBusy(false);
-      currentAssistantRef.current = null;
-      msgIdxRef.current = null;
     },
     authToken,
   });
 
-  // Poll for state periodically to detect if agent is working when reconnecting
+  // Poll for state periodically to detect if agent is working
   useEffect(() => {
     if (!connected || !selectedCwd) return;
     
     const pollInterval = setInterval(() => {
       send({ type: 'get_state', cwd: selectedCwd });
-    }, 3000); // Poll every 3 seconds
+      send({ type: 'get_session_stats', cwd: selectedCwd });
+    }, 3000);
     
     // Initial poll
     send({ type: 'get_state', cwd: selectedCwd });
     send({ type: 'get_available_models', cwd: selectedCwd });
+    send({ type: 'get_session_stats', cwd: selectedCwd });
     
     return () => clearInterval(pollInterval);
   }, [connected, selectedCwd, send]);
+
+  // Request session stats when active session changes
+  useEffect(() => {
+    if (connected && activeSessionId && selectedCwd) {
+      send({ type: 'get_session_stats', cwd: selectedCwd });
+    }
+  }, [connected, activeSessionId, selectedCwd, send]);
 
   // Send message
   const handleSend = useCallback((text: string, images?: string[]) => {
     if (!selectedCwd) return;
 
-    setActiveSessionId(null);
+    // Keep existing session - don't clear URL
+    // The session continues to work on the same session
     setIsBusy(true);
     setMessages(prev => [...prev, { type: 'user', text, images }]);
 
@@ -460,13 +601,26 @@ export default function App() {
       }).filter(Boolean);
     }
     send(cmd);
-  }, [selectedCwd, send]);
+  }, [selectedCwd, send, updateUrl]);
+
+  // Select CWD
+  const handleSelectCwd = useCallback((cwd: string) => {
+    updateUrl(cwd, null);
+    setMessages([]);
+    setMessagesLoaded(false);
+    setSessionStats(null);
+    currentAssistantRef.current = null;
+    msgIdxRef.current = null;
+    setCurrentModel('ready');
+    setQueueInfo({ steering: 0, followUp: 0 });
+  }, [updateUrl]);
 
   // Load session
   const loadSession = useCallback(async (session: SessionInfo) => {
-    setActiveSessionId(session.id);
-    setSelectedCwd(session.cwd);
+    updateUrl(session.cwd, session.id);
     setMessages([]);
+    setMessagesLoaded(false);
+    setSessionStats(null);
     currentAssistantRef.current = null;
     msgIdxRef.current = null;
 
@@ -481,6 +635,7 @@ export default function App() {
       if (data.model) setCurrentModel(data.model);
 
       if (data.messages) {
+        const newMessages: Message[] = [];
         for (const entry of data.messages) {
           if (entry.type === 'message' && entry.message) {
             const msg = entry.message;
@@ -488,10 +643,9 @@ export default function App() {
               const text = extractMsgText(msg.content);
               const imgs = extractMsgImages(msg.content);
               if (text || imgs.length) {
-                setMessages(prev => [...prev, { type: 'user', text, images: imgs.length ? imgs : undefined }]);
+                newMessages.push({ type: 'user', text, images: imgs.length ? imgs : undefined });
               }
             } else if (msg.role === 'assistant') {
-              // Reconstruct assistant state from history
               const state: AssistantMessageState = {
                 thinking: null,
                 thinkingFinished: false,
@@ -521,29 +675,36 @@ export default function App() {
               }
 
               if (state.text || state.thinking || state.toolCalls.length > 0) {
-                setMessages(prev => [...prev, { type: 'assistant', text: state.text, assistantState: state }]);
+                newMessages.push({ type: 'assistant', text: state.text, assistantState: state });
               }
             }
           }
         }
+        setMessages(newMessages);
+        // Cache the messages
+        messageCache.set(session.id, { sessionId: session.id, messages: newMessages, timestamp: Date.now() });
       }
+      setMessagesLoaded(true);
     } catch (e) {
       console.error('Failed to load session:', e);
+      setMessagesLoaded(true);
     }
-  }, [send]);
+  }, [send, updateUrl]);
 
   // New session
   const handleNewSession = useCallback(() => {
     if (!selectedCwd) return;
     send({ type: 'new_session', cwd: selectedCwd });
-    setActiveSessionId(null);
+    updateUrl(selectedCwd, null);
     setMessages([]);
+    setMessagesLoaded(true);
+    setSessionStats(null);
     setIsBusy(false);
     currentAssistantRef.current = null;
     msgIdxRef.current = null;
     setCurrentModel('ready');
     setQueueInfo({ steering: 0, followUp: 0 });
-  }, [selectedCwd, send]);
+  }, [selectedCwd, send, updateUrl]);
 
   // Select model
   const handleSelectModel = useCallback((provider: string, modelId: string) => {
@@ -564,6 +725,10 @@ export default function App() {
     send({ type: 'abort', cwd: selectedCwd });
   }, [selectedCwd, send]);
 
+  // Determine what to show
+  const showWelcome = !selectedCwd || (cwds.length > 0 && !activeSessionId && messages.length === 0 && !messagesLoaded);
+  const showNoSession = selectedCwd && !activeSessionId && messages.length === 0 && messagesLoaded;
+
   return (
     <div className="flex flex-row h-full overflow-hidden">
       <Sidebar
@@ -573,7 +738,7 @@ export default function App() {
         selectedCwd={selectedCwd}
         activeSessionId={activeSessionId}
         connected={connected}
-        onSelectCwd={(cwd) => { setSelectedCwd(cwd); }}
+        onSelectCwd={handleSelectCwd}
         onSelectSession={loadSession}
         onNewSession={handleNewSession}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -587,6 +752,7 @@ export default function App() {
           connected={connected}
           modelsLoaded={modelsLoaded}
           allModels={allModels}
+          sessionStats={sessionStats}
           onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
           onSelectModel={handleSelectModel}
           onGetModels={handleGetModels}
@@ -594,11 +760,11 @@ export default function App() {
         />
 
         {/* Messages area */}
-        {messages.length === 0 && !activeSessionId ? (
+        {showWelcome ? (
           <div className="flex-1 overflow-hidden">
             <WelcomeScreen cwdCount={cwds.length} sessionCount={cwds.reduce((s, c) => s + c.sessionCount, 0)} />
           </div>
-        ) : messages.length === 0 && activeSessionId ? (
+        ) : showNoSession ? (
           <div className="flex-1 overflow-hidden">
             <NoSessionScreen />
           </div>

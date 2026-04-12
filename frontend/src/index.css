@@ -38,6 +38,9 @@ body {
 .markdown-content {
   line-height: 1.65;
   font-size: 14.5px;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  max-width: 100%;
 }
 .markdown-content p { margin-bottom: 10px; }
 .markdown-content p:last-child { margin-bottom: 0; }
@@ -47,6 +50,8 @@ body {
   border-radius: 4px;
   font-size: 13px;
   font-family: 'SF Mono', 'Fira Code', monospace;
+  overflow-wrap: break-word;
+  word-break: break-all;
 }
 .markdown-content pre {
   background: var(--color-surface-2);

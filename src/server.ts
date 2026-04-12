@@ -941,10 +941,15 @@ function setupWebSocket(wss: WebSocketServer) {
       }
 
       if (msg.type === "get_session_stats") {
-        const cr = findSessionForClient(ws);
+        // Try to find by client first, then by cwd
+        let cr = findSessionForClient(ws);
+        if (!cr && msg.cwd) {
+          cr = cwdSessions.get(msg.cwd);
+        }
         if (cr) {
           const s = cr.session;
-          broadcastToClients(cr, {
+          const contextUsage = s.getContextUsage();
+          ws.send(JSON.stringify({
             type: "rpc_response",
             command: "get_session_stats",
             data: {
@@ -953,8 +958,28 @@ function setupWebSocket(wss: WebSocketServer) {
               messages: s.messages.length,
               model: s.model?.id,
               thinkingLevel: s.thinkingLevel,
+              // Context usage info
+              tokensBefore: contextUsage?.tokens ?? 0,
+              contextUsage: contextUsage?.percent ?? 0,
+              contextWindow: contextUsage?.contextWindow ?? 0,
             }
-          });
+          }));
+        } else {
+          // No session found, send empty stats
+          ws.send(JSON.stringify({
+            type: "rpc_response",
+            command: "get_session_stats",
+            data: {
+              sessionId: '',
+              sessionFile: '',
+              messages: 0,
+              model: '',
+              thinkingLevel: '',
+              tokensBefore: 0,
+              contextUsage: 0,
+              contextWindow: 0,
+            }
+          }));
         }
       }
 
@@ -1009,17 +1034,63 @@ function setupWebSocket(wss: WebSocketServer) {
           return;
         }
 
+        // Check if there's already an active session for this cwd
+        const existingCr = cwdSessions.get(cwd);
+        if (existingCr && existingCr.session.sessionId === sessionId) {
+          // Same session already active, just add this client and preserve state
+          existingCr.clients.add(ws);
+          broadcastToClients(existingCr, {
+            type: "session_loaded",
+            sessionId: existingCr.session.sessionId,
+            sessionFile: existingCr.session.sessionFile,
+          });
+          // Send current state after a short delay
+          setTimeout(() => {
+            const s = existingCr.session;
+            broadcastToClients(existingCr, {
+              type: "state",
+              model: s.model?.id,
+              provider: s.model?.provider,
+              thinkingLevel: s.thinkingLevel,
+              messages: s.messages.length,
+              sessionId: s.sessionId,
+              sessionFile: s.sessionFile,
+              isWorking: !existingCr.idle,
+              cwd: existingCr.cwd,
+            });
+          }, 100);
+          console.log(`📖 Session ${sessionId} already active for ${cwd}, state preserved`);
+          return;
+        }
+
         // Dispose old runtime and create new one with this session
         await disposeSession(cwd);
         const cr = await createCwdSession(cwd, SessionManager.open(sessionPath));
         cr.clients.add(ws);
-        cr.idle = true;
+        // Don't force idle=true - preserve previous session state
 
         broadcastToClients(cr, {
           type: "session_loaded",
           sessionId: cr.session.sessionId,
           sessionFile: cr.session.sessionFile,
         });
+        
+        // Send current state after a short delay
+        setTimeout(() => {
+          const s = cr.session;
+          broadcastToClients(cr, {
+            type: "state",
+            model: s.model?.id,
+            provider: s.model?.provider,
+            thinkingLevel: s.thinkingLevel,
+            messages: s.messages.length,
+            sessionId: s.sessionId,
+            sessionFile: s.sessionFile,
+            isWorking: !cr.idle,
+            cwd: cr.cwd,
+          });
+        }, 100);
+        
         console.log(`📖 Loaded session ${sessionId} for ${cwd}`);
       }
 
