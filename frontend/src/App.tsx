@@ -722,13 +722,14 @@ export default function App() {
           .catch(() => {});
       }
 
-      // Poll for current state
+      // Don't send get_state here — load_session already sends full state
+      // (including isWorking). Sending get_state before load_session completes
+      // would return isWorking: false and overwrite the correct value later.
       if (selectedCwd) {
-        send({ type: 'get_state', cwd: selectedCwd });
         send({ type: 'get_available_models', cwd: selectedCwd });
       }
 
-      // Load session via WS to sync state — get_messages will be called after session_loaded
+      // Load session via WS to sync state — server responds with state + get_messages
       if (selectedCwd && activeSessionId) {
         send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId });
       }
@@ -740,19 +741,18 @@ export default function App() {
   });
 
   // Poll for state periodically to detect if agent is working
+  // NOTE: no initial get_state here — load_session (sent from onConnected)
+  // already provides the authoritative state including isWorking.
+  // A premature get_state would return isWorking: false before the session
+  // is loaded, overwriting the correct value.
   useEffect(() => {
     if (!connected || !selectedCwd) return;
-    
+
     const pollInterval = setInterval(() => {
       send({ type: 'get_state', cwd: selectedCwd });
       send({ type: 'get_session_stats', cwd: selectedCwd });
     }, 3000);
-    
-    // Initial poll
-    send({ type: 'get_state', cwd: selectedCwd });
-    send({ type: 'get_available_models', cwd: selectedCwd });
-    send({ type: 'get_session_stats', cwd: selectedCwd });
-    
+
     return () => clearInterval(pollInterval);
   }, [connected, selectedCwd, send]);
 
