@@ -278,6 +278,76 @@ async function createSdkSession(cwd: string, sessionFile?: string): Promise<Agen
   return session;
 }
 
+// ── Extension-based model loading ──
+let extensionsLoaded = false;
+
+/**
+ * Load extensions from settings.json and register their providers/models with modelRegistry.
+ */
+async function loadExtensionsForModels(): Promise<void> {
+  if (extensionsLoaded) return;
+  
+  const settingsPath = path.join(AGENT_DIR, "settings.json");
+  let settingsPackages: string[] = [];
+  try {
+    if (fs.existsSync(settingsPath)) {
+      const settingsData = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      settingsPackages = settingsData.packages || [];
+    }
+  } catch (e: any) {
+    console.error(`[loadExtensionsForModels] settings error: ${e.message}`);
+    return;
+  }
+
+  const resolveExtPath = (p: string): string | null => {
+    let resolved: string;
+    
+    if (p.startsWith("../../")) {
+      // ../../ means go up 2 directories from AGENT_DIR, then use the rest
+      resolved = path.resolve(AGENT_DIR, "..", "..", p.replace(/^\.\.\/\.\.\//, ""));
+    } else if (p.startsWith("./")) {
+      resolved = path.join(AGENT_DIR, p.slice(2));
+    } else if (p.startsWith("npm:")) {
+      const pkgName = p.replace("npm:", "");
+      resolved = path.join(HOME, ".nvm/versions/node/v24.12.0/lib/node_modules", pkgName, "index.ts");
+    } else {
+      resolved = p;
+    }
+    
+    return fs.existsSync(resolved) ? resolved : null;
+  };
+
+  const allExtensionPaths = settingsPackages.map(resolveExtPath).filter(Boolean);
+  
+  if (allExtensionPaths.length === 0) {
+    extensionsLoaded = true;
+    return;
+  }
+
+  try {
+    const resourceLoader = new DefaultResourceLoader({
+      cwd: HOME,
+      agentDir: AGENT_DIR,
+      additionalExtensionPaths: allExtensionPaths,
+    });
+    await resourceLoader.reload();
+    
+    const extensionsResult = resourceLoader.getExtensions();
+    const runtime = (extensionsResult as any).runtime;
+    
+    if (runtime?.pendingProviderRegistrations?.length > 0) {
+      for (const { name, config } of runtime.pendingProviderRegistrations) {
+        modelRegistry.registerProvider(name, config);
+      }
+    }
+    
+    extensionsLoaded = true;
+  } catch (e: any) {
+    console.error(`[loadExtensionsForModels] Error: ${e.message}`);
+    extensionsLoaded = true;
+  }
+}
+
 // ── Custom models (providers registered by extensions, not built-in) ──
 const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
@@ -943,7 +1013,10 @@ function setupWebSocket(wss: WebSocketServer) {
       if (msg.type === "get_available_models") {
         const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
         try {
-          // Get models from shared registry
+          // Load extensions first to register their models/providers
+          await loadExtensionsForModels();
+
+          // Get models from shared registry (now includes extension-registered models)
           const available = await modelRegistry.getAvailable();
 
           // Load models from pre-generated CLI output (models.json)
