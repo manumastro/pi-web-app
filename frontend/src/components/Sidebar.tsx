@@ -109,10 +109,10 @@ export function Sidebar({
               <div className="text-[10px] text-[var(--color-text-dim)] font-mono mt-0.5 truncate">
                 {s.cwdLabel}
               </div>
-              {/* Delete button */}
+              {/* Delete button - position below the session name */}
               <button
                 onClick={(e) => { e.stopPropagation(); onDeleteSession(s.id); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-60 hover:opacity-100 hover:bg-[var(--color-red)]/20 text-[var(--color-red)] transition-opacity"
+                className="absolute right-2 top-2 p-1 rounded opacity-0 group-hover:opacity-60 hover:opacity-100 hover:bg-[var(--color-red)]/20 text-[var(--color-red)] transition-opacity"
                 title="Delete session"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
