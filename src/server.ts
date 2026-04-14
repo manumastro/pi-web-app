@@ -948,6 +948,7 @@ function startServer(retryCount = 0) {
 startServer();
 
 // Setup context for route handlers (SSE and REST)
+console.log('🔧 Setting up route context...');
 import { setSSEContext } from './routes/events';
 import { setMessageContext } from './routes/messages';
 import { setSessionContext } from './routes/sessions';
@@ -966,6 +967,7 @@ setSessionContext(
   getOrCreateSession,
   findSessionFileBySessionId
 );
+console.log('✅ Route context setup complete');
 
 function setupWebSocket(wss: WebSocketServer) {
   const PING_INTERVAL = 30000;
