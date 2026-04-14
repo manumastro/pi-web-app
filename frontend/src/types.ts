@@ -86,7 +86,7 @@ export type WsEvent =
   | { type: 'message_end'; message?: any }
   | { type: 'compaction_start'; reason?: string }
   | { type: 'compaction_end'; reason?: string; aborted?: boolean; willRetry?: boolean; summary?: string }
-  | { type: 'auto_retry_start'; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
+  | { type: 'auto_retry_start'; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string; errorCategory?: string; isRetryable?: boolean }
   | { type: 'auto_retry_end'; success: boolean; attempt: number; finalError?: string }
   | { type: 'queue_update'; steering: any[]; followUp: any[] }
   | { type: 'error'; message: string }

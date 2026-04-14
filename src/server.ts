@@ -55,6 +55,49 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
   }
 }));
 
+// ── Error Categorization ──
+function categorizeError(message: string): { category: string; isRetryable: boolean } {
+  const lowerMsg = message.toLowerCase();
+  
+  // Rate limiting
+  if (lowerMsg.includes('rate limit') || lowerMsg.includes('too_many_requests') || lowerMsg.includes('429')) {
+    return { category: 'rate_limit', isRetryable: true };
+  }
+  
+  // Quota exceeded
+  if (lowerMsg.includes('quota') || lowerMsg.includes('exceeded') || lowerMsg.includes('limit')) {
+    return { category: 'quota', isRetryable: true };
+  }
+  
+  // Server overloaded
+  if (lowerMsg.includes('overload') || lowerMsg.includes('overloaded')) {
+    return { category: 'overload', isRetryable: true };
+  }
+  
+  // Timeout
+  if (lowerMsg.includes('timeout') || lowerMsg.includes('timed out')) {
+    return { category: 'timeout', isRetryable: true };
+  }
+  
+  // Network errors
+  if (lowerMsg.includes('connection') || lowerMsg.includes('network') || lowerMsg.includes('econnrefused') || lowerMsg.includes('enetunreach')) {
+    return { category: 'network', isRetryable: true };
+  }
+  
+  // Auth errors - not retryable
+  if (lowerMsg.includes('auth') || lowerMsg.includes('unauthorized') || lowerMsg.includes('401') || lowerMsg.includes('403')) {
+    return { category: 'auth', isRetryable: false };
+  }
+  
+  // API errors
+  if (lowerMsg.includes('api') || lowerMsg.includes('invalid') || lowerMsg.includes('bad request') || lowerMsg.includes('400')) {
+    return { category: 'api', isRetryable: false };
+  }
+  
+  // Generic retryable
+  return { category: 'unknown', isRetryable: true };
+}
+
 // ── Session Discovery (reads JSONL files directly — no running process needed) ──
 function decodeDirName(encoded: string): string {
   const inner = encoded.replace(/^-+|-+$/g, "");
@@ -692,7 +735,7 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       break;
 
     case "agent_start":
-      console.log(`🤖 [${cr.cwd}] Agent started`);
+      console.log(`🤖 [${cr.cwd}] Agent started - Setting idle=false`);
       wsMsg = { type: "agent_start" };
       cr.idle = false;
       cr.stateVersion++;
@@ -707,7 +750,7 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       const lastAssistant = assistantMsgs[assistantMsgs.length - 1];
       const hasContent = lastAssistant?.content?.some((c: any) => c.type === 'text' && c.text?.trim());
       
-      console.log(`✅ [${cr.cwd}] Task completed`);
+      console.log(`✅ [${cr.cwd}] Task completed - Setting idle=true`);
       console.log(`   📊 Messages: ${finalMessages.length} total, ${assistantMsgs.length} assistant responses`);
       if (!hasContent && assistantMsgs.length > 0) {
         console.error(`   ⚠️  WARNING: Last assistant message has no text content!`);
@@ -779,12 +822,30 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       wsMsg = { type: "compaction_end", reason: event.reason, aborted: event.aborted, willRetry: event.willRetry, summary: event.result?.summary, firstKeptEntryId: event.result?.firstKeptEntryId };
       break;
 
-    case "auto_retry_start":
-      wsMsg = { type: "auto_retry_start", attempt: event.attempt, maxAttempts: event.maxAttempts, delayMs: event.delayMs, errorMessage: event.errorMessage };
+    case "auto_retry_start": {
+      const delaySec = (event.delayMs / 1000).toFixed(1);
+      const errorInfo = categorizeError(event.errorMessage);
+      console.log(`🔄 [${cr.cwd}] Retry ${event.attempt}/${event.maxAttempts} (${errorInfo.category}) in ${delaySec}s: ${event.errorMessage}`);
+      wsMsg = { 
+        type: "auto_retry_start", 
+        attempt: event.attempt, 
+        maxAttempts: event.maxAttempts, 
+        delayMs: event.delayMs, 
+        errorMessage: event.errorMessage,
+        errorCategory: errorInfo.category,
+        isRetryable: errorInfo.isRetryable,
+      };
       break;
-    case "auto_retry_end":
+    }
+    case "auto_retry_end": {
+      if (event.success) {
+        console.log(`✅ [${cr.cwd}] Retry succeeded on attempt ${event.attempt}`);
+      } else {
+        console.error(`❌ [${cr.cwd}] Retry failed after ${event.attempt} attempts: ${event.finalError}`);
+      }
       wsMsg = { type: "auto_retry_end", success: event.success, attempt: event.attempt, finalError: event.finalError };
       break;
+    }
 
     case "queue_update":
       wsMsg = { type: "queue_update", steering: event.steering || [], followUp: event.followUp || [] };
@@ -1498,7 +1559,10 @@ function setupWebSocket(wss: WebSocketServer) {
       if (cr) {
         cr.clients.delete(ws);
         if (cr.clients.size === 0) {
-          cr.idle = true;
+          // Don't set idle=true here — the agent may still be working.
+          // The idle flag should only be set by agent_end events.
+          // This ensures reconnection properly restores isWorking state.
+          console.log(`📡 Last client left for ${cr.cwd}, preserving idle=${cr.idle}`);
           resetIdleTimer(cr);
         }
       }

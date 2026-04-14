@@ -7,6 +7,7 @@ import { Header } from './components/Header';
 import { FileTree } from './components/FileTree';
 import { MessageList, type AssistantMessageState, type Message } from './components/Chat';
 import { InputArea } from './components/InputArea';
+import { RetryBanner } from './components/RetryBanner';
 import type { WsEvent, SessionInfo, CwdInfo, ModelInfo, SessionStats } from './types';
 
 const HOME = '/home/manu';
@@ -103,6 +104,8 @@ export default function App() {
   const [messagesLoaded, setMessagesLoaded] = useState(false);
   const setStatus = useSessionStatusStore(s => s.setStatus);
   const setWorkingStartTime = useSessionStatusStore(s => s.setWorkingStartTime);
+  const setRetryState = useSessionStatusStore(s => s.setRetryState);
+  const retryState = useSessionStatusStore(s => s.retryState[activeSessionId || '']);
   const isBusy = useSessionStatusStore(s => s.getStatus(activeSessionId || '')) !== 'idle';
   const [currentModel, setCurrentModel] = useState('');
   const [queueInfo, setQueueInfo] = useState({ steering: 0, followUp: 0 });
@@ -261,19 +264,23 @@ export default function App() {
           const provider = event.provider || '';
           setCurrentModel(provider ? `${provider}/${event.model}` : event.model);
         }
-        // Sync working state and start time
+        
+        // PRIORITÀ: Usa l'ID sessione inviato dal server, altrimenti usa quello dell'URL
+        const targetSessionId = event.sessionId || activeSessionId || '';
         const status = event.isWorking ? 'working' : 'idle';
-        setStatus(activeSessionId || '', status);
+        
+        console.log(`🔄 Syncing session state: [${targetSessionId}] -> ${status} (isWorking: ${event.isWorking})`);
+        setStatus(targetSessionId, status);
+        
         if (event.isWorking && event.workingDuration) {
-          setWorkingStartTime(activeSessionId || '', Date.now() - event.workingDuration);
+          setWorkingStartTime(targetSessionId, Date.now() - event.workingDuration);
         } else if (!event.isWorking) {
-          setWorkingStartTime(activeSessionId || '', null);
+          setWorkingStartTime(targetSessionId, null);
         }
-        if (event.sessionId) {
+        
+        if (event.sessionId && event.sessionId !== activeSessionId) {
           // Sync URL with server session
-          if (event.sessionId !== activeSessionId) {
-            updateUrl(selectedCwd, event.sessionId);
-          }
+          updateUrl(selectedCwd, event.sessionId);
         }
         break;
 
@@ -613,14 +620,31 @@ export default function App() {
         if (event.summary) setMessages(prev => [...prev, { type: 'system', text: `✅ Context compacted` }]);
         break;
 
-      case 'auto_retry_start':
-        setMessages(prev => [...prev, { type: 'system', text: `🔄 Auto-retry attempt ${event.attempt}/${event.maxAttempts}…` }]);
+      case 'auto_retry_start': {
+        const targetSessionId = activeSessionId || '';
+        const nextRetryTime = Date.now() + event.delayMs;
+        setRetryState(targetSessionId, {
+          attempt: event.attempt,
+          maxAttempts: event.maxAttempts,
+          delayMs: event.delayMs,
+          errorMessage: event.errorMessage,
+          errorCategory: event.errorCategory,
+          nextRetryTime,
+        });
+        setMessages(prev => [...prev, { type: 'system', text: `🔄 Auto-retry attempt ${event.attempt}/${event.maxAttempts}…`, color: 'orange' }]);
         break;
+      }
 
-      case 'auto_retry_end':
-        if (event.success) setMessages(prev => [...prev, { type: 'system', text: `✅ Retry succeeded` }]);
-        else setMessages(prev => [...prev, { type: 'system', text: `❌ Retry failed: ${event.finalError || ''}` }]);
+      case 'auto_retry_end': {
+        const targetSessionId = activeSessionId || '';
+        setRetryState(targetSessionId, null);
+        if (event.success) {
+          setMessages(prev => [...prev, { type: 'system', text: `✅ Retry succeeded`, color: 'green' }]);
+        } else {
+          setMessages(prev => [...prev, { type: 'system', text: `❌ Retry failed: ${event.finalError || 'Unknown error'}`, color: 'red' }]);
+        }
         break;
+      }
 
       case 'queue_update':
         setQueueInfo({ steering: event.steering?.length || 0, followUp: event.followUp?.length || 0 });
@@ -1092,6 +1116,17 @@ export default function App() {
         )}
 
         {showDisconnect && <DisconnectBanner />}
+
+        {retryState && (
+          <RetryBanner
+            attempt={retryState.attempt}
+            maxAttempts={retryState.maxAttempts}
+            delayMs={retryState.delayMs}
+            errorMessage={retryState.errorMessage}
+            errorCategory={retryState.errorCategory}
+            nextRetryTime={retryState.nextRetryTime || Date.now() + retryState.delayMs}
+          />
+        )}
 
         <InputArea
           onSend={handleSend}
