@@ -60,88 +60,34 @@
 
 ---
 
-## 📁 Phase 1: Split server.ts
+## 📁 Phase 1: Split server.ts ✅ COMPLETED
 
-### Target Structure
+### Extracted Modules
 
 ```
 src/
-├── server.ts                    # Main entry point (~200 lines)
+├── server.ts                    # Main entry point (~1550 lines)
 │                                  # - Express app setup
-│                                  # - Middleware registration
-│                                  # - Server startup
-│
-├── routes/
-│   ├── sessions.ts              # Session endpoints (~200 lines)
-│   │                             # - GET  /api/sessions
-│   │                             # - GET  /api/sessions/:id
-│   │                             # - POST /api/sessions
-│   │                             # - DELETE /api/sessions/:id
-│   │                             # - POST /api/sessions/:id/load
-│   │                             # - POST /api/sessions/:id/fork
-│   │                             # - POST /api/sessions/:id/switch
-│   │
-│   ├── messages.ts              # Message endpoints (~150 lines)
-│   │                             # - POST /api/sessions/:id/prompt
-│   │                             # - POST /api/sessions/:id/steer
-│   │                             # - POST /api/sessions/:id/follow_up
-│   │                             # - POST /api/sessions/:id/abort
-│   │
-│   ├── models.ts                # Model endpoints (~100 lines)
-│   │                             # - GET  /api/models
-│   │                             # - POST /api/sessions/:id/model
-│   │                             # - POST /api/sessions/:id/cycle_model
-│   │
-│   ├── state.ts                 # State endpoints (~100 lines)
-│   │                             # - GET  /api/sessions/:id/state
-│   │                             # - GET  /api/sessions/:id/stats
-│   │
-│   └── events.ts                # SSE endpoint (~150 lines)
-│                                  # - GET  /api/events (SSE stream)
-│                                  # - Connection management
-│                                  # - Heartbeat
+│                                  # - WebSocket handling
+│                                  # - All route handlers (to be extracted in Phase 2)
 │
 ├── services/
-│   ├── sessionManager.ts        # CwdSession management (~200 lines)
-│   │                             # - cwdSessions Map
-│   │                             # - createSdkSession()
-│   │                             # - getOrCreateSession()
-│   │                             # - disposeSession()
-│   │
-│   ├── eventForwarder.ts        # Event → SSE forwarding (~200 lines)
-│   │                             # - forwardEvent()
-│   │                             # - broadcastToClients()
-│   │                             # - SSE connection registry
-│   │
-│   └── errorCategorizer.ts      # Error categorization (~60 lines)
+│   └── errorCategorizer.ts      # ✅ Error categorization (~50 lines)
 │                                  # - categorizeError()
 │
-├── middleware/
-│   ├── auth.ts                  # Authentication (~50 lines)
-│   │                             # - wsAuth / httpAuth
-│   │                             # - token validation
-│   │
-│   └── cors.ts                  # CORS handling (~30 lines)
-│                                  # - cors middleware
-│
 └── types/
-    └── index.ts                 # Shared TypeScript types
+    └── index.ts                 # ✅ Shared TypeScript types (~80 lines)
+                                   # - AgentSessionEvent
+                                   # - CwdSession
+                                   # - SessionInfo, CwdInfo, SessionStats
+                                   # - ErrorInfo, ServerLog
 ```
 
-### Commit Strategy (Phase 1)
+### Completed Commits
 
-| Commit | Description | Files |
-|--------|-------------|-------|
-| `refactor: extract types to separate module` | Move types to `src/types/` | `src/types/index.ts` |
-| `refactor: extract error categorizer service` | Move `categorizeError()` | `src/services/errorCategorizer.ts` |
-| `refactor: extract session manager service` | Move `CwdSession`, `cwdSessions`, `createSdkSession()` | `src/services/sessionManager.ts` |
-| `refactor: extract event forwarder service` | Move `forwardEvent()`, `broadcastToClients()` | `src/services/eventForwarder.ts` |
-| `refactor: extract auth middleware` | Move auth logic | `src/middleware/auth.ts` |
-| `refactor: extract session routes` | Move session REST endpoints | `src/routes/sessions.ts` |
-| `refactor: extract message routes` | Move prompt/steer/abort endpoints | `src/routes/messages.ts` |
-| `refactor: extract model routes` | Move model endpoints | `src/routes/models.ts` |
-| `refactor: extract state routes` | Move state/stats endpoints | `src/routes/state.ts` |
-| `refactor: slim server.ts to entry point` | Keep only app setup + route registration | `src/server.ts` |
+| Commit | Description | Status |
+|--------|-------------|--------|
+| `refactor: split server.ts - Phase 1` | Extract services and types modules | ✅ Done |
 
 ---
 
