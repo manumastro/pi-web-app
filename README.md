@@ -15,7 +15,7 @@ Interfaccia web completa per **pi-coding-agent** — usa il SDK direttamente in-
 cd pi-web-app
 npm run install:all
 npm run build:ui
-npm start
+# Start service: systemctl --user start pi-web
 # → http://localhost:3210
 ```
 
@@ -25,16 +25,19 @@ La documentazione completa è nella cartella [`docs/`](docs/):
 
 | Documento | Descrizione |
 |-----------|-------------|
-| [📖 Panoramica](docs/README.md) | Indice generale, feature summary, architettura |
-| [🏗️ Architettura](docs/ARCHITECTURE.md) | Design decisions, data flow, format sessioni, tech stack |
-| [📡 Protocollo WebSocket](docs/WEBSOCKET_PROTOCOL.md) | Reference completa di tutti gli eventi e comandi WS |
-| [🎨 Frontend](docs/FRONTEND.md) | Componenti React, state management, rendering pipeline |
-| [⚙️ Backend](docs/BACKEND.md) | Server internals, SDK integration, session management |
-| [🚀 Deployment](docs/DEPLOYMENT.md) | Installazione, systemd, nginx, monitoring, troubleshooting |
+| [📖 Panoramica](docs/ARCHITECTURE.md) | Architettura generale, tech stack |
+| [📡 Protocollo SSE+REST](docs/WEBSOCKET_PROTOCOL.md) | Reference completa API (SSE + REST) |
+| [🔄 Session Management](docs/SESSION_MANAGEMENT.md) | State & reconnection |
+| [🔍 OpenCode Analysis](docs/OPENCODE_ANALYSIS.md) | Analisi comparativa con OpenCode |
+| [📋 Refactoring Plan](docs/REFACTORING_PLAN.md) | Piano completato: WS → SSE |
+| [🎨 Frontend](docs/FRONTEND.md) | Componenti React, state management |
+| [⚙️ Backend](docs/BACKEND.md) | Server internals, SDK integration |
+| [🚀 Deployment](docs/DEPLOYMENT.md) | Installazione, systemd, nginx |
 
 ## ✅ Features
 
 - **SDK in-process** — zero overhead subprocess
+- **Protocollo SSE** — Server-Sent Events + REST (sostituito WebSocket)
 - **Multi-client** — più tab condividono la sessione
 - **Streaming real-time** — text, thinking, tool call, tool execution
 - **Session management** — crea, carica, elimina, fork sessioni
@@ -42,4 +45,5 @@ La documentazione completa è nella cartella [`docs/`](docs/):
 - **Image support** — paste o upload immagini nei prompt
 - **Steer / Follow-up / Abort** — controlli completi sull'agent
 - **Compaction** — manuale e automatica
+- **Retry UI** — banner countdown per errori e retry
 - **Dark mode + responsive** — ottimizzato per coding

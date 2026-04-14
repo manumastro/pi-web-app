@@ -1,6 +1,6 @@
 # Refactoring Plan: WebSocket → SSE + Server Split
 
-> Replace WebSocket with Server-Sent Events (SSE) using OpenCode Web UI as reference architecture.
+> ✅ **COMPLETED** - WebSocket replaced with SSE following OpenCode Web UI architecture
 
 ---
 
@@ -87,11 +87,47 @@ src/
 
 | Commit | Description | Status |
 |--------|-------------|--------|
-| `refactor: split server.ts - Phase 1` | Extract services and types modules | ✅ Done |
+| `dff5879` | Extract services and types modules | ✅ Done |
+| `59580ac` | Add SSE routes stub | ✅ Done |
+| `5d5c822` | SSE events endpoint + useSSE hook | ✅ Done |
+| `aea7dd9` | REST routes for messages/sessions | ✅ Done |
+| `ef2a9b1` | Systemd service fix | ✅ Done |
+| `6c9cef5` | Frontend SSE integration | ✅ Done |
+| `7be66e1` | Remove WebSocket, SSE default | ✅ Done |
 
 ---
 
-## 📁 Phase 2: Replace WebSocket with SSE
+## ✅ Implementation Complete
+
+### Final Architecture
+
+```
+src/
+├── server.ts              # Express + SSE (no WebSocket)
+├── routes/
+│   ├── events.ts         # SSE /api/events endpoint
+│   ├── messages.ts       # REST /prompt, /steer, /follow_up, /abort
+│   └── sessions.ts       # REST /sessions, /load, /model
+├── services/
+│   └── errorCategorizer.ts
+└── types/
+    └── index.ts
+```
+
+### Key Changes
+- **Protocol**: WebSocket → SSE
+- **Frontend**: `useSSE` hook (EventSource)
+- **Service**: Systemd with tsx
+- **Default**: SSE enabled by default
+
+---
+
+## 📁 Phase 3: Cleanup (Optional)
+
+### Future Improvements
+- Remove commented WebSocket code from server.ts
+- Add SSE reconnection test
+- Update WEBSOCKET_PROTOCOL.md to SSE_PROTOCOL.md
 
 ### OpenCode SSE Pattern
 
