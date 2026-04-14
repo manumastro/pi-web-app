@@ -80,7 +80,7 @@ export type WsEvent =
   | { type: 'agent_start' }
   | { type: 'agent_end'; messages?: any[] }
   | { type: 'done'; messages?: any[] }
-  | { type: 'turn_start' }
+  | { type: 'turn_start'; model?: string }
   | { type: 'turn_end'; message?: any; toolResults?: any[] }
   | { type: 'message_start'; message?: any }
   | { type: 'message_end'; message?: any }

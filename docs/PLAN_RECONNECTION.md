@@ -10,6 +10,19 @@ Quando il client si riconnette (ricarica la pagina) durante una sessione attiva:
 
 ## Come Funziona OpenCode Web UI (Analisi Completa)
 
+### Fonti Codice Analizzato
+
+| File OpenCode | Descrizione |
+|---------------|-------------|
+| `frontend/src/stores/sessionStatusStore.ts` | Store Zustand per stato sessione (idle/busy/compact/retry) |
+| `frontend/src/hooks/useSSE.ts` | Hook per gestione SSE, reconnection, visibility |
+| `frontend/src/lib/sseManager.ts` | Manager SSE con auto-reconnection e exponential backoff |
+| `frontend/src/components/message/PromptInput.tsx` | Input area con stop button condizionale |
+| `frontend/src/components/message/MessageThread.tsx` | Thread messaggi con stato streaming |
+| `frontend/src/pages/SessionDetail.tsx` | Pagina sessione con detection `hasActiveStream` |
+| `backend/src/routes/sse.ts` | Route SSE backend con heartbeat |
+| `backend/src/services/sse-aggregator.ts` | Aggregator sessioni con state versioning e idle grace |
+
 ### Architettura Core
 
 OpenCode usa una combinazione di **Session Status Store** e **Message State** per determinare se mostrare il pulsante Stop.
