@@ -27,6 +27,15 @@ import type { AgentSessionEvent } from "@mariozechner/pi-agent-core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// ── Global Error Handlers (Error-Proof Logging) ──
+process.on('uncaughtException', (err, origin) => {
+  console.error(`💥 UNCAUGHT EXCEPTION [origin=${origin}]:`, err.message, err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error(`💥 UNHANDLED REJECTION at`, promise, `reason:`, reason);
+});
+
 // ── Configuration ──
 const PORT = parseInt(process.env.PI_WEB_PORT || "3210");
 const HOME = process.env.HOME || "/home/manu";
@@ -169,6 +178,16 @@ app.get("/api/sessions/:id", (req, res) => {
 });
 
 app.get("/api/cwds", (_req, res) => res.json(getAllCwds()));
+
+// Get info for any cwd (not just those with sessions)
+app.get("/api/cwd", (req, res) => {
+  const cwd = req.query.path as string;
+  if (!cwd) return res.status(400).json({ error: "path required" });
+  const exists = fs.existsSync(cwd);
+  const isDir = exists && fs.statSync(cwd).isDirectory();
+  const sessionCount = isDir ? getSessionsForCwd(cwd).length : 0;
+  res.json({ path: cwd, exists: isDir, isDirectory: isDir, sessionCount, label: cwd.replace(HOME, "~") });
+});
 app.get("/api/settings", (_req, res) => {
   const p = path.join(AGENT_DIR, "settings.json");
   try { res.json(fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf-8")) : {}); }
@@ -190,6 +209,58 @@ app.get("/api/logs", async (_req, res) => {
   proc.stdout.on("data", d => output += d.toString());
   proc.stderr.on("data", d => output += d.toString());
   proc.on("close", () => res.json({ logs: output.trim().split("\n").filter(Boolean) }));
+});
+
+// File tree API - list directory contents
+interface FileEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size: number;
+  modified: number;
+}
+
+app.get("/api/files", (req, res) => {
+  const dir = (req.query.path as string) || HOME;
+  const filter = req.query.filter as string | undefined;
+  
+  try {
+    if (!fs.existsSync(dir)) {
+      return res.status(404).json({ error: "Directory not found" });
+    }
+    const stat = fs.statSync(dir);
+    if (!stat.isDirectory()) {
+      return res.status(400).json({ error: "Not a directory" });
+    }
+    
+    const entries: FileEntry[] = [];
+    for (const name of fs.readdirSync(dir)) {
+      // Skip hidden files/folders unless explicitly showing all
+      if (!filter && name.startsWith(".")) continue;
+      
+      const fp = path.join(dir, name);
+      try {
+        const s = fs.statSync(fp);
+        entries.push({
+          name,
+          path: fp,
+          isDirectory: s.isDirectory(),
+          size: s.isDirectory() ? 0 : s.size,
+          modified: s.mtimeMs,
+        });
+      } catch {}
+    }
+    
+    // Sort: directories first, then by name
+    entries.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    
+    res.json({ path: dir, entries });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.delete("/api/sessions/:id", (req, res) => {
@@ -585,6 +656,7 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       if (["thinking_start", "thinking_delta", "thinking_end",
            "text_start", "text_delta", "text_end",
            "toolcall_start", "toolcall_delta", "toolcall_end"].includes(ae.type)) {
+        
         wsMsg = { type: ae.type };
         if (ae.delta !== undefined) wsMsg.text = ae.delta;
         if (ae.content !== undefined) wsMsg.text = ae.content;
@@ -596,6 +668,7 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
     }
 
     case "tool_execution_start":
+      console.log(`🛠️  [${cr.cwd}] Executing tool: ${event.toolName}`);
       wsMsg = { type: "tool_exec_start", tool: event.toolName, args: event.args, toolCallId: event.toolCallId };
       break;
     case "tool_execution_update":
@@ -611,28 +684,48 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       break;
 
     case "agent_start":
+      console.log(`🤖 [${cr.cwd}] Agent started`);
       wsMsg = { type: "agent_start" };
       cr.idle = false;
       // Broadcast to all clients of this CWD (even if they just reconnected)
       broadcastToClients(cr, { type: "agent_start", isWorking: true });
       break;
-    case "agent_end":
+    case "agent_end": {
+      const finalMessages = event.messages || [];
+      const assistantMsgs = finalMessages.filter((m: any) => m.role === 'assistant');
+      const lastAssistant = assistantMsgs[assistantMsgs.length - 1];
+      const hasContent = lastAssistant?.content?.some((c: any) => c.type === 'text' && c.text?.trim());
+      
+      console.log(`✅ [${cr.cwd}] Task completed`);
+      console.log(`   📊 Messages: ${finalMessages.length} total, ${assistantMsgs.length} assistant responses`);
+      if (!hasContent && assistantMsgs.length > 0) {
+        console.error(`   ⚠️  WARNING: Last assistant message has no text content!`);
+      }
+      
       wsMsg = { type: "done", messages: event.messages };
       cr.idle = true;
       cr.lastPromptMsg = null;
       cr.lastPromptImages = null;
-      // Broadcast done to all clients
       broadcastToClients(cr, { type: "done", isWorking: false });
       resetIdleTimer(cr);
       break;
+    }
     case "turn_start":
+      console.log(`🔄 [${cr.cwd}] Turn started (Model: ${cr.session.model?.provider}/${cr.session.model?.id})`);
       wsMsg = { type: "turn_start" };
       break;
     case "turn_end":
+      console.log(`🏁 [${cr.cwd}] Turn ended`);
       wsMsg = { type: "turn_end", message: event.message, toolResults: event.toolResults };
       break;
 
     case "message_start":
+      // Ignore user message echoes (model echoing our input)
+      if (event.message?.role === 'user') {
+      // Skip user message echo silently
+      break;
+      }
+      console.log(`✍️  [${cr.cwd}] Generating...`);
       if (event.message?.model) {
         const m = event.message.model;
         if (!['ready', 'idle', 'busy', 'loading', 'waiting'].includes(m.toLowerCase())) {
@@ -642,6 +735,20 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       wsMsg = { type: "message_start", message: event.message };
       break;
     case "message_end":
+      // Ignore user message echoes
+      if (event.message?.role === 'user') {
+        break;  // Skip user message_end echo silently
+      }
+
+      const content = event.message?.content;
+      const hasContent = content && Array.isArray(content) && content.some(c => c.type === 'text' && c.text?.trim());
+      
+      if (!hasContent) {
+        console.log(`⚠️  [${cr.cwd}] Empty response`);
+        break;
+      }
+
+      console.log(`📄 [${cr.cwd}] Response: ${JSON.stringify(content).length} chars`);
       wsMsg = { type: "message_end", message: event.message };
       break;
 
@@ -664,6 +771,7 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       break;
 
     case "error":
+      console.error(`❌ [${cr.cwd}] SDK ERROR: ${event.message || event.error}`);
       wsMsg = { type: "error", message: event.message || event.error };
       break;
   }
@@ -731,7 +839,6 @@ async function disposeSession(cwd: string) {
   const cr = cwdSessions.get(cwd);
   if (!cr) return;
   cr.unsubscribe?.();
-  try { await cr.session(); } catch {}
   cwdSessions.delete(cwd);
   console.log(`🗑️ Disposed runtime for ${cwd}`);
 }
@@ -831,6 +938,8 @@ function setupWebSocket(wss: WebSocketServer) {
           cr.clients.add(ws);
           cr.lastPromptMsg = msg.text;
           cr.lastPromptImages = msg.images || null;
+
+          console.log(`🚀 [${cwd}] Sending prompt: ${msg.text.substring(0, 100)}${msg.text.length > 100 ? "..." : ""}`);
 
           const promptOpts: any = {};
           if (!cr.idle) {

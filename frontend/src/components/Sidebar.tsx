@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { SessionInfo, CwdInfo } from '../types';
 
 interface SidebarProps {
@@ -11,6 +12,7 @@ interface SidebarProps {
   onSelectSession: (session: SessionInfo) => void;
   onNewSession: () => void;
   onDeleteSession: (sessionId: string) => void;
+  onRemoveCwd: (cwd: string) => void;
   onToggle: () => void;
 }
 
@@ -25,9 +27,20 @@ export function Sidebar({
   onSelectSession,
   onNewSession,
   onDeleteSession,
+  onRemoveCwd,
   onToggle,
 }: SidebarProps) {
   const totalSessions = cwds.reduce((s, c) => s + c.sessionCount, 0);
+  const [customPath, setCustomPath] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  const handleCustomPathSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (customPath.trim()) {
+      onSelectCwd(customPath.trim());
+      setCustomPath('');
+    }
+  };
 
   return (
     <>
@@ -37,18 +50,58 @@ export function Sidebar({
       )}
 
       <aside
-        className={`
-          w-[300px] min-w-[300px] bg-[var(--color-surface)] border-r border-[var(--color-border)]
-          flex flex-col h-full z-[200] transition-transform duration-200 ease-in-out
-          fixed md:relative
-          ${collapsed ? '-translate-x-full md:translate-x-0 md:ml-[-300px] md:opacity-0 md:pointer-events-none' : ''}
-        `}
+        style={{ display: collapsed ? 'none' : 'flex' }}
+        className="w-[300px] min-w-[300px] bg-[var(--color-surface)] border-r border-[var(--color-border)]
+          flex-col h-full z-[200] transition-transform duration-200 ease-in-out"
       >
         {/* Header */}
         <div className="px-3.5 py-3 border-b border-[var(--color-border)] flex items-center gap-2 h-12 flex-shrink-0">
           <span className="text-lg">🥧</span>
           <span className="font-semibold text-sm flex-1">Pi Web</span>
+          <button
+            onClick={onToggle}
+            className="p-1 hover:bg-[var(--color-surface-2)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            title="Close sidebar"
+          >
+            ✕
+          </button>
           <div className={`w-2 h-2 rounded-full transition-colors ${connected ? 'bg-[var(--color-green)]' : 'bg-[var(--color-red)]'}`} />
+        </div>
+
+        {/* Custom Path Input */}
+        <div className="px-2.5 py-2 border-b border-[var(--color-border)] flex-shrink-0">
+          {showCustomInput ? (
+            <form onSubmit={handleCustomPathSubmit} className="flex gap-1">
+              <input
+                type="text"
+                value={customPath}
+                onChange={e => setCustomPath(e.target.value)}
+                placeholder="/path/to/directory"
+                className="flex-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-md text-[var(--color-text)] px-2 py-1 text-xs font-mono outline-none focus:border-[var(--color-accent)]"
+                autoFocus
+              />
+              <button
+                type="submit"
+                className="bg-[var(--color-accent)] text-white px-2 py-1 rounded text-xs font-semibold hover:opacity-85"
+              >
+                Go
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCustomInput(false)}
+                className="text-[var(--color-text-muted)] px-1 text-xs hover:text-white"
+              >
+                ✕
+              </button>
+            </form>
+          ) : (
+            <button
+              onClick={() => setShowCustomInput(true)}
+              className="w-full text-left text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] flex items-center gap-1"
+            >
+              <span>+</span> Enter custom directory...
+            </button>
+          )}
         </div>
 
         {/* CWD Selector */}
@@ -62,11 +115,25 @@ export function Sidebar({
               onChange={e => onSelectCwd(e.target.value)}
               className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-md text-[var(--color-text)] px-2 py-1.5 text-xs font-mono outline-none focus:border-[var(--color-accent)]"
             >
+              <option value="">{`All (${totalSessions})`}</option>
               <option value="">{`All directories (${totalSessions} sessions)`}</option>
               {cwds.map(c => (
                 <option key={c.path} value={c.path}>{`${c.label} (${c.sessionCount})`}</option>
               ))}
             </select>
+            {/* Remove workspace buttons */}
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {cwds.map(c => (
+                <button
+                  key={c.path}
+                  onClick={() => onRemoveCwd(c.path)}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:bg-[var(--color-red)]/20 hover:text-[var(--color-red)] transition-colors"
+                  title={`Remove ${c.label}`}
+                >
+                  {c.label} ✕
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

@@ -3,11 +3,12 @@ import { useSearchParams } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { FileTree } from './components/FileTree';
 import { MessageList, type AssistantMessageState, type Message } from './components/Chat';
 import { InputArea } from './components/InputArea';
 import type { WsEvent, SessionInfo, CwdInfo, ModelInfo, SessionStats } from './types';
 
-
+const HOME = '/home/manu';
 
 // ── Helpers ──
 function extractMsgText(content: unknown): string {
@@ -92,7 +93,9 @@ export default function App() {
   const selectedCwd = searchParams.get('cwd') || '';
   const activeSessionId = searchParams.get('session');
   
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth > 768 ? false : true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showFileTree, setShowFileTree] = useState(false);
+  const [currentFilePath, setCurrentFilePath] = useState('/home/manu');
   const [cwds, setCwds] = useState<CwdInfo[]>([]);
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -128,14 +131,37 @@ export default function App() {
     fetch('/api/cwds')
       .then(r => r.json())
       .then((data: CwdInfo[]) => {
+        // Ensure selectedCwd is in the list (even if 0 sessions)
+        if (selectedCwd && !data.find(c => c.path === selectedCwd)) {
+          const label = selectedCwd.replace(HOME, '~');
+          data.unshift({ path: selectedCwd, label, sessionCount: 0 });
+        }
         setCwds(data);
-        // If no cwd in URL, use first available
-        if (!selectedCwd && data.length > 0) {
-          updateUrl(data[0].path, null);
+        // If no cwd in URL, use first available or default to home
+        if (!selectedCwd) {
+          if (data.length > 0) {
+            updateUrl(data[0].path, null);
+          } else {
+            // No existing sessions - use home directory as default
+            updateUrl('/home/manu', null);
+          }
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // Fallback to home directory on error
+        if (!selectedCwd) {
+          updateUrl('/home/manu', null);
+        }
+      });
   }, []);
+
+  // Add selectedCwd to cwds if it changes and isn't in the list
+  useEffect(() => {
+    if (selectedCwd && !cwds.find(c => c.path === selectedCwd)) {
+      const label = selectedCwd.replace(HOME, '~');
+      setCwds(prev => [{ path: selectedCwd, label, sessionCount: 0 }, ...prev]);
+    }
+  }, [selectedCwd]);
 
   // Load sessions when CWD changes
   useEffect(() => {
@@ -794,6 +820,20 @@ export default function App() {
     setQueueInfo({ steering: 0, followUp: 0 });
   }, [updateUrl]);
 
+  // Remove CWD from list
+  const handleRemoveCwd = useCallback((cwd: string) => {
+    setCwds(prev => prev.filter(c => c.path !== cwd));
+    // If removing current cwd, switch to first available
+    if (selectedCwd === cwd) {
+      const remaining = cwds.filter(c => c.path !== cwd);
+      if (remaining.length > 0) {
+        handleSelectCwd(remaining[0].path);
+      } else {
+        updateUrl('/home/manu', null);
+      }
+    }
+  }, [selectedCwd, cwds, handleSelectCwd, updateUrl]);
+
   // Load session
   const loadSession = useCallback(async (session: SessionInfo) => {
     updateUrl(session.cwd, session.id);
@@ -937,14 +977,34 @@ export default function App() {
         selectedCwd={selectedCwd}
         activeSessionId={activeSessionId}
         connected={connected}
-        onSelectCwd={handleSelectCwd}
+        onSelectCwd={(path) => {
+          handleSelectCwd(path);
+          setCurrentFilePath(path);
+        }}
         onSelectSession={loadSession}
         onNewSession={handleNewSession}
         onDeleteSession={handleDeleteSession}
+        onRemoveCwd={handleRemoveCwd}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
+      {/* File Tree */}
+      {showFileTree && selectedCwd && (
+        <div className="w-[250px] min-w-[250px] border-r border-[var(--color-border)] flex flex-col">
+          <FileTree
+            initialPath={currentFilePath}
+            selectedWorkspace={selectedCwd}
+            onDirectoryChange={setCurrentFilePath}
+            onSelectWorkspace={(path) => {
+              updateUrl(path, null);
+              setCurrentFilePath(path);
+            }}
+          />
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Toggle File Tree button in Header */}
         <Header
           cwdLabel={cwds.find(c => c.path === selectedCwd)?.label || '~'}
           currentModel={currentModel}
@@ -957,6 +1017,8 @@ export default function App() {
           onSelectModel={handleSelectModel}
           onGetModels={handleGetModels}
           onToggleLogs={() => setShowLogs(!showLogs)}
+          onToggleFileTree={() => setShowFileTree(!showFileTree)}
+          showFileTree={showFileTree}
         />
 
         {/* Messages area */}

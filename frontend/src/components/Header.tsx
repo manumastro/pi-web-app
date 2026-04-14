@@ -13,9 +13,11 @@ interface HeaderProps {
   onSelectModel: (provider: string, modelId: string) => void;
   onGetModels: () => void;
   onToggleLogs?: () => void;
+  onToggleFileTree?: () => void;
+  showFileTree?: boolean;
 }
 
-export function Header({ cwdLabel, currentModel, queueInfo, connected, modelsLoaded, allModels, sessionStats, onToggleSidebar, onSelectModel, onGetModels, onToggleLogs }: HeaderProps) {
+export function Header({ cwdLabel, currentModel, queueInfo, connected, modelsLoaded, allModels, sessionStats, onToggleSidebar, onSelectModel, onGetModels, onToggleLogs, onToggleFileTree, showFileTree }: HeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -89,6 +91,16 @@ export function Header({ cwdLabel, currentModel, queueInfo, connected, modelsLoa
           title="Show Server Logs"
         >
           📄 Logs
+        </button>
+      )}
+
+      {onToggleFileTree && (
+        <button
+          onClick={onToggleFileTree}
+          className={`text-[11px] cursor-pointer ${showFileTree ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+          title="Toggle File Tree"
+        >
+          📁 Files
         </button>
       )}
 
