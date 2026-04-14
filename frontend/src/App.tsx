@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useSessionStatusStore } from './stores/sessionStatusStore';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { FileTree } from './components/FileTree';
@@ -100,7 +101,9 @@ export default function App() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
-  const [isBusy, setIsBusy] = useState(false);
+  const setStatus = useSessionStatusStore(s => s.setStatus);
+  const setWorkingStartTime = useSessionStatusStore(s => s.setWorkingStartTime);
+  const isBusy = useSessionStatusStore(s => s.getStatus(activeSessionId || '')) !== 'idle';
   const [currentModel, setCurrentModel] = useState('');
   const [queueInfo, setQueueInfo] = useState({ steering: 0, followUp: 0 });
   const [showDisconnect, setShowDisconnect] = useState(false);
@@ -258,8 +261,14 @@ export default function App() {
           const provider = event.provider || '';
           setCurrentModel(provider ? `${provider}/${event.model}` : event.model);
         }
-        // Always set isBusy to the actual value from server state
-        setIsBusy(event.isWorking || false);
+        // Sync working state and start time
+        const status = event.isWorking ? 'working' : 'idle';
+        setStatus(activeSessionId || '', status);
+        if (event.isWorking && event.workingDuration) {
+          setWorkingStartTime(activeSessionId || '', Date.now() - event.workingDuration);
+        } else if (!event.isWorking) {
+          setWorkingStartTime(activeSessionId || '', null);
+        }
         if (event.sessionId) {
           // Sync URL with server session
           if (event.sessionId !== activeSessionId) {
@@ -564,7 +573,7 @@ export default function App() {
         break;
 
       case 'done':
-        setIsBusy(false);
+        setStatus(activeSessionId || '', 'idle');
         currentAssistantRef.current = null;
         msgIdxRef.current = null;
         // Reload sessions
@@ -577,7 +586,7 @@ export default function App() {
         break;
 
       case 'error':
-        setIsBusy(false);
+        setStatus(activeSessionId || '', 'idle');
         currentAssistantRef.current = null;
         msgIdxRef.current = null;
         setMessages(prev => [...prev, { type: 'system', text: `⚠️ ${event.message}`, color: 'var(--color-red)' }]);
@@ -698,17 +707,16 @@ export default function App() {
             if (newMessages.length > 0) {
               setMessages(newMessages);
               setMessagesLoaded(true);
-              // Set isBusy from the server response
-              if (isWorking !== undefined) {
-                setIsBusy(isWorking);
-              }
+                if (isWorking !== undefined) {
+                  setStatus(activeSessionId || '', isWorking ? 'working' : 'idle');
+                }
             }
           }
         }
         break;
 
       case 'agent_start':
-        setIsBusy(true);
+        setStatus(activeSessionId || '', 'working');
         break;
 
       case 'turn_start':
@@ -825,7 +833,7 @@ export default function App() {
 
     // Keep existing session - don't clear URL
     // The session continues to work on the same session
-    setIsBusy(true);
+    setStatus(activeSessionId || '', 'working');
     setMessages(prev => [...prev, { type: 'user', text, images }]);
 
     const cmd: any = { type: 'prompt', text, cwd: selectedCwd };
@@ -948,7 +956,7 @@ export default function App() {
     setMessages([]);
     setMessagesLoaded(true);
     setSessionStats(null);
-    setIsBusy(false);
+    setStatus(activeSessionId || '', 'idle');
     currentAssistantRef.current = null;
     msgIdxRef.current = null;
     setCurrentModel('ready');

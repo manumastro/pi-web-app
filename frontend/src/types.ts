@@ -63,7 +63,7 @@ export interface ModelInfo {
 
 // ── WebSocket Events (Server → Client) ──
 export type WsEvent =
-  | { type: 'state'; model?: string; provider?: string; thinkingLevel?: string; messages: number; sessionId?: string; sessionFile?: string; isWorking: boolean; cwd?: string }
+  | { type: 'state'; model?: string; provider?: string; thinkingLevel?: string; messages: number; sessionId?: string; sessionFile?: string; isWorking: boolean; cwd?: string; workingDuration?: number | null; stateVersion?: number }
   | { type: 'model_info'; model: string }
   | { type: 'thinking_start' }
   | { type: 'thinking_delta'; text: string }
