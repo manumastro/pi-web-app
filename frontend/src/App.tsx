@@ -1,6 +1,10 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useSSE } from './hooks/useSSE';
+
+// Toggle between WebSocket and SSE
+const USE_SSE = false; // Set to true to use SSE instead of WebSocket
 import { useSessionStatusStore } from './stores/sessionStatusStore';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -778,39 +782,12 @@ export default function App() {
     }
   }, [selectedCwd, activeSessionId, updateUrl]);
 
-  const { connected, send, reconnect } = useWebSocket({
-    onEvent: handleEvent,
-    onConnected: () => {
-      setShowDisconnect(false);
+  // Use either WebSocket or SSE based on USE_SSE flag
+  const wsHook = USE_SSE 
+    ? useSSE({ cwd: selectedCwd || HOME, onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } if (selectedCwd) { /* models loaded via REST in handleEvent */ } if (selectedCwd && activeSessionId) { /* session loaded via SSE on connect */ } }, onDisconnected: () => setShowDisconnect(true), authToken })
+    : useWebSocket({ onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } if (selectedCwd) { send({ type: 'get_available_models', cwd: selectedCwd }); } if (selectedCwd && activeSessionId) { send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId }); } send({ type: 'report_visibility', visible: true, activeSessionId: activeSessionId }); }, onDisconnected: () => setShowDisconnect(true), authToken });
 
-      // Refresh sessions list on reconnect
-      if (selectedCwd) {
-        fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
-          .then(r => r.json())
-          .then(data => setSessions(data))
-          .catch(() => {});
-      }
-
-      // Don't send get_state here — load_session already sends full state
-      // (including isWorking). Sending get_state before load_session completes
-      // would return isWorking: false and overwrite the correct value later.
-      if (selectedCwd) {
-        send({ type: 'get_available_models', cwd: selectedCwd });
-      }
-
-      // Load session via WS to sync state — server responds with state + get_messages
-      if (selectedCwd && activeSessionId) {
-        send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId });
-      }
-      
-      // Report visibility to server
-      send({ type: 'report_visibility', visible: true, activeSessionId: activeSessionId });
-    },
-    onDisconnected: () => {
-      setShowDisconnect(true);
-    },
-    authToken,
-  });
+  const { connected, send, reconnect } = wsHook;
 
   // Poll for state periodically to detect if agent is working
   // NOTE: no initial get_state here — load_session (sent from onConnected)

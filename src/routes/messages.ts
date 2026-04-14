@@ -1,8 +1,8 @@
 // ── Message Routes (REST API) ──
-// POST /api/sessions/:id/prompt - Send prompt
-// POST /api/sessions/:id/steer - Send steering instruction
-// POST /api/sessions/:id/follow_up - Send follow-up message
-// POST /api/sessions/:id/abort - Abort current operation
+// POST /api/sessions/prompt - Send prompt (CWD-based)
+// POST /api/sessions/steer - Send steering
+// POST /api/sessions/follow_up - Send follow-up
+// POST /api/sessions/abort - Abort
 
 import type { Request, Response } from 'express';
 
@@ -21,121 +21,85 @@ export function setMessageContext(
 }
 
 export function registerMessageRoutes(app: any): void {
-  
-  // POST /api/sessions/:id/prompt
-  app.post('/api/sessions/:id/prompt', async (req: Request, res: Response) => {
-    const sessionId = req.params.id;
+  // POST /api/sessions/prompt
+  app.post('/api/sessions/prompt', async (req: Request, res: Response) => {
     const { text, cwd, images } = req.body;
-
-    if (!text) {
-      res.status(400).json({ error: 'Missing text' });
-      return;
-    }
-
+    if (!text) { res.status(400).json({ error: 'Missing text' }); return; }
     const targetCwd = cwd || process.env.HOME || '/home/manu';
-
     try {
       const cr = await getOrCreateSessionFn(targetCwd, false, undefined);
       cr.lastPromptMsg = text;
       cr.lastPromptImages = images || null;
-
-      console.log(`🚀 [${targetCwd}] POST prompt: ${text.substring(0, 100)}${text.length > 100 ? "..." : ""}`);
-
+      console.log(`🚀 [${targetCwd}] POST prompt: ${text.substring(0, 100)}...`);
       const promptOpts: any = {};
-      if (!cr.idle) {
-        promptOpts.streamingBehavior = "steer";
-      }
-      if (images?.length) {
-        promptOpts.images = images;
-      }
-
+      if (!cr.idle) promptOpts.streamingBehavior = "steer";
+      if (images?.length) promptOpts.images = images;
       cr.idle = false;
-
       cr.session.prompt(text, promptOpts).catch((err: Error) => {
         console.error(`[prompt error] ${targetCwd}: ${err.message}`);
         broadcastToSSEFn(targetCwd, 'error', { message: err.message });
       });
-
-      res.json({ status: 'prompt_sent', sessionId, cwd: targetCwd });
+      res.json({ status: 'prompt_sent', cwd: targetCwd });
     } catch (e: any) {
       console.error(`[prompt] Runtime creation failed: ${e.message}`);
       res.status(500).json({ error: `Failed to create session: ${e.message}` });
     }
   });
 
-  // POST /api/sessions/:id/steer
-  app.post('/api/sessions/:id/steer', async (req: Request, res: Response) => {
-    const sessionId = req.params.id;
+  // POST /api/sessions/steer
+  app.post('/api/sessions/steer', async (req: Request, res: Response) => {
     const { text, cwd } = req.body;
-
-    if (!text) {
-      res.status(400).json({ error: 'Missing text' });
-      return;
-    }
-
+    if (!text) { res.status(400).json({ error: 'Missing text' }); return; }
     const targetCwd = cwd || process.env.HOME || '/home/manu';
     const cr = getCwdSessions().get(targetCwd);
-
-    if (!cr) {
-      res.status(404).json({ error: 'No active session for this CWD' });
-      return;
-    }
-
-    try {
-      await cr.session.steer(text);
-      res.json({ status: 'steer_sent', sessionId });
-    } catch (e: any) {
-      console.error(`[steer error] ${targetCwd}: ${e.message}`);
-      res.status(500).json({ error: e.message });
-    }
+    if (!cr) { res.status(404).json({ error: 'No active session' }); return; }
+    try { await cr.session.steer(text); res.json({ status: 'steer_sent' }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  // POST /api/sessions/:id/follow_up
-  app.post('/api/sessions/:id/follow_up', async (req: Request, res: Response) => {
-    const sessionId = req.params.id;
+  // POST /api/sessions/follow_up
+  app.post('/api/sessions/follow_up', async (req: Request, res: Response) => {
     const { text, cwd } = req.body;
-
-    if (!text) {
-      res.status(400).json({ error: 'Missing text' });
-      return;
-    }
-
+    if (!text) { res.status(400).json({ error: 'Missing text' }); return; }
     const targetCwd = cwd || process.env.HOME || '/home/manu';
     const cr = getCwdSessions().get(targetCwd);
-
-    if (!cr) {
-      res.status(404).json({ error: 'No active session for this CWD' });
-      return;
-    }
-
-    try {
-      await cr.session.followUp(text);
-      res.json({ status: 'follow_up_sent', sessionId });
-    } catch (e: any) {
-      console.error(`[follow_up error] ${targetCwd}: ${e.message}`);
-      res.status(500).json({ error: e.message });
-    }
+    if (!cr) { res.status(404).json({ error: 'No active session' }); return; }
+    try { await cr.session.followUp(text); res.json({ status: 'follow_up_sent' }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  // POST /api/sessions/:id/abort
-  app.post('/api/sessions/:id/abort', async (req: Request, res: Response) => {
-    const sessionId = req.params.id;
+  // POST /api/sessions/abort
+  app.post('/api/sessions/abort', async (req: Request, res: Response) => {
     const { cwd } = req.body;
-
     const targetCwd = cwd || process.env.HOME || '/home/manu';
     const cr = getCwdSessions().get(targetCwd);
+    if (!cr) { res.status(404).json({ error: 'No active session' }); return; }
+    try { await cr.session.abort(); res.json({ status: 'aborted' }); }
+    catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
 
-    if (!cr) {
-      res.status(404).json({ error: 'No active session for this CWD' });
-      return;
-    }
-
+  // POST /api/sessions/prompt (legacy - with sessionId in URL)
+  app.post('/api/sessions/:id/prompt', async (req: Request, res: Response) => {
+    const { text, cwd, images } = req.body;
+    if (!text) { res.status(400).json({ error: 'Missing text' }); return; }
+    const targetCwd = cwd || process.env.HOME || '/home/manu';
     try {
-      await cr.session.abort();
-      res.json({ status: 'aborted', sessionId });
+      const cr = await getOrCreateSessionFn(targetCwd, false, undefined);
+      cr.lastPromptMsg = text;
+      cr.lastPromptImages = images || null;
+      console.log(`🚀 [${targetCwd}] POST prompt: ${text.substring(0, 100)}...`);
+      const promptOpts: any = {};
+      if (!cr.idle) promptOpts.streamingBehavior = "steer";
+      if (images?.length) promptOpts.images = images;
+      cr.idle = false;
+      cr.session.prompt(text, promptOpts).catch((err: Error) => {
+        console.error(`[prompt error] ${targetCwd}: ${err.message}`);
+        broadcastToSSEFn(targetCwd, 'error', { message: err.message });
+      });
+      res.json({ status: 'prompt_sent', cwd: targetCwd });
     } catch (e: any) {
-      console.error(`[abort error] ${targetCwd}: ${e.message}`);
-      res.status(500).json({ error: e.message });
+      console.error(`[prompt] Runtime creation failed: ${e.message}`);
+      res.status(500).json({ error: `Failed to create session: ${e.message}` });
     }
   });
 }

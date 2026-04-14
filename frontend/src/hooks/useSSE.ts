@@ -105,75 +105,84 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
   // Send command via REST API (SSE is receive-only)
   const send = useCallback(async (cmd: WsCommand) => {
     const baseUrl = `${location.protocol}//${location.host}`;
+    const targetCwd = cmd.cwd || cwd;
     
     try {
       switch (cmd.type) {
         case 'prompt': {
-          const response = await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/prompt`, {
+          const response = await fetch(`${baseUrl}/api/sessions/prompt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: cmd.text, images: cmd.images }),
+            body: JSON.stringify({ text: cmd.text, cwd: targetCwd, images: cmd.images }),
           });
-          // Response is streamed via SSE
           return response;
         }
         case 'steer': {
-          await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/steer`, {
+          await fetch(`${baseUrl}/api/sessions/steer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: cmd.text }),
+            body: JSON.stringify({ text: cmd.text, cwd: targetCwd }),
           });
           return;
         }
         case 'follow_up': {
-          await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/follow_up`, {
+          await fetch(`${baseUrl}/api/sessions/follow_up`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: cmd.text }),
+            body: JSON.stringify({ text: cmd.text, cwd: targetCwd }),
           });
           return;
         }
         case 'abort': {
-          await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/abort`, {
+          await fetch(`${baseUrl}/api/sessions/abort`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cwd: targetCwd }),
           });
           return;
+        }
+        case 'get_available_models': {
+          const response = await fetch(`${baseUrl}/api/enabled-models`);
+          const models = await response.json();
+          // Transform to match expected format
+          onEventRef.current({ type: 'rpc_response', command: 'get_available_models', data: { models } });
+          return;
+        }
+        case 'get_state': {
+          const response = await fetch(`${baseUrl}/api/sessions/state?cwd=${encodeURIComponent(targetCwd)}`);
+          const state = await response.json();
+          onEventRef.current({ type: 'state', ...state });
+          return;
+        }
+        case 'get_session_stats': {
+          const response = await fetch(`${baseUrl}/api/sessions/stats?cwd=${encodeURIComponent(targetCwd)}`);
+          const stats = await response.json();
+          onEventRef.current({ type: 'rpc_response', command: 'get_session_stats', data: stats });
+          return;
+        }
+        case 'load_session': {
+          const response = await fetch(`${baseUrl}/api/sessions/load`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: cmd.sessionId, cwd: targetCwd }),
+          });
+          return response.json();
         }
         case 'new_session': {
           const response = await fetch(`${baseUrl}/api/sessions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cwd: cmd.cwd }),
-          });
-          return response.json();
-        }
-        case 'load_session': {
-          const response = await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/load`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cwd: cmd.cwd }),
+            body: JSON.stringify({ cwd: targetCwd }),
           });
           return response.json();
         }
         case 'set_model': {
-          await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/model`, {
+          await fetch(`${baseUrl}/api/sessions/model`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider: cmd.provider, modelId: cmd.modelId }),
+            body: JSON.stringify({ provider: cmd.provider, modelId: cmd.modelId, cwd: targetCwd }),
           });
           return;
-        }
-        case 'get_state': {
-          const response = await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/state`);
-          return response.json();
-        }
-        case 'get_messages': {
-          const response = await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/messages`);
-          return response.json();
-        }
-        case 'get_session_stats': {
-          const response = await fetch(`${baseUrl}/api/sessions/${cmd.sessionId}/stats`);
-          return response.json();
         }
         default:
           console.warn('Unknown command type:', cmd.type);
@@ -182,7 +191,7 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
       console.error('SSE send error:', err);
       throw err;
     }
-  }, []);
+  }, [cwd]);
 
   // Connect on mount and CWD change
   useEffect(() => {
