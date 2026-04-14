@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useSSE } from './hooks/useSSE';
 
-// Toggle between WebSocket and SSE
-const USE_SSE = false; // Set to true to use SSE instead of WebSocket
+// Toggle between WebSocket and SSE - SSE is now the default
+const USE_SSE = true; // Set to false to use WebSocket (deprecated)
 import { useSessionStatusStore } from './stores/sessionStatusStore';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';

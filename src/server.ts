@@ -7,7 +7,8 @@
  * - Session management via SessionManager + AgentSessionRuntime
  */
 import express from "express";
-import { WebSocket, WebSocketServer } from "ws";
+// ── WebSocket Server (DEPRECATED - using SSE instead) ──
+// import { WebSocket, WebSocketServer } from "ws";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -941,8 +942,9 @@ function startServer(retryCount = 0) {
     }
   });
 
-  wss = new WebSocketServer({ server });
-  setupWebSocket(wss);
+  // ── WebSocket Server (DEPRECATED - using SSE instead) ──
+  // wss = new WebSocketServer({ server });
+  // setupWebSocket(wss);
 }
 
 startServer();
