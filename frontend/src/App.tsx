@@ -711,6 +711,17 @@ export default function App() {
         setIsBusy(true);
         break;
 
+      case 'turn_start':
+        // Update model when turn starts
+        if (event.model) {
+          setCurrentModel(event.model);
+        }
+        break;
+
+      case 'turn_end':
+        // Turn ended, nothing to do here
+        break;
+
       case 'server_log':
         setServerLogs(logs => [...logs, { time: new Date(), level: event.level, message: event.message }].slice(-500));
         setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
@@ -759,6 +770,9 @@ export default function App() {
       if (selectedCwd && activeSessionId) {
         send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId });
       }
+      
+      // Report visibility to server
+      send({ type: 'report_visibility', visible: true, activeSessionId: activeSessionId });
     },
     onDisconnected: () => {
       setShowDisconnect(true);
@@ -788,6 +802,22 @@ export default function App() {
       send({ type: 'get_session_stats', cwd: selectedCwd });
     }
   }, [connected, activeSessionId, selectedCwd, send]);
+
+  // Report visibility changes to server
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (connected) {
+        send({
+          type: 'report_visibility',
+          visible: !document.hidden,
+          activeSessionId: activeSessionId
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [connected, activeSessionId, send]);
 
   // Send message
   const handleSend = useCallback((text: string, images?: string[]) => {

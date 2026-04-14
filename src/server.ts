@@ -311,6 +311,10 @@ interface CwdSession {
   idleTimer: ReturnType<typeof setTimeout> | null;
   lastActivity: number;
   settingsManager: SettingsManager;
+  // State tracking (per reconnection)
+  stateVersion: number;
+  workingStartTime: number | null;
+  lastEventType: string | null;
 }
 
 const cwdSessions = new Map<string, CwdSession>();
@@ -632,6 +636,10 @@ async function createCwdSession(cwd: string, sessionManager?: SessionManager): P
     idleTimer: null,
     lastActivity: Date.now(),
     settingsManager,
+    // State tracking
+    stateVersion: 0,
+    workingStartTime: null,
+    lastEventType: null,
   };
 
   cr.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
@@ -687,6 +695,9 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       console.log(`🤖 [${cr.cwd}] Agent started`);
       wsMsg = { type: "agent_start" };
       cr.idle = false;
+      cr.stateVersion++;
+      cr.workingStartTime = Date.now();
+      cr.lastEventType = "agent_start";
       // Broadcast to all clients of this CWD (even if they just reconnected)
       broadcastToClients(cr, { type: "agent_start", isWorking: true });
       break;
@@ -704,6 +715,9 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
       
       wsMsg = { type: "done", messages: event.messages };
       cr.idle = true;
+      cr.stateVersion++;
+      cr.workingStartTime = null;
+      cr.lastEventType = "agent_end";
       cr.lastPromptMsg = null;
       cr.lastPromptImages = null;
       broadcastToClients(cr, { type: "done", isWorking: false });
@@ -713,19 +727,25 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
     case "turn_start":
       console.log(`🔄 [${cr.cwd}] Turn started (Model: ${cr.session.model?.provider}/${cr.session.model?.id})`);
       wsMsg = { type: "turn_start" };
+      cr.stateVersion++;
+      cr.lastEventType = "turn_start";
       break;
     case "turn_end":
       console.log(`🏁 [${cr.cwd}] Turn ended`);
       wsMsg = { type: "turn_end", message: event.message, toolResults: event.toolResults };
+      cr.stateVersion++;
+      cr.lastEventType = "turn_end";
       break;
 
     case "message_start":
       // Ignore user message echoes (model echoing our input)
       if (event.message?.role === 'user') {
-      // Skip user message echo silently
-      break;
+        // Skip user message echo silently
+        break;
       }
       console.log(`✍️  [${cr.cwd}] Generating...`);
+      cr.stateVersion++;
+      cr.lastEventType = "message_start";
       if (event.message?.model) {
         const m = event.message.model;
         if (!['ready', 'idle', 'busy', 'loading', 'waiting'].includes(m.toLowerCase())) {
@@ -922,7 +942,13 @@ function setupWebSocket(wss: WebSocketServer) {
   wss.on("connection", (ws: WebSocket, req) => {
     if (!authenticateWs(ws, req)) return;
 
-    console.log(`🔌 Client connected`);
+    // Assign unique client ID
+    const clientId = `ws_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    (ws as any).clientId = clientId;
+    (ws as any).visible = false;
+    (ws as any).activeSessionId = null;
+    
+    console.log(`🔌 Client connected: ${clientId}`);
     (ws as any).isAlive = true;
 
     ws.on("pong", () => { (ws as any).isAlive = true; });
@@ -991,6 +1017,14 @@ function setupWebSocket(wss: WebSocketServer) {
         });
       }
 
+      // ── Visibility Reporting ──
+      if (msg.type === "report_visibility") {
+        const clientId = (ws as any).clientId;
+        (ws as any).visible = msg.visible;
+        (ws as any).activeSessionId = msg.activeSessionId;
+        console.log(`👁️ Client ${clientId} visibility: ${msg.visible} (session: ${msg.activeSessionId})`);
+      }
+
       // ── State & Model ──
       if (msg.type === "get_state") {
         const cwd = getCwd(msg);
@@ -1007,6 +1041,9 @@ function setupWebSocket(wss: WebSocketServer) {
             sessionId: s.sessionId,
             sessionFile: s.sessionFile,
             isWorking: !cr.idle,
+            stateVersion: cr.stateVersion,
+            workingDuration: cr.workingStartTime ? Date.now() - cr.workingStartTime : null,
+            lastEventType: cr.lastEventType,
             cwd: cr.cwd,
           });
         } else {
@@ -1265,36 +1302,55 @@ function setupWebSocket(wss: WebSocketServer) {
         if (existingCr && existingCr.session.sessionId === sessionId) {
           // Same session already active, just add this client and preserve state
           existingCr.clients.add(ws);
-          broadcastToClients(existingCr, {
+          
+          // Send session loaded immediately
+          ws.send(JSON.stringify({
             type: "session_loaded",
             sessionId: existingCr.session.sessionId,
             sessionFile: existingCr.session.sessionFile,
-          });
-          // Send current state after a short delay
-          setTimeout(() => {
-            const s = existingCr.session;
-            broadcastToClients(existingCr, {
-              type: "state",
-              model: s.model?.id,
-              provider: s.model?.provider,
-              thinkingLevel: s.thinkingLevel,
-              messages: s.messages.length,
-              sessionId: s.sessionId,
-              sessionFile: s.sessionFile,
+          }));
+          
+          // If agent is currently working, send agent_start directly to this client
+          if (!existingCr.idle) {
+            ws.send(JSON.stringify({ type: "agent_start", isWorking: true }));
+            
+            // Also send turn_start if we're in a turn
+            if (existingCr.lastEventType === "turn_start" || existingCr.lastEventType === "message_start") {
+              ws.send(JSON.stringify({
+                type: "turn_start",
+                model: existingCr.session.model?.provider + "/" + existingCr.session.model?.id
+              }));
+            }
+          }
+          
+          // Send full state immediately
+          const s = existingCr.session;
+          ws.send(JSON.stringify({
+            type: "state",
+            model: s.model?.id,
+            provider: s.model?.provider,
+            thinkingLevel: s.thinkingLevel,
+            messages: s.messages.length,
+            sessionId: s.sessionId,
+            sessionFile: s.sessionFile,
+            isWorking: !existingCr.idle,
+            stateVersion: existingCr.stateVersion,
+            workingDuration: existingCr.workingStartTime ? Date.now() - existingCr.workingStartTime : null,
+            lastEventType: existingCr.lastEventType,
+            cwd: existingCr.cwd,
+          }));
+          
+          // Send full message history
+          ws.send(JSON.stringify({
+            type: "rpc_response",
+            command: "get_messages",
+            data: {
+              messages: s.messages,
               isWorking: !existingCr.idle,
-              cwd: existingCr.cwd,
-            });
-            // Also send messages so client has full conversation history
-            broadcastToClients(existingCr, {
-              type: "rpc_response",
-              command: "get_messages",
-              data: {
-                messages: s.messages,
-                isWorking: !existingCr.idle,
-                sessionId: s.sessionId,
-              }
-            });
-          }, 100);
+              sessionId: s.sessionId,
+            }
+          }));
+          
           console.log(`📖 Session ${sessionId} already active for ${cwd}, state preserved`);
           return;
         }
