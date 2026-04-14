@@ -56,6 +56,16 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
   }
 }));
 
+// ── SSE & REST Routes (Phase 2) ──
+import { registerSSERoutes } from "./routes/events";
+import { registerMessageRoutes } from "./routes/messages";
+import { registerSessionRoutes } from "./routes/sessions";
+
+// Register routes - they use cwdSessions and getOrCreateSession from this file
+registerSSERoutes(app);
+registerMessageRoutes(app);
+registerSessionRoutes(app);
+
 // ── Session Discovery (reads JSONL files directly — no running process needed) ──
 function decodeDirName(encoded: string): string {
   const inner = encoded.replace(/^-+|-+$/g, "");
@@ -936,6 +946,26 @@ function startServer(retryCount = 0) {
 }
 
 startServer();
+
+// Setup context for route handlers (SSE and REST)
+import { setSSEContext } from './routes/events';
+import { setMessageContext } from './routes/messages';
+import { setSessionContext } from './routes/sessions';
+
+// Provide access to cwdSessions and session functions to routes
+setSSEContext(() => cwdSessions);
+setMessageContext(
+  () => cwdSessions,
+  getOrCreateSession,
+  (cwd: string, type: string, data: any) => { /* SSE broadcast placeholder */ }
+);
+setSessionContext(
+  () => cwdSessions,
+  createCwdSession,
+  disposeSession,
+  getOrCreateSession,
+  findSessionFileBySessionId
+);
 
 function setupWebSocket(wss: WebSocketServer) {
   const PING_INTERVAL = 30000;

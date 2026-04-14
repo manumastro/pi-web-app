@@ -6,10 +6,29 @@
 import type { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { cwdSessions, createCwdSession, disposeSession, getOrCreateSession, findSessionFileBySessionId } from '../services/sessionManager';
-import { SessionManager } from '@mariozechner/pi-coding-agent';
+import { SessionManager } from "@mariozechner/pi-coding-agent";
 
 const HOME = process.env.HOME || '/home/manu';
+
+let getCwdSessions: () => Map<string, any>;
+let createCwdSessionFn: (cwd: string, sm: any) => Promise<any>;
+let disposeSessionFn: (cwd: string) => Promise<void>;
+let getOrCreateSessionFn: (cwd: string, forceNew?: boolean, sessionId?: string) => Promise<any>;
+let findSessionFileFn: (cwd: string, sessionId: string) => string | null;
+
+export function setSessionContext(
+  getSessions: () => Map<string, any>,
+  createSession: (cwd: string, sm: any) => Promise<any>,
+  dispose: (cwd: string) => Promise<void>,
+  getOrCreate: (cwd: string, forceNew?: boolean, sessionId?: string) => Promise<any>,
+  findFile: (cwd: string, sessionId: string) => string | null
+) {
+  getCwdSessions = getSessions;
+  createCwdSessionFn = createSession;
+  disposeSessionFn = dispose;
+  getOrCreateSessionFn = getOrCreate;
+  findSessionFileFn = findFile;
+}
 
 export function registerSessionRoutes(app: any): void {
 
@@ -19,11 +38,8 @@ export function registerSessionRoutes(app: any): void {
     const targetCwd = cwd || HOME;
 
     try {
-      // Dispose old runtime if exists
-      await disposeSession(targetCwd);
-
-      // Create fresh runtime
-      const cr = await createCwdSession(targetCwd, SessionManager.create(targetCwd));
+      await disposeSessionFn(targetCwd);
+      const cr = await createCwdSessionFn(targetCwd, SessionManager.create(targetCwd));
       cr.idle = true;
 
       res.json({
@@ -44,14 +60,13 @@ export function registerSessionRoutes(app: any): void {
     const targetCwd = cwd || HOME;
 
     try {
-      const sessionPath = findSessionFileBySessionId(targetCwd, sessionId);
+      const sessionPath = findSessionFileFn(targetCwd, sessionId);
       if (!sessionPath) {
         res.status(404).json({ error: `Session not found: ${sessionId}` });
         return;
       }
 
-      // Check if already active
-      const existingCr = cwdSessions.get(targetCwd);
+      const existingCr = getCwdSessions().get(targetCwd);
       if (existingCr && existingCr.session.sessionId === sessionId) {
         res.json({
           sessionId: existingCr.session.sessionId,
@@ -62,9 +77,8 @@ export function registerSessionRoutes(app: any): void {
         return;
       }
 
-      // Dispose old and load new
-      await disposeSession(targetCwd);
-      const cr = await createCwdSession(targetCwd, SessionManager.open(sessionPath));
+      await disposeSessionFn(targetCwd);
+      const cr = await createCwdSessionFn(targetCwd, SessionManager.open(sessionPath));
 
       res.json({
         sessionId: cr.session.sessionId,
@@ -78,43 +92,11 @@ export function registerSessionRoutes(app: any): void {
     }
   });
 
-  // POST /api/sessions/:id/switch - Switch to another session
-  app.post('/api/sessions/:id/switch', async (req: Request, res: Response) => {
-    const sessionId = req.params.id;
-    const { cwd, sessionPath } = req.body;
-    const targetCwd = cwd || HOME;
-
-    try {
-      let targetPath = sessionPath;
-      if (!targetPath) {
-        targetPath = findSessionFileBySessionId(targetCwd, sessionId);
-      }
-
-      if (!targetPath || !fs.existsSync(targetPath)) {
-        res.status(404).json({ error: 'Session file not found' });
-        return;
-      }
-
-      await disposeSession(targetCwd);
-      const cr = await createCwdSession(targetCwd, SessionManager.open(targetPath));
-
-      res.json({
-        sessionId: cr.session.sessionId,
-        sessionFile: cr.session.sessionFile,
-        cwd: targetCwd,
-      });
-    } catch (e: any) {
-      console.error(`[switch_session] error: ${e.message}`);
-      res.status(500).json({ error: e.message });
-    }
-  });
-
   // GET /api/sessions/:id - Get session messages
   app.get('/api/sessions/:id', async (req: Request, res: Response) => {
-    const sessionId = req.params.id;
     const cwd = req.query.cwd as string || HOME;
-
-    const cr = cwdSessions.get(cwd);
+    const cr = getCwdSessions().get(cwd);
+    
     if (!cr) {
       res.status(404).json({ error: 'No active session' });
       return;
@@ -133,7 +115,6 @@ export function registerSessionRoutes(app: any): void {
     const sessionId = req.params.id;
     const cwd = req.query.cwd as string || HOME;
 
-    // Find and delete session file
     const SESSIONS_DIR = path.join(HOME, '.pi', 'agent', 'sessions');
     if (!fs.existsSync(SESSIONS_DIR)) {
       res.status(404).json({ error: 'Sessions directory not found' });
@@ -163,11 +144,10 @@ export function registerSessionRoutes(app: any): void {
 
   // POST /api/sessions/:id/model - Set model
   app.post('/api/sessions/:id/model', async (req: Request, res: Response) => {
-    const sessionId = req.params.id;
     const { provider, modelId, cwd } = req.body;
     const targetCwd = cwd || HOME;
 
-    const cr = cwdSessions.get(targetCwd);
+    const cr = getCwdSessions().get(targetCwd);
     if (!cr) {
       res.status(404).json({ error: 'No active session' });
       return;

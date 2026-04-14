@@ -5,8 +5,20 @@
 // POST /api/sessions/:id/abort - Abort current operation
 
 import type { Request, Response } from 'express';
-import { cwdSessions, getOrCreateSession } from '../services/sessionManager';
-import { broadcastToSSE } from './events';
+
+let getCwdSessions: () => Map<string, any>;
+let getOrCreateSessionFn: (cwd: string, forceNew?: boolean, sessionId?: string) => Promise<any>;
+let broadcastToSSEFn: (cwd: string, eventType: string, data: any) => void;
+
+export function setMessageContext(
+  getSessions: () => Map<string, any>,
+  getOrCreate: (cwd: string, forceNew?: boolean, sessionId?: string) => Promise<any>,
+  broadcast: (cwd: string, eventType: string, data: any) => void
+) {
+  getCwdSessions = getSessions;
+  getOrCreateSessionFn = getOrCreate;
+  broadcastToSSEFn = broadcast;
+}
 
 export function registerMessageRoutes(app: any): void {
   
@@ -23,7 +35,7 @@ export function registerMessageRoutes(app: any): void {
     const targetCwd = cwd || process.env.HOME || '/home/manu';
 
     try {
-      const cr = await getOrCreateSession(targetCwd, false, undefined);
+      const cr = await getOrCreateSessionFn(targetCwd, false, undefined);
       cr.lastPromptMsg = text;
       cr.lastPromptImages = images || null;
 
@@ -39,13 +51,11 @@ export function registerMessageRoutes(app: any): void {
 
       cr.idle = false;
 
-      // Start streaming response (will come via SSE)
       cr.session.prompt(text, promptOpts).catch((err: Error) => {
         console.error(`[prompt error] ${targetCwd}: ${err.message}`);
-        broadcastToSSE(targetCwd, 'error', { message: err.message });
+        broadcastToSSEFn(targetCwd, 'error', { message: err.message });
       });
 
-      // Return immediately - streaming happens via SSE
       res.json({ status: 'prompt_sent', sessionId, cwd: targetCwd });
     } catch (e: any) {
       console.error(`[prompt] Runtime creation failed: ${e.message}`);
@@ -64,7 +74,7 @@ export function registerMessageRoutes(app: any): void {
     }
 
     const targetCwd = cwd || process.env.HOME || '/home/manu';
-    const cr = cwdSessions.get(targetCwd);
+    const cr = getCwdSessions().get(targetCwd);
 
     if (!cr) {
       res.status(404).json({ error: 'No active session for this CWD' });
@@ -91,7 +101,7 @@ export function registerMessageRoutes(app: any): void {
     }
 
     const targetCwd = cwd || process.env.HOME || '/home/manu';
-    const cr = cwdSessions.get(targetCwd);
+    const cr = getCwdSessions().get(targetCwd);
 
     if (!cr) {
       res.status(404).json({ error: 'No active session for this CWD' });
@@ -113,7 +123,7 @@ export function registerMessageRoutes(app: any): void {
     const { cwd } = req.body;
 
     const targetCwd = cwd || process.env.HOME || '/home/manu';
-    const cr = cwdSessions.get(targetCwd);
+    const cr = getCwdSessions().get(targetCwd);
 
     if (!cr) {
       res.status(404).json({ error: 'No active session for this CWD' });
