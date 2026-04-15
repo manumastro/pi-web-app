@@ -1,36 +1,135 @@
 // ── Session Routes (REST API) ──
-// POST /api/sessions - Create new session
-// POST /api/sessions/:id/load - Load session
-// DELETE /api/sessions/:id - Delete session
-
 import type { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { SessionManager } from "@mariozechner/pi-coding-agent";
 
 const HOME = process.env.HOME || '/home/manu';
+const SESSIONS_DIR = path.join(HOME, '.pi', 'agent', 'sessions');
+
+function encodeDirName(cwd: string) {
+  return '--' + cwd.replace(/^\//, '').replace(/\\/g, '/').replace(/\//g, '-') + '--';
+}
+
+function parseSessionFilePath(filePath: string, cwd: string, cwdLabel: string) {
+  try {
+    const fileName = path.basename(filePath);
+    const id = fileName.replace(".jsonl", "").split("_").slice(1).join("_");
+    const dm = fileName.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+    const createdAt = dm ? `${dm[1]}T${dm[2]}:${dm[3]}:${dm[4]}Z` : "";
+    const lastModified = fs.statSync(filePath).mtimeMs;
+    let name: string | null = null, lastMessage: string | null = null, lastMessageType: string | null = null;
+    let userMsgCount = 0, assistantMsgCount = 0, model: string | null = null;
+    
+    const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+    for (const line of lines) {
+      if (!line) continue;
+      try {
+        const e = JSON.parse(line);
+        if (e.type === "session" && e.cwd && !cwd) {
+          cwd = e.cwd;
+        }
+        if (e.type === "model_change" && e.modelId && !model) model = e.provider ? `${e.provider}/${e.modelId}` : e.modelId;
+        if (e.type === "message" && e.message) {
+          if (e.message.role === "user") { 
+            userMsgCount++; 
+            if (!name) name = e.message.content.substring(0, 80); 
+            lastMessage = e.message.content.substring(0, 120); 
+            lastMessageType = "user"; 
+          } else if (e.message.role === "assistant") { 
+            assistantMsgCount++; 
+            const t = e.message.content.substring(0, 120); 
+            if (t) { lastMessage = t; lastMessageType = "assistant"; } 
+            if (!model && e.message.model) model = e.message.model; 
+          }
+        }
+      } catch {}
+    }
+    return { id, cwd, cwdLabel, createdAt, lastModified, name, messageCount: userMsgCount + assistantMsgCount, lastMessage, lastMessageType, model };
+  } catch { return null; }
+}
+
+function getSessionsForCwd(cwd: string) {
+  const dp = path.join(SESSIONS_DIR, encodeDirName(cwd));
+  if (!fs.existsSync(dp)) return [];
+  return fs.readdirSync(dp)
+    .filter(f => f.endsWith('.jsonl'))
+    .map(f => parseSessionFilePath(path.join(dp, f), cwd, cwd.replace(HOME, '~')))
+    .filter((s): s is any => s !== null)
+    .sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+}
+
+function getAllSessions() {
+  const sessions: any[] = [];
+  if (!fs.existsSync(SESSIONS_DIR)) return sessions;
+  for (const entry of fs.readdirSync(SESSIONS_DIR)) {
+    const fp = path.join(SESSIONS_DIR, entry);
+    if (!fs.statSync(fp).isDirectory()) continue;
+    const files = fs.readdirSync(fp).filter(x => x.endsWith('.jsonl'));
+    if (files.length === 0) continue;
+    const firstFile = path.join(fp, files[0]);
+    const firstLine = fs.readFileSync(firstFile, 'utf-8').split('\n')[0];
+    try {
+      const firstEvent = JSON.parse(firstLine);
+      if (firstEvent.type === 'session' && firstEvent.cwd) {
+        const cwd = firstEvent.cwd;
+        const cwdLabel = cwd.replace(HOME, '~');
+        for (const f of files) {
+          const info = parseSessionFilePath(path.join(fp, f), cwd, cwdLabel);
+          if (info) sessions.push(info);
+        }
+      }
+    } catch {}
+  }
+  return sessions;
+}
 
 let getCwdSessions: () => Map<string, any>;
 let createCwdSessionFn: (cwd: string, sm: any) => Promise<any>;
 let disposeSessionFn: (cwd: string) => Promise<void>;
-let getOrCreateSessionFn: (cwd: string, forceNew?: boolean, sessionId?: string) => Promise<any>;
 let findSessionFileFn: (cwd: string, sessionId: string) => string | null;
 
 export function setSessionContext(
   getSessions: () => Map<string, any>,
   createSession: (cwd: string, sm: any) => Promise<any>,
   dispose: (cwd: string) => Promise<void>,
-  getOrCreate: (cwd: string, forceNew?: boolean, sessionId?: string) => Promise<any>,
   findFile: (cwd: string, sessionId: string) => string | null
 ) {
   getCwdSessions = getSessions;
   createCwdSessionFn = createSession;
   disposeSessionFn = dispose;
-  getOrCreateSessionFn = getOrCreate;
   findSessionFileFn = findFile;
 }
 
 export function registerSessionRoutes(app: any): void {
+
+  // GET /api/cwds - List all project directories
+  app.get('/api/cwds', (req, res) => {
+    try {
+      const allSessions = getAllSessions();
+      const cwdMap = new Map<string, { path: string; label: string; sessionCount: number }>();
+      for (const s of allSessions) {
+        if (!cwdMap.has(s.cwd)) {
+          cwdMap.set(s.cwd, { path: s.cwd, label: s.cwdLabel, sessionCount: 0 });
+        }
+        cwdMap.get(s.cwd)!.sessionCount++;
+      }
+      res.json(Array.from(cwdMap.values()));
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // GET /api/sessions - List sessions for a CWD
+  app.get('/api/sessions', async (req: Request, res: Response) => {
+    const cwd = req.query.cwd as string || HOME;
+    try {
+      const sessions = getSessionsForCwd(cwd);
+      res.json(sessions);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   // POST /api/sessions - Create new session
   app.post('/api/sessions', async (req: Request, res: Response) => {
@@ -48,7 +147,6 @@ export function registerSessionRoutes(app: any): void {
         cwd: cr.cwd,
       });
     } catch (e: any) {
-      console.error(`[create_session] error: ${e.message}`);
       res.status(500).json({ error: e.message });
     }
   });
@@ -87,9 +185,38 @@ export function registerSessionRoutes(app: any): void {
         cwd: targetCwd,
       });
     } catch (e: any) {
-      console.error(`[load_session] error: ${e.message}`);
       res.status(500).json({ error: e.message });
     }
+  });
+
+  // GET /api/sessions/state - Get current state for a CWD
+  app.get('/api/sessions/state', async (req: Request, res: Response) => {
+    const cwd = req.query.cwd as string || HOME;
+    const cr = getCwdSessions().get(cwd);
+    if (!cr) {
+      res.status(404).json({ error: 'No active session' });
+      return;
+    }
+    res.json({
+      isWorking: !cr.idle,
+      sessionId: cr.session.sessionId,
+      cwd: cr.cwd,
+    });
+  });
+
+  // GET /api/sessions/stats - Get stats for a CWD
+  app.get('/api/sessions/stats', async (req: Request, res: Response) => {
+    const cwd = req.query.cwd as string || HOME;
+    const cr = getCwdSessions().get(cwd);
+    if (!cr) {
+      res.status(404).json({ error: 'No active session' });
+      return;
+    }
+    res.json({
+      messageCount: cr.session.messages.length,
+      tokenCount: cr.session.tokensUsed || 0,
+      lastActive: cr.session.lastActive || new Date(),
+    });
   });
 
   // GET /api/sessions/:id - Get session messages
@@ -115,14 +242,8 @@ export function registerSessionRoutes(app: any): void {
     const sessionId = req.params.id;
     const cwd = req.query.cwd as string || HOME;
 
-    const SESSIONS_DIR = path.join(HOME, '.pi', 'agent', 'sessions');
-    if (!fs.existsSync(SESSIONS_DIR)) {
-      res.status(404).json({ error: 'Sessions directory not found' });
-      return;
-    }
-
-    const dirName = cwd.replace(HOME, '').replace(/^\//, '').replace(/\//g, '--');
-    const sessionDir = path.join(SESSIONS_DIR, '--' + dirName + '--');
+    const dirName = encodeDirName(cwd);
+    const sessionDir = path.join(SESSIONS_DIR, dirName);
     
     if (!fs.existsSync(sessionDir)) {
       res.status(404).json({ error: 'Session directory not found' });
@@ -161,7 +282,6 @@ export function registerSessionRoutes(app: any): void {
         provider: cr.session.model?.provider 
       });
     } catch (e: any) {
-      console.error(`[set_model] error: ${e.message}`);
       res.status(500).json({ error: e.message });
     }
   });

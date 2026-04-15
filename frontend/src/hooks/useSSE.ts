@@ -34,7 +34,10 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
 
     const protocol = location.protocol === 'https:' ? 'https' : 'http';
     const tokenParam = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
-    const sseUrl = `${protocol}://${location.host}/api/events?cwd=${encodeURIComponent(cwd)}${tokenParam}`;
+    
+    // Detect base path (e.g., /pi-web/)
+    const basePath = location.pathname.startsWith('/pi-web') ? '/pi-web' : '';
+    const sseUrl = `${protocol}://${location.host}${basePath}/api/events?cwd=${encodeURIComponent(cwd)}${tokenParam}`;
 
     console.log(`📡 Connecting to SSE: ${sseUrl}`);
 
@@ -104,7 +107,8 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
 
   // Send command via REST API (SSE is receive-only)
   const send = useCallback(async (cmd: WsCommand) => {
-    const baseUrl = `${location.protocol}//${location.host}`;
+    const basePath = location.pathname.startsWith('/pi-web') ? '/pi-web' : '';
+    const baseUrl = `${location.protocol}//${location.host}${basePath}`;
     const targetCwd = cmd.cwd || cwd;
     
     try {

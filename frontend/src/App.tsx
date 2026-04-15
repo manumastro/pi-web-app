@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import './testCache';
 import { useSearchParams } from 'react-router-dom';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useSSE } from './hooks/useSSE';
@@ -94,6 +95,9 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 // ── Main App ──
 export default function App() {
   const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Base path for API calls (handle /pi-web/ prefix) - CACHEBUST_v7
+  const basePath = location.pathname.startsWith('/pi-web') ? '/pi-web' : '';
   
   // URL as source of truth
   const selectedCwd = searchParams.get('cwd') || '';
@@ -784,8 +788,8 @@ export default function App() {
 
   // Use either WebSocket or SSE based on USE_SSE flag
   const wsHook = USE_SSE 
-    ? useSSE({ cwd: selectedCwd || HOME, onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } if (selectedCwd) { /* models loaded via REST in handleEvent */ } if (selectedCwd && activeSessionId) { /* session loaded via SSE on connect */ } }, onDisconnected: () => setShowDisconnect(true), authToken })
-    : useWebSocket({ onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } if (selectedCwd) { send({ type: 'get_available_models', cwd: selectedCwd }); } if (selectedCwd && activeSessionId) { send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId }); } send({ type: 'report_visibility', visible: true, activeSessionId: activeSessionId }); }, onDisconnected: () => setShowDisconnect(true), authToken });
+    ? useSSE({ cwd: selectedCwd || HOME, onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`${basePath}/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } if (selectedCwd) { /* models loaded via REST in handleEvent */ } if (selectedCwd && activeSessionId) { /* session loaded via SSE on connect */ } }, onDisconnected: () => setShowDisconnect(true), authToken })
+    : useWebSocket({ onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`${basePath}/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } if (selectedCwd) { send({ type: 'get_available_models', cwd: selectedCwd }); } if (selectedCwd && activeSessionId) { send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId }); } send({ type: 'report_visibility', visible: true, activeSessionId: activeSessionId }); }, onDisconnected: () => setShowDisconnect(true), authToken });
 
   const { connected, send, reconnect } = wsHook;
 
@@ -887,7 +891,7 @@ export default function App() {
     send({ type: 'get_available_models', cwd: session.cwd });
 
     try {
-      const res = await fetch(`/api/sessions/${session.id}`);
+      const res = await fetch(`${basePath}/api/sessions/${session.id}`);
       const data = await res.json();
 
       if (data.model) setCurrentModel(data.model);
@@ -968,7 +972,7 @@ export default function App() {
   const handleDeleteSession = useCallback(async (sessionId: string) => {
     if (!confirm('Delete this session? This cannot be undone.')) return;
     try {
-      const res = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+      const res = await fetch(`${basePath}/api/sessions/${sessionId}`, { method: 'DELETE' });
       if (res.ok) {
         // Remove from sessions list
         setSessions(prev => prev.filter(s => s.id !== sessionId));
@@ -1114,4 +1118,5 @@ export default function App() {
       </div>
     </div>
   );
-}
+}// CACHEBUST_MARKER_xyz123
+console.warn("BUILD_TEST_999");

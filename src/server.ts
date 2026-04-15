@@ -39,7 +39,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // ── Configuration ──
-const PORT = parseInt(process.env.PI_WEB_PORT || "3210");
+const PORT = parseInt(process.env.PI_WEB_PORT || "3211");
 const HOME = process.env.HOME || "/home/manu";
 const AGENT_DIR = path.join(HOME, ".pi", "agent");
 const SESSIONS_DIR = path.join(AGENT_DIR, "sessions");
@@ -47,6 +47,11 @@ const AUTH_TOKEN = process.env.PI_WEB_AUTH_TOKEN || "";
 
 // ── Express Setup ──
 const app = express();
+
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
+});
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static(path.join(__dirname, "..", "public"), {
