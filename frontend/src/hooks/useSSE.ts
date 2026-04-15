@@ -147,19 +147,32 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
         }
         case 'get_available_models': {
           const response = await fetch(`${baseUrl}/api/enabled-models`);
-          const models = await response.json();
-          // Transform to match expected format
+          if (!response.ok) {
+            console.warn('Failed to fetch available models', response.status);
+            onEventRef.current({ type: 'rpc_response', command: 'get_available_models', data: { models: [] } });
+            return;
+          }
+          const json = await response.json();
+          const models = Array.isArray(json.models) ? json.models : json;
           onEventRef.current({ type: 'rpc_response', command: 'get_available_models', data: { models } });
           return;
         }
         case 'get_state': {
           const response = await fetch(`${baseUrl}/api/sessions/state?cwd=${encodeURIComponent(targetCwd)}`);
+          if (!response.ok) {
+            console.warn('Failed to fetch session state', response.status);
+            return;
+          }
           const state = await response.json();
           onEventRef.current({ type: 'state', ...state });
           return;
         }
         case 'get_session_stats': {
           const response = await fetch(`${baseUrl}/api/sessions/stats?cwd=${encodeURIComponent(targetCwd)}`);
+          if (!response.ok) {
+            console.warn('Failed to fetch session stats', response.status);
+            return;
+          }
           const stats = await response.json();
           onEventRef.current({ type: 'rpc_response', command: 'get_session_stats', data: stats });
           return;
@@ -170,6 +183,10 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sessionId: cmd.sessionId, cwd: targetCwd }),
           });
+          if (!response.ok) {
+            console.warn('Failed to load session', response.status);
+            return null;
+          }
           return response.json();
         }
         case 'new_session': {
@@ -178,14 +195,25 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ cwd: targetCwd }),
           });
+          if (!response.ok) {
+            console.warn('Failed to create new session', response.status);
+            return null;
+          }
           return response.json();
         }
         case 'set_model': {
-          await fetch(`${baseUrl}/api/sessions/model`, {
+          const response = await fetch(`${baseUrl}/api/sessions/model`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ provider: cmd.provider, modelId: cmd.modelId, cwd: targetCwd }),
           });
+          if (!response.ok) {
+            console.warn('Failed to set model', response.status);
+          }
+          return;
+        }
+        case 'report_visibility': {
+          // Visibility reporting is not supported over SSE send; no-op here.
           return;
         }
         default:

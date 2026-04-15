@@ -25,7 +25,7 @@ import {
   getAgentDir,
 } from "@mariozechner/pi-coding-agent";
 import type { AgentSessionEvent } from "@mariozechner/pi-agent-core";
-import { categorizeError } from "./services/errorCategorizer";
+import { categorizeError } from "./services/errorCategorizer.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -179,21 +179,6 @@ app.get("/api/sessions", (req, res) => {
   res.json((cwd ? getSessionsForCwd(cwd) : getAllSessions()).slice(0, limit));
 });
 
-app.get("/api/sessions/:id", (req, res) => {
-  if (!fs.existsSync(SESSIONS_DIR)) return res.status(404).json({ error: "Not found" });
-  for (const dir of fs.readdirSync(SESSIONS_DIR)) {
-    const dp = path.join(SESSIONS_DIR, dir);
-    if (!fs.statSync(dp).isDirectory()) continue;
-    const files = fs.readdirSync(dp).filter(f => f.includes(req.params.id));
-    if (files.length) {
-      const messages = fs.readFileSync(path.join(dp, files[0]), "utf-8").trim().split("\n")
-        .filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-      return res.json({ id: req.params.id, cwd: decodeDirName(dir), messages });
-    }
-  }
-  res.status(404).json({ error: "Session not found" });
-});
-
 app.get("/api/cwds", (_req, res) => res.json(getAllCwds()));
 
 // Get info for any cwd (not just those with sessions)
@@ -210,12 +195,52 @@ app.get("/api/settings", (_req, res) => {
   try { res.json(fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf-8")) : {}); }
   catch (e: any) { res.status(500).json({ error: e.message }); }
 });
-app.get("/api/enabled-models", (_req, res) => {
-  const p = path.join(AGENT_DIR, "settings.json");
+async function getAvailableModels(): Promise<any[]> {
+  await loadExtensionsForModels();
+
+  const available = await modelRegistry.getAvailable();
+
+  const cliModelsPath = path.join(__dirname, '..', 'models.json');
+  const cliModels = fs.existsSync(cliModelsPath)
+    ? JSON.parse(fs.readFileSync(cliModelsPath, 'utf8'))
+    : [];
+
+  for (const m of cliModels) {
+    if (!available.some((a: any) => a.provider === m.provider && a.id === m.id)) {
+      available.push(m);
+    }
+  }
+
+  const custom = getCustomModels();
+  const customModelsList = Object.values(custom).map((m: any) => ({
+    id: m.id,
+    name: m.name || m.id,
+    provider: m.provider,
+    reasoning: m.reasoning || false,
+    input: m.input || ["text"],
+    contextWindow: m.contextWindow,
+    maxTokens: m.maxTokens,
+    cost: m.cost,
+  }));
+
+  const all = [...available];
+  for (const cm of customModelsList) {
+    if (!all.some((m: any) => m.provider === cm.provider && m.id === cm.id)) {
+      all.push(cm);
+    }
+  }
+
+  return all;
+}
+
+app.get("/api/enabled-models", async (_req, res) => {
   try {
-    const s = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf-8")) : {};
-    res.json({ models: s.enabledModels || [] });
-  } catch { res.json({ models: [] }); }
+    const models = await getAvailableModels();
+    res.json({ models });
+  } catch (e: any) {
+    console.error(`[api/enabled-models] Error: ${e.message}`);
+    res.json({ models: [] });
+  }
 });
 
 app.get("/api/logs", async (_req, res) => {
@@ -977,6 +1002,23 @@ setSessionContext(
 
 // Register session routes AFTER context is set
 registerSessionRoutes(app);
+
+// NOTE: This route is registered AFTER registerSessionRoutes so that
+// /api/sessions/stats and /api/sessions/state are matched first
+app.get("/api/sessions/:id", (req, res) => {
+  if (!fs.existsSync(SESSIONS_DIR)) return res.status(404).json({ error: "Not found" });
+  for (const dir of fs.readdirSync(SESSIONS_DIR)) {
+    const dp = path.join(SESSIONS_DIR, dir);
+    if (!fs.statSync(dp).isDirectory()) continue;
+    const files = fs.readdirSync(dp).filter(f => f.includes(req.params.id));
+    if (files.length) {
+      const messages = fs.readFileSync(path.join(dp, files[0]), "utf-8").trim().split("\n")
+        .filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      return res.json({ id: req.params.id, cwd: decodeDirName(dir), messages });
+    }
+  }
+  res.status(404).json({ error: "Session not found" });
+});
 
 console.log('✅ Route context setup complete');
 

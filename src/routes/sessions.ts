@@ -1,5 +1,5 @@
 // ── Session Routes (REST API) ──
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { SessionManager } from "@mariozechner/pi-coding-agent";
@@ -246,7 +246,11 @@ export function registerSessionRoutes(app: any): void {
     const cwd = req.query.cwd as string || HOME;
     const cr = getCwdSessions().get(cwd);
     if (!cr) {
-      res.status(404).json({ error: 'No active session' });
+      res.json({
+        isWorking: false,
+        sessionId: null,
+        cwd,
+      });
       return;
     }
     res.json({
@@ -261,23 +265,31 @@ export function registerSessionRoutes(app: any): void {
     const cwd = req.query.cwd as string || HOME;
     const cr = getCwdSessions().get(cwd);
     if (!cr) {
-      res.status(404).json({ error: 'No active session' });
+      res.json({
+        messageCount: 0,
+        tokenCount: 0,
+        lastActive: null,
+        sessionId: null,
+        cwd,
+      });
       return;
     }
     res.json({
       messageCount: cr.session.messages.length,
       tokenCount: cr.session.tokensUsed || 0,
       lastActive: cr.session.lastActive || new Date(),
+      sessionId: cr.session.sessionId,
+      cwd: cr.cwd,
     });
   });
 
   // GET /api/sessions/:id - Get session messages
-  app.get('/api/sessions/:id', async (req: Request, res: Response) => {
+  app.get('/api/sessions/:id', async (req: Request, res: Response, next: NextFunction) => {
     const cwd = req.query.cwd as string || HOME;
     const cr = getCwdSessions().get(cwd);
     
-    if (!cr) {
-      res.status(404).json({ error: 'No active session' });
+    if (!cr || cr.session.sessionId !== req.params.id) {
+      next();
       return;
     }
 

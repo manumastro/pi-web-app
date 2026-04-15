@@ -58,7 +58,7 @@ export function useWebSocket({ onEvent, onConnected, onDisconnected, authToken }
     };
   }, [authToken]);
 
-  const send = useCallback((cmd: WsCommand) => {
+  const send = useCallback(async (cmd: WsCommand) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(cmd));
     }

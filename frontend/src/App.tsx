@@ -660,7 +660,9 @@ export default function App() {
 
       case 'rpc_response':
         if (event.command === 'get_available_models') {
-          const models: ModelInfo[] = (event.data?.models || event.data || []).map((m: any) => ({
+          const rawModels = event.data?.models ?? event.data;
+          const modelArray = Array.isArray(rawModels) ? rawModels : [];
+          const models: ModelInfo[] = modelArray.map((m: any) => ({
             id: m.id,
             name: m.name,
             provider: m.provider,
@@ -788,7 +790,7 @@ export default function App() {
 
   // Use either WebSocket or SSE based on USE_SSE flag
   const wsHook = USE_SSE 
-    ? useSSE({ cwd: selectedCwd || HOME, onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`${basePath}/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } if (selectedCwd) { /* models loaded via REST in handleEvent */ } if (selectedCwd && activeSessionId) { /* session loaded via SSE on connect */ } }, onDisconnected: () => setShowDisconnect(true), authToken })
+    ? useSSE({ cwd: selectedCwd || HOME, onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`${basePath}/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } }, onDisconnected: () => setShowDisconnect(true), authToken })
     : useWebSocket({ onEvent: handleEvent, onConnected: () => { setShowDisconnect(false); if (selectedCwd) { fetch(`${basePath}/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`).then(r => r.json()).then(data => setSessions(data)).catch(() => {}); } if (selectedCwd) { send({ type: 'get_available_models', cwd: selectedCwd }); } if (selectedCwd && activeSessionId) { send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId }); } send({ type: 'report_visibility', visible: true, activeSessionId: activeSessionId }); }, onDisconnected: () => setShowDisconnect(true), authToken });
 
   const { connected, send, reconnect } = wsHook;
@@ -799,7 +801,7 @@ export default function App() {
   // A premature get_state would return isWorking: false before the session
   // is loaded, overwriting the correct value.
   useEffect(() => {
-    if (!connected || !selectedCwd) return;
+    if (!connected || !selectedCwd || !activeSessionId) return;
 
     const pollInterval = setInterval(() => {
       send({ type: 'get_state', cwd: selectedCwd });
@@ -807,7 +809,20 @@ export default function App() {
     }, 3000);
 
     return () => clearInterval(pollInterval);
-  }, [connected, selectedCwd, send]);
+  }, [connected, selectedCwd, activeSessionId, send]);
+
+  useEffect(() => {
+    if (!connected || !selectedCwd) return;
+
+    if (selectedCwd) {
+      send({ type: 'get_available_models', cwd: selectedCwd });
+    }
+
+    if (activeSessionId) {
+      send({ type: 'load_session', cwd: selectedCwd, sessionId: activeSessionId }).catch(() => {});
+      send({ type: 'report_visibility', visible: !document.hidden, activeSessionId });
+    }
+  }, [connected, selectedCwd, activeSessionId, send]);
 
   // Request session stats when active session changes
   useEffect(() => {
