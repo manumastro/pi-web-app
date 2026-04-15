@@ -1,0 +1,1405 @@
+# Pi Web — Rewrite Blueprint
+
+> **Branch**: `rewrite` | **Date**: 2026-04-15 | **Status**: Planning
+
+---
+
+## Table of Contents
+
+1. [Vision & Principles](#1-vision--principles)
+2. [Architecture Overview](#2-architecture-overview)
+3. [Technology Stack](#3-technology-stack)
+4. [System Design](#4-system-design)
+5. [Feature Planning](#5-feature-planning)
+6. [V1 Scope (MVP)](#6-v1-scope-mvp)
+7. [Phase 2+ Features](#7-phase-2-features)
+8. [File Structure](#8-file-structure)
+9. [Data Models](#9-data-models)
+10. [API Specification](#10-api-specification)
+11. [SSE Protocol](#11-sse-protocol)
+12. [State Management](#12-state-management)
+13. [Testing Strategy](#13-testing-strategy)
+14. [Deployment](#14-deployment)
+15. [Migration Checklist](#15-migration-checklist)
+
+---
+
+## 1. Vision & Principles
+
+### 1.1 Vision
+A **lean, maintainable** web UI for the `@mariozechner/pi-coding-agent` SDK that:
+- Works reliably for daily coding tasks
+- Handles reconnections gracefully
+- Is easy to extend and debug
+- Can be understood by a single developer in < 1 hour
+
+### 1.2 Design Principles
+
+| Principle | What It Means |
+|-----------|--------------|
+| **Simplicity over cleverness** | No console.log interception, no global context setters, no magic refs |
+| **Single source of truth** | Each piece of data lives in exactly one place |
+| **Type-safe everywhere** | No `any` across the wire, strict TypeScript everywhere |
+| **Explicit over implicit** | Dependency injection, not global state mutation |
+| **Testable by default** | Every module can be tested in isolation |
+| **Config-driven** | No hardcoded paths, ports, or credentials |
+| **URL-driven navigation** | Every state is bookmarkable and shareable |
+
+### 1.3 Lessons Learned (What NOT to Repeat)
+
+| Problem | Root Cause | Solution |
+|---------|-----------|----------|
+| App.tsx grew to 1157 lines | No decomposition | Strict component boundaries, max 200 lines per component |
+| Duplicate message parsing | Logic scattered in 3+ places | Single `parseJsonlToMessages()` function |
+| Route modules used global setters | No DI pattern | Express.Router with constructor injection |
+| Hardcoded `/home/manu` paths | No config layer | `.env` + config module |
+| Port mismatch (3210 vs 3211) | No single source of truth | Single `config.ts` with defaults |
+| Dead code persisted | No cleanup policy | Remove unused code immediately, no feature flags for dead features |
+| Fragile streaming state via refs | No proper state manager | Zustand as single source of truth |
+
+---
+
+## 2. Architecture Overview
+
+### 2.1 High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      Browser (React 19)                  │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  │
+│  │ ChatView    │  │ SessionPanel │  │ ModelSelector  │  │
+│  │ (messages)  │  │ (sidebar)    │  │ (dropdown)     │  │
+│  └──────┬──────┘  └──────┬───────┘  └───────┬────────┘  │
+│         │                │                   │           │
+│  ┌──────┴────────────────┴───────────────────┴────────┐  │
+│  │              Zustand Store (state)                  │  │
+│  └──────┬──────────────────────────────────┬──────────┘  │
+│         │                                  │              │
+│  ┌──────┴──────┐                    ┌──────┴──────────┐  │
+│  │ SSE Client  │◄── EventSource ─── │  Event Stream   │  │
+│  │ (read)      │                    │  (text,tool,...)│  │
+│  └─────────────┘                    └─────────────────┘  │
+│  ┌─────────────┐                                         │
+│  │ REST Client │── fetch ──► POST /api/messages/prompt   │
+│  │ (write)     │              POST /api/messages/abort   │
+│  └─────────────┘              PUT  /api/session/model   │
+└─────────────────────────────────────────────────────────┘
+                         │
+                    HTTP / SSE
+                         │
+┌─────────────────────────────────────────────────────────┐
+│              Express Server (Node.js, port 3210)         │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  │
+│  │ REST Routes │  │ SSE Manager  │  │ Session Store  │  │
+│  │ /api/       │  │ (broadcast)  │  │ (in-memory)    │  │
+│  │ messages    │  │              │  │                │  │
+│  │ sessions    │  │              │  │                │  │
+│  │ models      │  │              │  │                │  │
+│  └──────┬──────┘  └──────┬───────┘  └───────┬────────┘  │
+│         │                │                   │           │
+│  ┌──────┴────────────────┴───────────────────┴────────┐  │
+│  │          SDK Bridge (AgentSession factory)          │  │
+│  │  • One AgentSession per CWD                         │  │
+│  │  • Forward SDK events → SSE clients                │  │
+│  │  • Route REST commands → SDK methods               │  │
+│  └──────────────────────┬──────────────────────────────┘  │
+│                         │                                  │
+│  ┌──────────────────────┴──────────────────────────────┐  │
+│  │  Session Persistence (JSONL files)                   │  │
+│  │  ~/.pi/agent/sessions/<session-id>.jsonl            │  │
+│  └─────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                         │
+                    in-process
+                         │
+┌─────────────────────────────────────────────────────────┐
+│  @mariozechner/pi-coding-agent SDK                       │
+│  • AgentSession(prompt, steer, abort, setModel)         │
+│  • Emits: text, thinking, tool_call, error, done...     │
+│  • Persists: JSONL session files                        │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 2.2 Communication Protocol
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Protocol: SSE + REST                  │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Client ◄── SSE ── Server                               │
+│           (EventSource, streaming events)                │
+│                                                          │
+│  Events: text_chunk, thinking, tool_call, tool_result,   │
+│          question, permission, error, done, session_end  │
+│                                                          │
+│  ─────────────────────────────────────────────────────   │
+│                                                          │
+│  Client ── REST ──► Server                              │
+│           (fetch, commands)                              │
+│                                                          │
+│  Commands: POST /api/messages/prompt                     │
+│            POST /api/messages/abort                      │
+│            POST /api/messages/steer                      │
+│            POST /api/messages/follow_up                  │
+│            PUT  /api/session/model                       │
+│            GET  /api/sessions                            │
+│            POST /api/sessions                            │
+│            DELETE /api/sessions/:id                      │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 2.3 Key Architectural Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **In-process SDK** | Zero overhead, direct API access, no subprocess management |
+| **SSE (not WebSocket)** | Simpler, better HTTP compatibility, follows standard patterns |
+| **JSONL session files** | Durable, crash-safe, no database needed, easily scannable |
+| **URL as source of truth** (`?cwd=&session=`) | Bookmarkable, browser nav works, shareable |
+| **Per-CWD session pooling** | Multiple tabs on same CWD share events |
+| **Zustand for state** | Lightweight, simple, no boilerplate like Redux |
+
+---
+
+## 3. Technology Stack
+
+### 3.1 Backend
+
+| Component | Technology | Version | Notes |
+|-----------|-----------|---------|-------|
+| Runtime | Node.js | >= 20 | LTS minimum |
+| Framework | Express | 4.x | Mature, well-known |
+| SDK | `@mariozechner/pi-coding-agent` | latest | In-process |
+| Validation | Zod | 3.x | Runtime type validation |
+| Logging | pino | 9.x | Structured JSON logs |
+| Testing | Vitest | 2.x | Unit + integration |
+| Config | dotenv | 16.x | Environment variables |
+
+### 3.2 Frontend
+
+| Component | Technology | Version | Notes |
+|-----------|-----------|---------|-------|
+| Framework | React | 19.x | Latest stable |
+| Language | TypeScript | 5.x | Strict mode |
+| State | Zustand | 5.x | Minimal boilerplate |
+| Build | Vite | 6.x | Fast HMR |
+| Styling | CSS Modules | — | No CSS-in-JS, no Tailwind dependency |
+| Testing | Vitest + Testing Library | — | Component + unit tests |
+| Markdown | marked + DOMPurify | — | Sanitized rendering |
+| Syntax HL | highlight.js | — | Code blocks |
+
+### 3.3 Infrastructure
+
+| Component | Technology | Notes |
+|-----------|-----------|-------|
+| Process Manager | systemd | Linux service |
+| Reverse Proxy | nginx | TLS, compression |
+| Package Manager | npm | Workspaces |
+
+---
+
+## 4. System Design
+
+### 4.1 Module Boundaries
+
+```
+src/
+├── config/           # Environment, defaults, validation
+├── sdk/              # SDK bridge, AgentSession factory, event forwarding
+├── sessions/         # Session lifecycle, JSONL parser, persistence
+├── models/           # Model resolution, auth, listing
+├── api/              # Express routes (REST endpoints)
+│   ├── messages.ts   # POST /api/messages/*
+│   ├── sessions.ts   # CRUD /api/sessions
+│   └── models.ts     # GET /api/models
+├── sse/              # SSE connection management, broadcasting
+│   ├── manager.ts    # Client registry, broadcast logic
+│   └── handler.ts    # GET /api/events endpoint
+└── server.ts         # Express app bootstrap, startup, shutdown
+```
+
+```
+frontend/src/
+├── components/       # UI components
+│   ├── ChatView/     # Message list, input area
+│   ├── SessionPanel/ # Sidebar, session list
+│   ├── ModelSelector/# Model dropdown
+│   ├── Message/      # Single message rendering
+│   └── Reconnect/    # Reconnection banner
+├── hooks/            # Custom React hooks
+│   ├── useSSE.ts     # SSE connection, EventSource lifecycle
+│   ├── useSession.ts # Session loading, message fetching
+│   └── useModels.ts  # Model list, selection, auth
+├── store/            # Zustand stores
+│   ├── session.ts    # Active session, messages, status
+│   ├── models.ts     # Available models, selected model
+│   └── ui.ts         # Sidebar, theme, visibility
+├── services/         # API clients (REST calls)
+│   ├── messages.ts   # sendPrompt, abort, steer
+│   ├── sessions.ts   # listSessions, createSession, deleteSession
+│   └── models.ts     # listModels, setModel
+├── types/            # Shared TypeScript types
+│   ├── events.ts     # SSE event types
+│   ├── messages.ts   # Message, ContentPart types
+│   └── session.ts    # Session, SessionStatus types
+└── utils/            # Pure utility functions
+    ├── jsonl.ts      # JSONL parsing, serialization
+    ├── markdown.ts   # Markdown → HTML (sanitized)
+    └── time.ts       # Timestamps, formatting
+```
+
+### 4.2 Dependency Injection Pattern
+
+All route modules receive dependencies via constructor, NOT via global setters:
+
+```typescript
+// ✅ CORRECT: Explicit dependencies
+export function createMessagesRouter(sdk: SdkBridge) {
+  const router = express.Router();
+  router.post('/prompt', async (req, res) => {
+    await sdk.prompt(req.body.sessionId, req.body.message);
+    res.json({ ok: true });
+  });
+  return router;
+}
+
+// ❌ WRONG: Global context setter (old pattern)
+let messageContext: any;
+export function setMessageContext(ctx: any) { messageContext = ctx; }
+```
+
+### 4.3 Configuration Layer
+
+```typescript
+// src/config/index.ts
+import { z } from 'zod';
+
+const configSchema = z.object({
+  port: z.coerce.number().default(3210),
+  homeDir: z.string().default(process.env.HOME ?? '/home/pi'),
+  agentDir: z.string().default(process.env.PI_AGENT_DIR ?? '~/.pi'),
+  sessionDir: z.string().default(process.env.PI_SESSIONS_DIR ?? '~/.pi/agent/sessions'),
+  logLevel: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
+  nodePath: z.string().default(process.env.NODE_PATH ?? '/usr/bin/node'),
+  corsOrigins: z.array(z.string()).default(['*']),
+});
+
+export const config = configSchema.parse(process.env);
+```
+
+No hardcoded paths. Ever.
+
+---
+
+## 5. Feature Planning
+
+### 5.1 Feature Matrix
+
+| Feature | Priority | Phase | Complexity | Status |
+|---------|----------|-------|------------|--------|
+| Send prompt, receive streaming response | **P0** | V1 | Medium | ✅ Proven |
+| Abort current response | **P0** | V1 | Low | ✅ Proven |
+| Session create / load / delete | **P0** | V1 | Medium | ✅ Proven |
+| SSE connection with auto-reconnect | **P0** | V1 | Medium | ✅ Proven |
+| Model listing + switching | **P0** | V1 | Low | ✅ Proven |
+| Multi-CWD support | **P0** | V1 | Low | ✅ Proven |
+| Multi-client broadcasting | **P1** | V2 | Medium | ✅ Proven |
+| Message part gap recovery | **P1** | V2 | High | ❌ Missing |
+| Event coalescing | **P1** | V2 | Medium | ⚠️ Partial |
+| Question system (AI asks user) | **P1** | V2 | Medium | ❌ Missing |
+| Permission system (approve/deny) | **P1** | V2 | Medium | ❌ Missing |
+| Image support (paste/pick) | **P2** | V3 | Medium | ✅ Proven |
+| Steer / Follow-up | **P2** | V3 | Low | ✅ Proven |
+| Session status in sidebar | **P1** | V2 | Low | ⚠️ Partial |
+| Error pattern detection | **P2** | V3 | High | ⚠️ Partial |
+| Context compaction display | **P2** | V3 | Low | ✅ Proven |
+| Server log viewer | **P3** | V4 | Low | ✅ Proven |
+| Shell mode (interactive terminal) | **P3** | V4 | High | ❌ Missing |
+| Slash commands | **P3** | V4 | Medium | ❌ Missing |
+| Todo system (AI-generated) | **P3** | V4 | Medium | ❌ Missing |
+
+### 5.2 V1 Feature Specifications
+
+#### F1: Send Prompt → Receive Stream
+
+**User Story**: As a user, I type a message and see the AI respond in real-time.
+
+**Flow**:
+```
+User types → [Send] → POST /api/messages/prompt
+                        ↓
+                   SdkBridge.prompt(sessionId, text, images?)
+                        ↓
+                   AgentSession emits: text_chunk, thinking, tool_call, ...
+                        ↓
+                   SSE Manager broadcasts to all clients on this CWD
+                        ↓
+                   SSE Client receives → Zustand store updates
+                        ↓
+                   ChatView renders streaming content
+```
+
+**Acceptance Criteria**:
+- [ ] Text appears character-by-character (or chunk-by-chunk)
+- [ ] Thinking blocks are collapsible
+- [ ] Tool calls show name + input, then results
+- [ ] Streaming stops on `done` event
+- [ ] Network error shows retry banner
+- [ ] Input disabled while streaming
+
+#### F2: Abort
+
+**User Story**: As a user, I can stop the AI mid-response.
+
+**Flow**:
+```
+User clicks [Stop] → POST /api/messages/abort
+                          ↓
+                     SdkBridge.abort(sessionId)
+                          ↓
+                     AgentSession.abort()
+                          ↓
+                     SSE: `done` event with `aborted: true`
+                          ↓
+                     UI shows "Aborted" footer
+```
+
+**Acceptance Criteria**:
+- [ ] Stop button visible during streaming
+- [ ] Response stops within 1-2 seconds
+- [ ] "Aborted" message shown in footer
+- [ ] Input re-enabled after abort
+
+#### F3: Session Management
+
+**User Story**: As a user, I can create, load, and delete sessions.
+
+**Endpoints**:
+- `GET /api/sessions?cwd=...` → list sessions for CWD
+- `POST /api/sessions` → create new session
+- `DELETE /api/sessions/:id` → delete session
+- `GET /api/sessions/:id/messages` → load session messages (JSONL)
+
+**Acceptance Criteria**:
+- [ ] New session created on first message (if no session selected)
+- [ ] Session list shows: id, date, last message preview
+- [ ] Loading a session renders all messages
+- [ ] Deleting a session removes it from list and disk
+- [ ] URL updates: `?cwd=/path&session=<id>`
+
+#### F4: SSE Auto-Reconnect
+
+**User Story**: As a user, if the connection drops, it reconnects automatically.
+
+**Behavior**:
+```
+Connection lost → Retry in 1s
+                 → Retry in 2s (with jitter)
+                 → Retry in 4s (with jitter)
+                 → ...
+                 → Max 30s interval
+                 → After 5 min, give up, show banner
+```
+
+**Acceptance Criteria**:
+- [ ] Reconnects automatically on network error
+- [ ] Exponential backoff with jitter
+- [ ] Banner shows "Reconnecting..." with attempt count
+- [ ] On reconnect, re-fetches session state
+- [ ] After 5 min timeout, shows "Connection lost" with manual retry button
+
+#### F5: Model Selection
+
+**User Story**: As a user, I can choose which AI model to use.
+
+**Flow**:
+```
+GET /api/models → resolve all provider models
+               → return: [{ id, name, provider, authRequired }, ...]
+               → dropdown shows models
+               → PUT /api/session/model { modelId } → switch
+```
+
+**Acceptance Criteria**:
+- [ ] Model list loaded on startup (cached)
+- [ ] Dropdown shows: name, provider icon
+- [ ] Switching model shows confirmation
+- [ ] Auth-required models show login prompt
+- [ ] Current model highlighted in dropdown
+
+---
+
+## 6. V1 Scope (MVP)
+
+### 6.1 V1 Includes
+
+| Component | What's In |
+|-----------|-----------|
+| **Backend** | Express server, SDK bridge, SSE manager, REST routes (messages, sessions, models), JSONL persistence, config module, structured logging |
+| **Frontend** | ChatView (messages + input), SessionPanel (sidebar with session list), ModelSelector (dropdown), SSE hook, Zustand stores, Reconnect banner |
+| **Protocol** | SSE events (text_chunk, thinking, tool_call, tool_result, question, permission, error, done), REST commands (prompt, abort, steer, follow_up, setModel) |
+| **Navigation** | URL params `?cwd=&session=`, browser back/forward works |
+| **Testing** | Unit tests for: JSONL parser, event coalescer, state machine, message parser, config validation |
+
+### 6.2 V1 Excludes (Deferred to V2+)
+
+- Multi-client broadcasting (works in old code, ported in V2)
+- Message part gap recovery (V2)
+- Question UI (V2)
+- Permission UI (V2)
+- Image support (V2)
+- Error pattern detection (V3)
+- Server log viewer (V3)
+- Shell mode (V4)
+- Slash commands (V4)
+
+### 6.3 V1 Success Criteria
+
+- [ ] Can send a prompt and see streaming response
+- [ ] Can abort a response
+- [ ] Can create/load/delete sessions
+- [ ] Can switch models
+- [ ] SSE reconnects automatically
+- [ ] All TypeScript compiles with `--strict`
+- [ ] Zero `any` types in new code
+- [ ] All tests pass (`npm test`)
+- [ ] Can deploy with `npm run build && npm start`
+- [ ] No hardcoded paths (all via config/env)
+- [ ] App.tsx < 200 lines
+- [ ] No component > 200 lines
+- [ ] No dead code (no unused imports, no commented blocks)
+
+---
+
+## 7. Phase 2+ Features
+
+### 7.1 V2: Reliability + Collaboration
+
+| Feature | Description | Effort |
+|---------|-------------|--------|
+| **Multi-client broadcasting** | Port existing pool-based broadcast from old code | Medium |
+| **Message part gap recovery** | Detect missing parts after reconnect, fetch from JSONL | High |
+| **Event coalescing** | Merge redundant events (e.g., rapid text_chunks) | Medium |
+| **Question system** | UI for AI questions with answer input | Medium |
+| **Permission system** | Approve/deny file access requests | Medium |
+| **Global session status** | Sidebar shows status of ALL sessions | Low |
+| **PAUSE/RESUME state** | Add to state machine, implement in SDK bridge | Medium |
+
+### 7.2 V3: Rich Features
+
+| Feature | Description | Effort |
+|---------|-------------|--------|
+| **Image support** | Paste/drop images in prompts | Medium |
+| **Steer / Follow-up** | UI for steering, answering follow-ups | Low |
+| **Error pattern detection** | Provider-specific error patterns | High |
+| **Context compaction display** | Show compaction summary | Low |
+| **Improved reconnection** | Smart state repair on reconnect | High |
+
+### 7.3 V4: Advanced Features
+
+| Feature | Description | Effort |
+|---------|-------------|--------|
+| **Shell mode** | Interactive terminal in browser | High |
+| **Slash commands** | Command discovery, pipeline | Medium |
+| **Todo system** | Display AI-generated todos | Medium |
+| **Settings panel** | Theme, font size, keybindings | Medium |
+
+---
+
+## 8. File Structure
+
+### 8.1 Complete Project Layout
+
+```
+pi-web-app/                          # NEW repo or branch
+├── .env.example                     # All config vars documented
+├── .gitignore
+├── package.json                     # Workspaces: backend, frontend
+├── README.md                        # Quick start
+├── BLUEPRINT.md                     # THIS FILE
+│
+├── backend/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vitest.config.ts
+│   ├── src/
+│   │   ├── config/
+│   │   │   ├── index.ts             # Config schema + validation
+│   │   │   └── index.test.ts        # Config validation tests
+│   │   ├── sdk/
+│   │   │   ├── bridge.ts            # SdkBridge: wraps AgentSession
+│   │   │   ├── bridge.test.ts       # Bridge unit tests
+│   │   │   ├── factory.ts           # AgentSession factory per CWD
+│   │   │   └── events.ts            # SDK event → SSE event mapping
+│   │   ├── sessions/
+│   │   │   ├── store.ts             # Session CRUD in memory
+│   │   │   ├── store.test.ts
+│   │   │   ├── jsonl.ts             # JSONL read/write/parser
+│   │   │   └── jsonl.test.ts
+│   │   ├── models/
+│   │   │   ├── resolver.ts          # Model resolution, auth
+│   │   │   └── resolver.test.ts
+│   │   ├── api/
+│   │   │   ├── messages.ts          # POST /api/messages/*
+│   │   │   ├── sessions.ts          # CRUD /api/sessions
+│   │   │   ├── models.ts            # GET /api/models
+│   │   │   └── index.ts             # Router aggregation
+│   │   ├── sse/
+│   │   │   ├── manager.ts           # SSE client registry, broadcast
+│   │   │   ├── manager.test.ts
+│   │   │   └── handler.ts           # GET /api/events
+│   │   ├── server.ts                # Express bootstrap
+│   │   └── types.ts                 # Shared backend types
+│   └── tests/
+│       └── integration/
+│           └── api.test.ts          # End-to-end API tests
+│
+├── frontend/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── vitest.config.ts
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx                 # Entry point
+│       ├── App.tsx                  # Layout only (< 100 lines)
+│       ├── components/
+│       │   ├── ChatView/
+│       │   │   ├── index.tsx        # Message list + input
+│       │   │   ├── MessageList.tsx  # Virtualized list
+│       │   │   ├── InputArea.tsx    # Prompt input + send button
+│       │   │   ├── MessageItem.tsx  # Single message
+│       │   │   └── styles.module.css
+│       │   ├── SessionPanel/
+│       │   │   ├── index.tsx        # Sidebar
+│       │   │   ├── SessionList.tsx  # Session list items
+│       │   │   └── styles.module.css
+│       │   ├── ModelSelector/
+│       │   │   ├── index.tsx        # Dropdown
+│       │   │   └── styles.module.css
+│       │   ├── Reconnect/
+│       │   │   ├── index.tsx        # Reconnection banner
+│       │   │   └── styles.module.css
+│       │   └── shared/
+│       │       ├── Markdown.tsx     # Markdown renderer
+│       │       ├── CodeBlock.tsx    # Syntax-highlighted code
+│       │       └── LoadingSpinner.tsx
+│       ├── hooks/
+│       │   ├── useSSE.ts            # SSE connection lifecycle
+│       │   ├── useSSE.test.ts       # Hook tests
+│       │   ├── useSession.ts        # Session loading
+│       │   └── useModels.ts         # Model list + selection
+│       ├── store/
+│       │   ├── session.ts           # Active session, messages, status
+│       │   ├── session.test.ts
+│       │   ├── models.ts            # Available + selected model
+│       │   └── ui.ts                # Sidebar, theme, visibility
+│       ├── services/
+│       │   ├── api.ts               # Base fetch wrapper
+│       │   ├── messages.ts          # sendPrompt, abort, steer
+│       │   ├── sessions.ts          # listSessions, create, delete
+│       │   └── models.ts            # listModels, setModel
+│       ├── types/
+│       │   ├── events.ts            # SSE event types (Zod-validated)
+│       │   ├── messages.ts          # Message, ContentPart
+│       │   ├── session.ts           # Session, SessionStatus
+│       │   └── models.ts            # ModelInfo
+│       └── utils/
+│           ├── jsonl.ts             # JSONL parsing
+│           ├── jsonl.test.ts
+│           ├── markdown.ts          # Markdown → HTML (sanitized)
+│           └── time.ts              # Timestamp formatting
+│
+├── public/                          # Static assets (favicon, etc.)
+├── pi-web.service                   # systemd unit file
+└── nginx.conf                       # Reverse proxy config template
+```
+
+### 8.2 Lines of Code Budget
+
+| Module | Estimated LOC | Max LOC |
+|--------|--------------|---------|
+| `App.tsx` | 80 | 100 |
+| Each component | 50-150 | 200 |
+| Each hook | 40-100 | 150 |
+| Each store | 50-100 | 150 |
+| Each route | 50-100 | 150 |
+| `server.ts` | 100-150 | 200 |
+| `bridge.ts` | 150-200 | 250 |
+| `manager.ts` (SSE) | 100-150 | 200 |
+| Config | 30-50 | 80 |
+| **Total backend** | ~800 | ~1200 |
+| **Total frontend** | ~1200 | ~1800 |
+| **Total project** | ~2000 | ~3000 |
+
+Compare to current: `server.ts` alone is 1101 lines, `App.tsx` is 1157 lines. **Target: no single file > 250 lines.**
+
+---
+
+## 9. Data Models
+
+### 9.1 TypeScript Types
+
+```typescript
+// ─── Events (SSE stream) ───────────────────────────────────────
+
+type SseEvent =
+  | TextChunkEvent
+  | ThinkingEvent
+  | ToolCallEvent
+  | ToolResultEvent
+  | QuestionEvent
+  | PermissionEvent
+  | ErrorEvent
+  | DoneEvent
+  | SessionEndEvent;
+
+interface TextChunkEvent {
+  type: 'text_chunk';
+  sessionId: string;
+  messageId: string;
+  content: string;
+  timestamp: string; // ISO 8601
+}
+
+interface ThinkingEvent {
+  type: 'thinking';
+  sessionId: string;
+  messageId: string;
+  content: string;
+  done?: boolean;
+  timestamp: string;
+}
+
+interface ToolCallEvent {
+  type: 'tool_call';
+  sessionId: string;
+  messageId: string;
+  toolCallId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  timestamp: string;
+}
+
+interface ToolResultEvent {
+  type: 'tool_result';
+  sessionId: string;
+  messageId: string;
+  toolCallId: string;
+  result: string;
+  success: boolean;
+  timestamp: string;
+}
+
+interface QuestionEvent {
+  type: 'question';
+  sessionId: string;
+  messageId: string;
+  question: string;
+  options?: string[];
+  timestamp: string;
+}
+
+interface PermissionEvent {
+  type: 'permission';
+  sessionId: string;
+  messageId: string;
+  permissionId: string;
+  action: string;
+  resource: string;
+  timestamp: string;
+}
+
+interface ErrorEvent {
+  type: 'error';
+  sessionId: string;
+  message: string;
+  category: 'network' | 'auth' | 'provider' | 'sdk' | 'unknown';
+  recoverable: boolean;
+  timestamp: string;
+}
+
+interface DoneEvent {
+  type: 'done';
+  sessionId: string;
+  messageId: string;
+  aborted: boolean;
+  timestamp: string;
+}
+
+interface SessionEndEvent {
+  type: 'session_end';
+  sessionId: string;
+  timestamp: string;
+}
+
+// ─── Messages (UI model) ───────────────────────────────────────
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: ContentPart[];
+  timestamp: string;
+  status: 'streaming' | 'complete' | 'aborted' | 'error';
+}
+
+type ContentPart =
+  | TextPart
+  | ThinkingPart
+  | ToolCallPart
+  | ToolResultPart
+  | ImagePart;
+
+interface TextPart {
+  type: 'text';
+  content: string;
+}
+
+interface ThinkingPart {
+  type: 'thinking';
+  content: string;
+  done: boolean;
+}
+
+interface ToolCallPart {
+  type: 'tool_call';
+  toolCallId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+}
+
+interface ToolResultPart {
+  type: 'tool_result';
+  toolCallId: string;
+  result: string;
+  success: boolean;
+}
+
+interface ImagePart {
+  type: 'image';
+  mimeType: string;
+  data: string; // base64
+}
+
+// ─── Sessions ──────────────────────────────────────────────────
+
+interface Session {
+  id: string;
+  cwd: string;       // Working directory
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+  status: SessionStatus;
+  modelId?: string;
+}
+
+type SessionStatus =
+  | 'idle'
+  | 'prompting'
+  | 'steering'
+  | 'answering'
+  | 'waiting_question'
+  | 'waiting_permission'
+  | 'paused'
+  | 'error'
+  | 'done';
+
+// ─── Models ────────────────────────────────────────────────────
+
+interface ModelInfo {
+  id: string;
+  name: string;
+  provider: 'copilot' | 'antigravity' | 'cloud' | 'openai' | 'qwen' | string;
+  authRequired: boolean;
+  authenticated: boolean;
+}
+```
+
+### 9.2 JSONL Session File Format
+
+Each line is a JSON object. Format is dictated by the SDK and must not be changed:
+
+```jsonl
+{"type":"user","content":"Hello","timestamp":"2026-04-15T10:00:00Z"}
+{"type":"rpc_response","content":"Hi! How can I help?","timestamp":"2026-04-15T10:00:01Z"}
+{"type":"tool_call","name":"read_file","input":{"path":"file.txt"},"timestamp":"2026-04-15T10:00:02Z"}
+{"type":"tool_result","success":true,"content":"...","timestamp":"2026-04-15T10:00:03Z"}
+```
+
+The `jsonl.ts` module handles parsing these into `Message[]` objects. **Single parser, used everywhere.**
+
+---
+
+## 10. API Specification
+
+### 10.1 REST Endpoints
+
+#### POST /api/messages/prompt
+
+Send a prompt to the current session.
+
+```typescript
+// Request
+{
+  "sessionId": string,    // Optional: auto-create if missing
+  "cwd": string,          // Working directory
+  "message": string,      // Text content
+  "images"?: string[]     // Base64-encoded images (V2)
+}
+
+// Response: 200 OK
+{ "ok": true, "sessionId": string }
+
+// Response: 400 Bad Request
+{ "error": "message is required" }
+```
+
+#### POST /api/messages/abort
+
+Abort the current response.
+
+```typescript
+// Request
+{ "sessionId": string }
+
+// Response: 200 OK
+{ "ok": true }
+
+// Response: 409 Conflict (not streaming)
+{ "error": "no active response" }
+```
+
+#### POST /api/messages/steer
+
+Steer the current response.
+
+```typescript
+// Request
+{ "sessionId": string, "message": string }
+
+// Response: 200 OK
+{ "ok": true }
+```
+
+#### POST /api/messages/follow_up
+
+Answer a follow-up question.
+
+```typescript
+// Request
+{ "sessionId": string, "message": string }
+
+// Response: 200 OK
+{ "ok": true }
+```
+
+#### PUT /api/session/model
+
+Switch the model for a session.
+
+```typescript
+// Request
+{ "sessionId": string, "modelId": string }
+
+// Response: 200 OK
+{ "ok": true, "model": ModelInfo }
+
+// Response: 401 Unauthorized (needs auth)
+{ "error": "authentication required", "model": ModelInfo }
+```
+
+#### GET /api/sessions
+
+List sessions for a CWD.
+
+```typescript
+// Query: ?cwd=/path/to/project
+// Response: 200 OK
+{
+  "sessions": [
+    {
+      "id": string,
+      "createdAt": string,
+      "updatedAt": string,
+      "status": SessionStatus,
+      "modelId"?: string
+    }
+  ]
+}
+```
+
+#### POST /api/sessions
+
+Create a new session.
+
+```typescript
+// Request
+{ "cwd": string }
+
+// Response: 201 Created
+{ "id": string, "createdAt": string }
+```
+
+#### DELETE /api/sessions/:id
+
+Delete a session.
+
+```typescript
+// Response: 200 OK
+{ "ok": true }
+```
+
+#### GET /api/models
+
+List available models.
+
+```typescript
+// Response: 200 OK
+{
+  "models": ModelInfo[]
+}
+```
+
+---
+
+## 11. SSE Protocol
+
+### 11.1 Connection
+
+```
+GET /api/events?cwd=/path/to/project
+Accept: text/event-stream
+```
+
+The SSE stream sends events for ALL sessions in the specified CWD.
+
+### 11.2 Event Format
+
+```
+event: text_chunk
+id: 42
+data: {"type":"text_chunk","sessionId":"abc","messageId":"msg-1","content":"Hello","timestamp":"2026-04-15T10:00:00Z"}
+
+event: done
+id: 43
+data: {"type":"done","sessionId":"abc","messageId":"msg-1","aborted":false,"timestamp":"2026-04-15T10:00:10Z"}
+```
+
+### 11.3 Event Types
+
+| Event | Fields | Description |
+|-------|--------|-------------|
+| `text_chunk` | sessionId, messageId, content | Streaming text from AI |
+| `thinking` | sessionId, messageId, content, done? | AI reasoning (collapsible) |
+| `tool_call` | sessionId, messageId, toolCallId, toolName, input | AI calling a tool |
+| `tool_result` | sessionId, messageId, toolCallId, result, success | Tool execution result |
+| `question` | sessionId, messageId, question, options? | AI asks user a question |
+| `permission` | sessionId, messageId, permissionId, action, resource | AI requests permission |
+| `error` | sessionId, message, category, recoverable | Error occurred |
+| `done` | sessionId, messageId, aborted | Response finished |
+| `session_end` | sessionId | Session closed |
+
+### 11.4 SSE Manager (Backend)
+
+```typescript
+interface SSEManager {
+  addClient(cwd: string, clientId: string, res: ServerResponse): void;
+  removeClient(clientId: string): void;
+  broadcast(cwd: string, event: SseEvent): void;
+  broadcastToSession(sessionId: string, event: SseEvent): void;
+}
+```
+
+Clients are grouped by CWD. Events are broadcast to all clients in the same CWD.
+
+### 11.5 SSE Client (Frontend)
+
+```typescript
+// useSSE.ts
+function useSSE(cwd: string) {
+  const url = `/api/events?cwd=${encodeURIComponent(cwd)}`;
+  const es = new EventSource(url);
+
+  es.onmessage = (raw) => {
+    const event = parseSseEvent(raw);  // Zod-validated
+    dispatch(event);                    // Updates Zustand store
+  };
+
+  es.onerror = () => {
+    // Exponential backoff + jitter
+    // Reconnect logic
+  };
+
+  useEffect(() => () => es.close(), []);
+}
+```
+
+---
+
+## 12. State Management
+
+### 12.1 Zustand Stores
+
+Three separate stores (not one monolithic store):
+
+#### Session Store
+
+```typescript
+interface SessionState {
+  // Active session
+  activeSession: Session | null;
+  sessionId: string | null;
+
+  // Messages (flat array, ordered)
+  messages: Message[];
+
+  // Streaming state
+  streamingMessageId: string | null;
+  isStreaming: boolean;
+
+  // Status
+  status: SessionStatus;
+
+  // Actions
+  setActiveSession: (session: Session | null) => void;
+  setMessages: (messages: Message[]) => void;
+  appendMessage: (message: Message) => void;
+  updateStreamingMessage: (part: ContentPart) => void;
+  finalizeStreamingMessage: () => void;
+  setStatus: (status: SessionStatus) => void;
+}
+```
+
+#### Models Store
+
+```typescript
+interface ModelsState {
+  models: ModelInfo[];
+  selectedModelId: string | null;
+  isLoading: boolean;
+
+  loadModels: () => Promise<void>;
+  selectModel: (modelId: string) => Promise<void>;
+}
+```
+
+#### UI Store
+
+```typescript
+interface UIState {
+  sidebarOpen: boolean;
+  theme: 'light' | 'dark' | 'system';
+  cwd: string | null;
+
+  toggleSidebar: () => void;
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  setCwd: (cwd: string) => void;
+}
+```
+
+### 12.2 State Flow
+
+```
+SSE Event received
+       ↓
+useSSE hook parses + validates (Zod)
+       ↓
+Dispatch to Zustand store
+       ↓
+Components re-render (via selectors, not full store)
+```
+
+**NO refs for streaming state.** The streaming message is tracked in Zustand:
+- `streamingMessageId` identifies the in-progress message
+- `updateStreamingMessage` appends parts to it
+- `finalizeStreamingMessage` marks it complete
+
+### 12.3 Session Status Machine
+
+```
+┌───────┐   prompt    ┌──────────┐
+│ idle  │ ─────────► │ prompting│
+└───┬───┘             └────┬─────┘
+    │                       │
+    │     steer       ┌─────┴──────┐
+    ├───────────────► │ answering  │
+    │                 └─────┬──────┘
+    │                       │
+    │     question    ┌─────┴──────────────┐
+    ├───────────────► │ waiting_question   │
+    │                 └─────┬──────────────┘
+    │                       │
+    │     permission  ┌─────┴──────────────┐
+    ├───────────────► │ waiting_permission │
+    │                 └─────┬──────────────┘
+    │                       │
+    │     done        ┌─────┴─────┐
+    └───────────────► │   done    │
+                      └─────┬─────┘
+                            │
+                            │ new prompt
+                            ▼
+                          idle (cycle)
+```
+
+---
+
+## 13. Testing Strategy
+
+### 13.1 Test Pyramid
+
+```
+         ┌─────────┐
+        │  E2E (5)  │    ← Manual + Playwright (future)
+       ├─────────────┤
+      │ Integration  │   ← API tests with supertest (~20)
+     ├────────────────┤
+    │    Unit (80+)   │  ← Pure function + module tests
+   └───────────────────┘
+```
+
+### 13.2 Unit Tests (Priority)
+
+| Module | Test Cases |
+|--------|-----------|
+| `jsonl.ts` | Parse valid lines, skip malformed, empty file, large files |
+| `events.ts` | Zod validation for each event type, reject invalid |
+| `config.ts` | Missing vars use defaults, invalid values throw |
+| `state machine` | All valid transitions, invalid transitions throw |
+| `bridge.ts` | Event forwarding, error handling, abort behavior |
+| `manager.ts` | Add/remove clients, broadcast, CWD isolation |
+| `useSSE.ts` | Connect, disconnect, reconnect, event parsing |
+| `session store` | Append messages, update streaming, finalize |
+
+### 13.3 Integration Tests
+
+| Scenario | Test |
+|----------|------|
+| Prompt flow | POST prompt → SSE events received → message in store |
+| Abort flow | POST abort → streaming stops → done event |
+| Session CRUD | Create → list → load → delete → verify |
+| Model switch | PUT model → verify model changed |
+| Reconnection | Kill server → SSE reconnects → state recovered |
+
+### 13.4 Test Commands
+
+```bash
+npm test                    # Run all tests
+npm test -- --watch         # Watch mode
+npm test -- backend/        # Backend only
+npm test -- frontend/       # Frontend only
+npm run test:coverage       # Coverage report
+```
+
+---
+
+## 14. Deployment
+
+### 14.1 Development
+
+```bash
+npm install
+npm run dev         # Concurrent: backend (nodemon) + frontend (vite)
+```
+
+### 14.2 Production Build
+
+```bash
+npm run build       # Frontend: vite build → dist/public/
+                    # Backend: tsc → dist/backend/
+npm start           # node dist/backend/server.js
+```
+
+### 14.3 systemd Service
+
+```ini
+[Unit]
+Description=Pi Web App
+After=network.target
+
+[Service]
+Type=simple
+User=manu
+WorkingDirectory=/home/manu/pi-web-app
+EnvironmentFile=/home/manu/pi-web-app/.env
+ExecStart=/usr/bin/node dist/backend/server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 14.4 nginx Reverse Proxy
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name pi.local;
+
+    ssl_certificate     /etc/ssl/certs/pi.pem;
+    ssl_certificate_key /etc/ssl/private/pi.key;
+
+    location / {
+        proxy_pass http://127.0.0.1:3210;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_cache_bypass $http_upgrade;
+
+        # SSE headers
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;
+    }
+}
+```
+
+### 14.5 Environment Variables
+
+```bash
+# .env.example
+PI_WEB_PORT=3210
+PI_WEB_HOST=127.0.0.1
+PI_AGENT_DIR=~/.pi
+PI_SESSIONS_DIR=~/.pi/agent/sessions
+PI_LOG_LEVEL=info
+NODE_ENV=production
+NODE_PATH=/usr/bin/node
+```
+
+---
+
+## 15. Migration Checklist
+
+### 15.1 Phase 0: Setup
+
+- [ ] Create `rewrite` branch
+- [ ] Initialize new project structure (empty directories)
+- [ ] Set up workspaces (backend + frontend)
+- [ ] Configure TypeScript, Vite, Vitest
+- [ ] Add `.env.example` with all documented variables
+- [ ] Write this BLUEPRINT.md
+- [ ] **Gate**: `npm install` works, `npm test` runs (zero tests, but passes)
+
+### 15.2 Phase 1: Backend Core (V1)
+
+- [ ] Implement `config.ts` with Zod validation
+- [ ] Implement `jsonl.ts` parser (single source of truth)
+- [ ] Implement `sdk/bridge.ts` wrapping AgentSession
+- [ ] Implement `sdk/factory.ts` for per-CWD session creation
+- [ ] Implement `sdk/events.ts` event mapping (SDK → SSE)
+- [ ] Implement `sessions/store.ts` in-memory session store
+- [ ] Implement `models/resolver.ts` model resolution
+- [ ] Implement `sse/manager.ts` client registry + broadcast
+- [ ] Implement `sse/handler.ts` GET /api/events
+- [ ] Implement `api/messages.ts` REST routes
+- [ ] Implement `api/sessions.ts` REST routes
+- [ ] Implement `api/models.ts` REST routes
+- [ ] Implement `server.ts` Express bootstrap
+- [ ] Wire everything together
+- [ ] Write unit tests for: config, jsonl, bridge, manager, store
+- [ ] Write integration tests for: prompt flow, abort, session CRUD
+- [ ] **Gate**: Can send prompt via curl, receive SSE events, abort works
+
+### 15.3 Phase 2: Frontend Core (V1)
+
+- [ ] Set up Vite + React 19 + TypeScript
+- [ ] Create Zustand stores (session, models, ui)
+- [ ] Implement `useSSE.ts` hook with reconnection
+- [ ] Implement `useSession.ts` hook
+- [ ] Implement `useModels.ts` hook
+- [ ] Implement `services/` REST API clients
+- [ ] Implement `ChatView` component (messages + input)
+- [ ] Implement `MessageItem` component (render parts)
+- [ ] Implement `SessionPanel` component (sidebar + session list)
+- [ ] Implement `ModelSelector` component (dropdown)
+- [ ] Implement `Reconnect` component (banner)
+- [ ] Implement `App.tsx` layout (should be < 100 lines)
+- [ ] URL sync: `?cwd=&session=` drives navigation
+- [ ] Write unit tests for: stores, hooks, jsonl utils
+- [ ] **Gate**: Can open browser, send prompt, see streaming, abort, switch sessions, switch models
+
+### 15.4 Phase 3: Polish (V1)
+
+- [ ] CSS styling (dark + light theme)
+- [ ] Responsive layout (mobile-friendly)
+- [ ] Loading states (spinners, skeletons)
+- [ ] Error states (network error, auth error)
+- [ ] Markdown rendering (marked + DOMPurify)
+- [ ] Syntax highlighting (highlight.js)
+- [ ] Virtualized message list (for long sessions)
+- [ ] Keyboard shortcuts (Enter to send, Ctrl+L to clear)
+- [ ] Accessibility (ARIA labels, keyboard nav)
+- [ ] Favicon, meta tags
+- [ ] **Gate**: Full user journey works smoothly
+
+### 15.5 Phase 4: V1 Release
+
+- [ ] All V1 acceptance criteria met
+- [ ] Zero TypeScript errors (`--strict`)
+- [ ] Zero `any` types in new code
+- [ ] All tests pass
+- [ ] No component > 200 lines
+- [ ] No file > 250 lines (except maybe bridge.ts)
+- [ ] No dead code
+- [ ] No hardcoded paths
+- [ ] README updated with quick start
+- [ ] Deploy to systemd + nginx
+- [ ] **Gate**: V1 production-ready
+
+### 15.6 Phase 5+: V2 and Beyond
+
+- [ ] Multi-client broadcasting (port from old code)
+- [ ] Message part gap recovery
+- [ ] Event coalescing
+- [ ] Question system (UI + backend)
+- [ ] Permission system (UI + backend)
+- [ ] Global session status
+- [ ] PAUSE/RESUME state machine
+- [ ] Image support
+- [ ] Error pattern detection
+- ... (see Phase 2+ Features section)
+
+---
+
+## Appendix A: Glossary
+
+| Term | Definition |
+|------|-----------|
+| **CWD** | Current Working Directory — the project directory the agent operates in |
+| **Session** | A conversation thread with the AI agent, persisted as JSONL |
+| **AgentSession** | SDK class that manages a single session |
+| **SdkBridge** | Our wrapper around AgentSession (event forwarding, error handling) |
+| **SSE** | Server-Sent Events — unidirectional streaming over HTTP |
+| **JSONL** | JSON Lines — one JSON object per line in session files |
+| **ContentPart** | A piece of message content (text, thinking, tool_call, etc.) |
+| **V1/V2/V3** | Release phases: MVP → reliability → rich features |
+
+## Appendix B: References
+
+| Resource | Link/Path |
+|----------|-----------|
+| SDK npm package | `@mariozechner/pi-coding-agent` |
+| SDK session files | `~/.pi/agent/sessions/*.jsonl` |
+| Current project | `/home/manu/pi-web-app` |
+| systemd service | `/etc/systemd/system/pi-web.service` |
+| nginx config | `/etc/nginx/sites-available/pi-web` |
+| Old docs | `docs/` directory |
+
+## Appendix C: Risk Register
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| SDK API changes | High | Pin SDK version, write adapter tests |
+| JSONL format changes | High | Single parser module, test with real session files |
+| SSE connection instability | Medium | Robust reconnection, fallback to polling (future) |
+| Scope creep | Medium | Strict V1 boundary, defer features to V2+ |
+| Over-engineering | Low | Keep it simple, review architecture regularly |
+
+---
+
+*This is a living document. Update it as decisions are made. Every architectural change should be reflected here before implementation.*
