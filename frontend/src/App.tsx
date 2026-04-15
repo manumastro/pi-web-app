@@ -142,7 +142,7 @@ export default function App() {
 
   // Load initial CWDs
   useEffect(() => {
-    fetch('/api/cwds')
+    fetch(`${basePath}/api/cwds`)
       .then(r => r.json())
       .then((data: CwdInfo[]) => {
         // Ensure selectedCwd is in the list (even if 0 sessions)
@@ -204,7 +204,7 @@ export default function App() {
 
     // Load from API
     setMessagesLoaded(false);
-    fetch(`/api/sessions/${activeSessionId}`)
+    fetch(`${basePath}/api/sessions/${activeSessionId}`)
       .then(r => r.json())
       .then(data => {
         const newMessages: Message[] = [];
@@ -593,7 +593,7 @@ export default function App() {
         msgIdxRef.current = null;
         // Reload sessions
         if (selectedCwd) {
-          fetch(`/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
+          fetch(`${basePath}/api/sessions?cwd=${encodeURIComponent(selectedCwd)}&limit=200`)
             .then(r => r.json())
             .then(data => setSessions(data))
             .catch(() => {});
