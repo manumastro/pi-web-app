@@ -12,16 +12,16 @@ Pi Web is a **full-stack AI coding agent interface** built on `@mariozechner/pi-
 │  │ Sessions │ │ Messages │ │  Images   │ │
 │  └────┬─────┘ └────┬─────┘ └─────┬─────┘ │
 └───────┼────────────┼─────────────┼────────┘
-        │  WebSocket │             │
+        │  SSE + REST API           │
         └────────────┼─────────────┘
                      │
 ┌────────────────────┼──────────────────────┐
 │         Express Server (SDK bridge)        │
 │  ┌─────────────────┼────────────────────┐ │
-│  │  WS Handler     │  REST API          │ │
-│  │  Multi-client   │  GET /sessions     │ │
-│  │  Auth token     │  GET /sessions/:id │ │
-│  │  Idle mgmt      │  GET /cwds         │ │
+│  │  SSE Handler    │  REST API          │ │
+│  │  /events       │  GET/POST /sessions │ │
+│  │  CWD binding   │  GET /cwds          │ │
+│  │  Heartbeat    │  POST /prompt       │ │
 │  └────────┬────────┴────────────────────┘ │
 │           │  createAgentSession()         │
 │  ┌────────┴────────────────────────────┐  │
@@ -43,7 +43,14 @@ The server runs the pi SDK **directly in the same Node.js process**. There is no
 - Zero overhead from process creation
 - Direct access to `AgentSession` APIs (`prompt`, `steer`, `abort`, `setModel`, etc.)
 - Real-time event subscription via `session.subscribe()`
-- Shared state across all connected WebSocket clients for the same CWD
+- Shared state across all connected clients for the same CWD
+
+### SSE + REST Architecture
+Pi Web uses **Server-Sent Events (SSE)** for server-to-client streaming and **REST API** for client-to-server commands:
+- **SSE**: Real-time event stream (think/thinking, text delta, tool calls, etc.)
+- **REST**: Send prompts, steer, abort, load sessions, etc.
+
+This follows the OpenCode Web UI pattern for simplicity and reliability.
 
 ### URL as Source of Truth
 The browser URL (`?cwd=/path&session=uuid`) is the single source of truth for the active working directory and session. All navigation updates the URL via `setSearchParams({ replace: true })`. This enables:
@@ -52,20 +59,18 @@ The browser URL (`?cwd=/path&session=uuid`) is the single source of truth for th
 - Tab-sharing of specific sessions
 
 ### Per-CWD Session Pooling
-The server maintains **one `CwdSession` per working directory**. All WebSocket clients working on the same CWD share the same `AgentSession` instance. This means:
+The server maintains **one `CwdSession` per working directory**. All SSE clients working on the same CWD receive the same events. This means:
 - Multiple tabs see the same conversation
-- Events from the agent are broadcast to all clients
+- Events from the agent are broadcast to all clients via SSE
 - When the last client disconnects, the session is marked idle
-
-### Message Cache
-The frontend caches parsed messages in a module-level `Map` with a 5-minute TTL. This avoids redundant REST API fetches when switching between sessions rapidly.
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Backend runtime | Node.js 24 (TypeScript via `--experimental-strip-types`) |
-| Backend framework | Express 4 + WebSocket (`ws`) |
+|-------|------------|
+| Backend runtime | Node.js 24 (via tsx) |
+| Backend framework | Express 4 |
+| Protocol | SSE (Server-Sent Events) + REST API |
 | SDK | `@mariozechner/pi-coding-agent` v0.66 |
 | Frontend framework | React 19 |
 | Frontend build | Vite 6 |
@@ -80,30 +85,26 @@ The frontend caches parsed messages in a module-level `Map` with a 5-minute TTL.
 ```
 User types message → InputArea.onSend()
   → App.handleSend()
-    → ws.send({ type: "prompt", text, images, cwd })
-      → server.ts WS handler
+    → send({ type: "prompt", text, images, cwd })
+      → REST POST /api/sessions/prompt
+        → server.ts route handler
         → getOrCreateSession(cwd)
         → cr.session.prompt(text, { images?, streamingBehavior? })
           → SDK processes, emits events
-            → forwardEvent() maps SDK events → WS messages
-              → broadcastToClients() → all connected tabs
-                → App.handleEvent() → setMessages()
+            → forwardEvent() maps SDK events → SSE
+              → broadcastToSSE() → all connected SSE clients
+                → useSSE.onEvent() → setMessages()
                   → MessageList re-renders
 ```
 
 ### Reconnection Flow
 ```
-Network drop → ws.onclose → useWebSocket reconnect timer (3s)
-  → ws.onopen → onConnected()
+Network drop → EventSource onerror → useSSE reconnect timer (3s)
+  → EventSource onopen → onConnected()
     1. Refresh session list (REST)
-    2. Send get_state (WS)
-    3. Send get_available_models (WS)
-    4. Send load_session (WS) ← last, so client is registered
-      → server finds session file, adds client
-      → after 100ms: broadcast state + get_messages
-        → client receives full message history + isWorking
-          → if agent was mid-stream, streaming events resume
-            → handlers merge into existing assistant message
+    2. Poll get_state (REST)
+    3. Send load_session (REST) ← last, so session is registered
+      → SSE events resume streaming
 ```
 
 ## Session File Format
@@ -123,3 +124,25 @@ Each line is a JSON object:
 ```
 
 Directory names are encoded: `/home/manu/pi-web-app` → `--home-manu-pi-web-app--`.
+
+## API Reference
+
+### SSE Endpoint
+```
+GET /api/events?cwd=/path/to/project
+```
+Streams events for the specified CWD.
+
+### REST Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/cwds` | List all project directories |
+| `GET` | `/api/sessions` | List sessions for a CWD |
+| `GET` | `/api/sessions/:id` | Get session messages |
+| `POST` | `/api/sessions` | Create new session |
+| `POST` | `/api/sessions/load` | Load existing session |
+| `POST` | `/api/sessions/prompt` | Send prompt |
+| `POST` | `/api/sessions/steer` | Steer agent |
+| `POST` | `/api/sessions/follow_up` | Follow-up message |
+| `POST` | `/api/sessions/abort` | Abort operation |
+| `DELETE` | `/api/sessions/:id` | Delete session |

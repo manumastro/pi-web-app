@@ -118,16 +118,18 @@ src/
 - **Protocol**: WebSocket → SSE
 - **Frontend**: `useSSE` hook (EventSource)
 - **Service**: Systemd with tsx
+- **Server**: Express serves static files directly
+- **No nginx needed**: serves directly on port 3211
 - **Default**: SSE enabled by default
 
 ---
 
-## 📁 Phase 3: Cleanup (Optional)
+## 📁 Phase 3: Complete
 
-### Future Improvements
-- Remove commented WebSocket code from server.ts
-- Add SSE reconnection test
-- Update WEBSOCKET_PROTOCOL.md to SSE_PROTOCOL.md
+### Done
+- [x] Remove nginx configuration
+- [x] Serve frontend directly from Express
+- [x] Updated all documentation
 
 ### OpenCode SSE Pattern
 

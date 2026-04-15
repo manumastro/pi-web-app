@@ -6,8 +6,8 @@ Interfaccia web completa per **pi-coding-agent** — usa il SDK direttamente in-
 
 | | URL |
 |---|---|
-| **Locale** | `http://localhost:3210` |
-| **Pubblico** | `http://<VPS-IP>:3210` |
+| **Locale** | `http://localhost:3211` |
+| **Pubblico** | `http://161.97.116.63:3211` |
 
 ## 🚀 Quick Start
 
@@ -16,34 +16,36 @@ cd pi-web-app
 npm run install:all
 npm run build:ui
 # Start service: systemctl --user start pi-web
-# → http://localhost:3210
+# → http://localhost:3211
 ```
 
 ## 📚 Documentazione
 
-La documentazione completa è nella cartella [`docs/`](docs/):
-
 | Documento | Descrizione |
 |-----------|-------------|
-| [📖 Panoramica](docs/ARCHITECTURE.md) | Architettura generale, tech stack |
-| [📡 Protocollo SSE+REST](docs/WEBSOCKET_PROTOCOL.md) | Reference completa API (SSE + REST) |
+| [📖 Panoramica](docs/ARCHITECTURE.md) | Architettura, tech stack |
+| [📡 API Reference](docs/ARCHITECTURE.md#api-reference) | Endpoints SSE + REST |
 | [🔄 Session Management](docs/SESSION_MANAGEMENT.md) | State & reconnection |
-| [🔍 OpenCode Analysis](docs/OPENCODE_ANALYSIS.md) | Analisi comparativa con OpenCode |
 | [📋 Refactoring Plan](docs/REFACTORING_PLAN.md) | Piano completato: WS → SSE |
 | [🎨 Frontend](docs/FRONTEND.md) | Componenti React, state management |
 | [⚙️ Backend](docs/BACKEND.md) | Server internals, SDK integration |
-| [🚀 Deployment](docs/DEPLOYMENT.md) | Installazione, systemd, nginx |
+| [🚀 Deployment](docs/DEPLOYMENT.md) | Installazione, systemd |
 
 ## ✅ Features
 
 - **SDK in-process** — zero overhead subprocess
-- **Protocollo SSE** — Server-Sent Events + REST (sostituito WebSocket)
+- **Protocollo SSE+REST** — Server-Sent Events + REST API
 - **Multi-client** — più tab condividono la sessione
 - **Streaming real-time** — text, thinking, tool call, tool execution
 - **Session management** — crea, carica, elimina, fork sessioni
 - **Model switching** — 88+ modelli, ricerca e raggruppamento per provider
 - **Image support** — paste o upload immagini nei prompt
 - **Steer / Follow-up / Abort** — controlli completi sull'agent
-- **Compaction** — manuale e automatica
-- **Retry UI** — banner countdown per errori e retry
 - **Dark mode + responsive** — ottimizzato per coding
+
+## 🔧 Stack Tecnico
+
+- **Backend**: Express.js + Node.js
+- **Frontend**: React 19 + Vite 6 + Tailwind CSS 4
+- **Protocol**: SSE + REST (sostituito WebSocket)
+- **Process Manager**: systemd
