@@ -23,13 +23,15 @@ npm run build:ui
 
 | Documento | Descrizione |
 |-----------|-------------|
-| [📖 Panoramica](docs/ARCHITECTURE.md) | Architettura, tech stack |
-| [📡 API Reference](docs/ARCHITECTURE.md#api-reference) | Endpoints SSE + REST |
+| [📖 Indice Docs](docs/README.md) | Navigazione completa documentazione |
+| [📊 STATUS](docs/STATUS.md) | Stato attuale, cosa funziona |
+| [🏗️ Architettura](docs/ARCHITECTURE.md) | Tech stack, data flow |
 | [🔄 Session Management](docs/SESSION_MANAGEMENT.md) | State & reconnection |
-| [📋 Refactoring Plan](docs/REFACTORING_PLAN.md) | Piano completato: WS → SSE |
 | [🎨 Frontend](docs/FRONTEND.md) | Componenti React, state management |
 | [⚙️ Backend](docs/BACKEND.md) | Server internals, SDK integration |
 | [🚀 Deployment](docs/DEPLOYMENT.md) | Installazione, systemd |
+| [📈 Migliorie](docs/IMPLEMENTED_IMPROVEMENTS.md) | Event pipeline, deduplicazione |
+| [🧪 Testing](docs/TESTING_ROADMAP.md) | Roadmap testing e2e |
 
 ## ✅ Features
 
