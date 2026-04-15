@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig({
-  base: '/pi-web/',
+  base: './',
   plugins: [react(), tailwindcss()],
   build: {
     outDir: path.resolve(__dirname, '../public'),
