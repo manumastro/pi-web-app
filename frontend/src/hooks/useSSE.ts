@@ -1,9 +1,10 @@
 // ── SSE Hook for Frontend ──
 // Replace WebSocket with EventSource (SSE)
-// Follows OpenCode Web UI pattern
+// Follows OpenCode Web UI pattern with improved retry using exponential backoff + jitter
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { WsEvent, WsCommand } from '../types';
+import { RetryScheduler, createRetrySchedulerForError, categorizeError } from '../sync/retry';
 
 export interface UseSSEOptions {
   cwd: string;
@@ -13,10 +14,18 @@ export interface UseSSEOptions {
   authToken?: string;
 }
 
+export interface RetryInfo {
+  attempt: number;
+  maxAttempts: number;
+  nextRetryTime: number;
+  delayMs: number;
+}
+
 export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }: UseSSEOptions) {
   const [connected, setConnected] = useState(false);
+  const [retryInfo, setRetryInfo] = useState<RetryInfo | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retrySchedulerRef = useRef<RetryScheduler | null>(null);
   const onEventRef = useRef(onEvent);
   const onConnectedRef = useRef(onConnected);
   const onDisconnectedRef = useRef(onDisconnected);
@@ -31,6 +40,10 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
+    
+    // Cancel any pending retry
+    retrySchedulerRef.current?.cancel();
+    setRetryInfo(null);
 
     const protocol = location.protocol === 'https:' ? 'https' : 'http';
     const tokenParam = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
@@ -48,24 +61,45 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
     eventSource.onopen = () => {
       console.log('📡 SSE connected');
       setConnected(true);
+      setRetryInfo(null);
       onConnectedRef.current?.();
     };
 
-    // Handle errors
+    // Handle errors with exponential backoff + jitter
     eventSource.onerror = (e) => {
       console.error('📡 SSE error:', e);
       setConnected(false);
       onDisconnectedRef.current?.();
 
-      // EventSource auto-reconnects, but we can customize if needed
+      // EventSource auto-reconnects, but we customize the retry logic
       eventSource.close();
       
-      // Manual reconnect after 3 seconds
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = setTimeout(() => {
-        console.log('📡 SSE reconnecting...');
-        connect();
-      }, 3000);
+      // Determine error category for adaptive retry
+      // Note: EventSource doesn't give us the HTTP status, so we use a heuristic
+      const errorMessage = 'Connection lost'; // Default message
+      
+      // Create adaptive retry scheduler based on error type
+      retrySchedulerRef.current = createRetrySchedulerForError(errorMessage);
+      
+      retrySchedulerRef.current.setCallbacks(
+        (state) => {
+          console.log(`📡 SSE reconnecting... (attempt ${state.attempt})`);
+          setRetryInfo({
+            attempt: state.attempt,
+            maxAttempts: 5,
+            nextRetryTime: state.nextRetryTime,
+            delayMs: state.totalDelayMs,
+          });
+          connect();
+        },
+        () => {
+          console.error('📡 SSE max retry attempts exhausted');
+          setRetryInfo(null);
+        }
+      );
+      
+      // Start retry with delay
+      retrySchedulerRef.current.schedule();
     };
 
     // Default message handler
@@ -230,12 +264,10 @@ export function useSSE({ cwd, onEvent, onConnected, onDisconnected, authToken }:
     connect();
 
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      retrySchedulerRef.current?.cancel();
       eventSourceRef.current?.close();
     };
   }, [connect]);
 
-  return { connected, send, reconnect: connect };
+  return { connected, send, reconnect: connect, retryInfo };
 }

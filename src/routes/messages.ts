@@ -35,8 +35,11 @@ export function registerMessageRoutes(app: any): void {
       if (!cr.idle) promptOpts.streamingBehavior = "steer";
       if (images?.length) promptOpts.images = images;
       cr.idle = false;
-      cr.session.prompt(text, promptOpts).catch((err: Error) => {
+      cr.session.prompt(text, promptOpts).then(() => {
+        console.log(`[prompt] ${targetCwd}: prompt resolved successfully`);
+      }).catch((err: Error) => {
         console.error(`[prompt error] ${targetCwd}: ${err.message}`);
+        console.error(`[prompt error] Stack: ${err.stack}`);
         broadcastToSSEFn(targetCwd, 'error', { message: err.message });
       });
       res.json({ status: 'prompt_sent', cwd: targetCwd });

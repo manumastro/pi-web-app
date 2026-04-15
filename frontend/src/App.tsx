@@ -186,6 +186,24 @@ export default function App() {
     }).catch(() => {});
   }, [selectedCwd]);
 
+  // Fetch historical logs when logs panel is opened
+  useEffect(() => {
+    if (!showLogs) return;
+    fetch(`${basePath}/api/logs?lines=200`)
+      .then(r => r.json())
+      .then((data: { logs: string[] }) => {
+        if (data.logs) {
+          const now = new Date();
+          setServerLogs(data.logs.map(log => ({
+            time: now,
+            level: log.includes('error') || log.includes('Error') ? 'error' : 'info',
+            message: log
+          })));
+        }
+      })
+      .catch(() => {});
+  }, [showLogs, basePath]);
+
   // Lazy load messages only when session is selected
   useEffect(() => {
     if (!activeSessionId || !selectedCwd) {
@@ -638,6 +656,7 @@ export default function App() {
           errorMessage: event.errorMessage,
           errorCategory: event.errorCategory,
           nextRetryTime,
+          totalDelayMs: 0, // Will be accumulated by retry scheduler
         });
         setMessages(prev => [...prev, { type: 'system', text: `🔄 Auto-retry attempt ${event.attempt}/${event.maxAttempts}…`, color: 'orange' }]);
         break;
@@ -1113,14 +1132,14 @@ export default function App() {
 
         {showDisconnect && <DisconnectBanner />}
 
-        {retryState && (
+        {retryState && activeSessionId && (
           <RetryBanner
-            attempt={retryState.attempt}
-            maxAttempts={retryState.maxAttempts}
+            sessionId={activeSessionId}
             delayMs={retryState.delayMs}
-            errorMessage={retryState.errorMessage}
-            errorCategory={retryState.errorCategory}
-            nextRetryTime={retryState.nextRetryTime || Date.now() + retryState.delayMs}
+            onRetryNow={() => reconnect()}
+            onCancel={() => {
+              // Cancel retry - this would need to be connected to the store
+            }}
           />
         )}
 

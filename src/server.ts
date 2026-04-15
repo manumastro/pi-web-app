@@ -7,8 +7,6 @@
  * - Session management via SessionManager + AgentSessionRuntime
  */
 import express from "express";
-// ── WebSocket Server (DEPRECATED - using SSE instead) ──
-// import { WebSocket, WebSocketServer } from "ws";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -38,12 +36,70 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error(`💥 UNHANDLED REJECTION at`, promise, `reason:`, reason);
 });
 
+// ── Server Error Tracking (like OpenChamber) ──
+let lastServerError: { message: string; timestamp: number; context?: string } | null = null;
+const serverErrorLog: Array<{ message: string; timestamp: number; context?: string }> = [];
+const MAX_ERROR_LOG_SIZE = 50;
+
+function logServerError(message: string, context?: string) {
+  const error = { message, timestamp: Date.now(), context };
+  lastServerError = error;
+  serverErrorLog.unshift(error);
+  if (serverErrorLog.length > MAX_ERROR_LOG_SIZE) {
+    serverErrorLog.pop();
+  }
+  console.error(`[SERVER ERROR] ${message}`, context ? `[${context}]` : '');
+}
+
+function clearServerError() {
+  lastServerError = null;
+}
+
 // ── Configuration ──
-const PORT = parseInt(process.env.PI_WEB_PORT || "3211");
 const HOME = process.env.HOME || "/home/manu";
 const AGENT_DIR = path.join(HOME, ".pi", "agent");
 const SESSIONS_DIR = path.join(AGENT_DIR, "sessions");
 const AUTH_TOKEN = process.env.PI_WEB_AUTH_TOKEN || "";
+const PORT = parseInt(process.env.PI_WEB_PORT || "3211");
+
+// ── Load API Keys from Environment or bashrc ──
+function loadApiKeys() {
+  // Try environment variables first
+  const envKeys = {
+    MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    NVIDIA_API_KEY: process.env.NVIDIA_API_KEY,
+  };
+
+  // If MINIMAX_API_KEY is not set, try to load from bashrc
+  if (!envKeys.MINIMAX_API_KEY) {
+    try {
+      const bashrcPath = path.join(HOME, '.bashrc');
+      if (fs.existsSync(bashrcPath)) {
+        const bashrc = fs.readFileSync(bashrcPath, 'utf-8');
+        const match = bashrc.match(/export\s+MINIMAX_API_KEY=["']([^"']+)["']/);
+        if (match) {
+          envKeys.MINIMAX_API_KEY = match[1];
+          console.log('[CONFIG] Loaded MINIMAX_API_KEY from ~/.bashrc');
+        }
+      }
+    } catch (e) {
+      console.warn('[CONFIG] Could not read ~/.bashrc:', e);
+    }
+  }
+
+  // Set environment variables if found
+  for (const [key, value] of Object.entries(envKeys)) {
+    if (value && !process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+
+  return envKeys;
+}
+
+const apiKeys = loadApiKeys();
 
 // ── Express Setup ──
 const app = express();
@@ -63,7 +119,7 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
 }));
 
 // ── SSE & REST Routes (Phase 2) ──
-import { registerSSERoutes } from "./routes/events";
+import { registerSSERoutes, broadcastToSSE } from "./routes/events";
 import { registerMessageRoutes } from "./routes/messages";
 import { registerSessionRoutes, type RegisterSessionRoutesType } from "./routes/sessions";
 
@@ -173,6 +229,24 @@ function getAllCwds() {
 }
 
 // ── REST API ──
+// Health endpoint (like OpenChamber's /api/health)
+app.get("/api/health", (_req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: Date.now(),
+    lastError: lastServerError,
+    recentErrors: serverErrorLog.slice(0, 10),
+    uptime: process.uptime(),
+    memoryUsage: process.memoryUsage(),
+    apiKeysLoaded: {
+      MINIMAX_API_KEY: apiKeys.MINIMAX_API_KEY ? '***' + apiKeys.MINIMAX_API_KEY.slice(-4) : null,
+      OPENAI_API_KEY: apiKeys.OPENAI_API_KEY ? '***' : null,
+      ANTHROPIC_API_KEY: apiKeys.ANTHROPIC_API_KEY ? '***' : null,
+      NVIDIA_API_KEY: apiKeys.NVIDIA_API_KEY ? '***' : null,
+    },
+  });
+});
+
 app.get("/api/sessions", (req, res) => {
   const cwd = req.query.cwd as string | undefined;
   const limit = parseInt(req.query.limit as string) || 100;
@@ -328,24 +402,10 @@ app.delete("/api/sessions/:id", (req, res) => {
   }
 });
 
-// ── Auth middleware for WebSocket ──
-function authenticateWs(ws: WebSocket, req: any): boolean {
-  if (!AUTH_TOKEN) return true;
-  const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-  const token = url.searchParams.get("token");
-  if (token !== AUTH_TOKEN) {
-    ws.send(JSON.stringify({ type: "error", message: "Authentication required." }));
-    ws.close(1008, "Unauthorized");
-    return false;
-  }
-  return true;
-}
-
 // ── SDK Session Manager ──
 interface CwdSession {
   cwd: string;
   session: AgentSession;
-  clients: Set<WebSocket>;
   unsubscribe: (() => void) | null;
   idle: boolean;
   lastPromptMsg: string | null;
@@ -670,7 +730,6 @@ async function createCwdSession(cwd: string, sessionManager?: SessionManager): P
   const cr: CwdSession = {
     cwd,
     session,
-    clients: new Set(),
     unsubscribe: null,
     idle: true,
     lastPromptMsg: null,
@@ -692,11 +751,9 @@ async function createCwdSession(cwd: string, sessionManager?: SessionManager): P
   return cr;
 }
 
-/** Forward SDK events to WebSocket clients */
+/** Forward SDK events to SSE clients */
 function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
-  if (cr.clients.size === 0) return;
-
-  // Map SDK events to frontend-compatible WS messages
+  // SSE connections are handled via broadcastToSSE
   let wsMsg: any = null;
 
   switch (event.type) {
@@ -860,10 +917,13 @@ function forwardEvent(cr: CwdSession, event: AgentSessionEvent) {
 }
 
 function broadcastToClients(cr: CwdSession, msg: any) {
-  const data = JSON.stringify(msg);
-  for (const client of cr.clients) {
-    if (client.readyState === WebSocket.OPEN) client.send(data);
+  // Log errors for visibility (like OpenChamber)
+  if (msg.type === 'error' || msg.type === 'rpc_error') {
+    logServerError(msg.message || msg.error, `${msg.type} on ${cr.cwd}`);
   }
+  
+  // Send to SSE clients
+  broadcastToSSE(cr.cwd, msg.type || 'message', msg);
 }
 
 function resetIdleTimer(cr: CwdSession) {
@@ -923,22 +983,18 @@ async function disposeSession(cwd: string) {
   console.log(`🗑️ Disposed runtime for ${cwd}`);
 }
 
-// ── WebSocket ──
-let wss: WebSocketServer | null = null;
 let server: ReturnType<typeof app.listen> | null = null;
-let pingTimer: ReturnType<typeof setInterval> | null = null;
 
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
 function broadcastLog(level: "info"|"error", ...args: any[]) {
   const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-  if (wss) {
-    for (const client of wss.clients) {
-      if (client.readyState === 1) {
-        client.send(JSON.stringify({ type: "server_log", level, message }));
-      }
-    }
+  const logEvent = { type: "server_log", level, message };
+  
+  // Broadcast to SSE clients
+  for (const [, cr] of cwdSessions) {
+    broadcastToSSE(cr.cwd, 'server_log', logEvent);
   }
 }
 
@@ -971,10 +1027,6 @@ function startServer(retryCount = 0) {
       }
     }
   });
-
-  // ── WebSocket Server (DEPRECATED - using SSE instead) ──
-  // wss = new WebSocketServer({ server });
-  // setupWebSocket(wss);
 }
 
 startServer();
@@ -1022,596 +1074,7 @@ app.get("/api/sessions/:id", (req, res) => {
 
 console.log('✅ Route context setup complete');
 
-function setupWebSocket(wss: WebSocketServer) {
-  const PING_INTERVAL = 30000;
-  pingTimer = setInterval(() => {
-    for (const client of wss.clients) {
-      if ((client as any).isAlive === false) {
-        client.terminate();
-      }
-      (client as any).isAlive = false;
-      client.ping();
-    }
-  }, PING_INTERVAL);
 
-  function getCwd(msg: any): string { return msg.cwd || HOME; }
-
-  function findSessionForClient(ws: WebSocket): CwdSession | null {
-    for (const [, cr] of cwdSessions) {
-      if (cr.clients.has(ws)) return cr;
-    }
-    return null;
-  }
-
-  wss.on("connection", (ws: WebSocket, req) => {
-    if (!authenticateWs(ws, req)) return;
-
-    // Assign unique client ID
-    const clientId = `ws_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    (ws as any).clientId = clientId;
-    (ws as any).visible = false;
-    (ws as any).activeSessionId = null;
-    
-    console.log(`🔌 Client connected: ${clientId}`);
-    (ws as any).isAlive = true;
-
-    ws.on("pong", () => { (ws as any).isAlive = true; });
-
-    ws.on("message", async (data: Buffer) => {
-      let msg: any;
-      try { msg = JSON.parse(data.toString()); } catch { return; }
-
-      if (msg.type === "prompt") {
-        const cwd = getCwd(msg);
-        try {
-          const cr = await getOrCreateSession(cwd, false, undefined);
-          cr.clients.add(ws);
-          cr.lastPromptMsg = msg.text;
-          cr.lastPromptImages = msg.images || null;
-
-          console.log(`🚀 [${cwd}] Sending prompt: ${msg.text.substring(0, 100)}${msg.text.length > 100 ? "..." : ""}`);
-
-          const promptOpts: any = {};
-          if (!cr.idle) {
-            promptOpts.streamingBehavior = "steer";
-          }
-          if (msg.images?.length) {
-            promptOpts.images = msg.images;
-          }
-
-          cr.idle = false;
-          cr.session.prompt(msg.text, promptOpts).catch((err: Error) => {
-            console.error(`[prompt error] ${cwd}: ${err.message}`);
-            broadcastToClients(cr, { type: "error", message: err.message });
-          });
-        } catch (e: any) {
-          console.error(`[prompt] Runtime creation failed: ${e.message}`);
-          ws.send(JSON.stringify({ type: "error", message: `Failed to create session: ${e.message}` }));
-        }
-      }
-
-      if (msg.type === "steer") {
-        const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
-        if (cr) cr.session.steer(msg.text).catch(console.error);
-      }
-
-      if (msg.type === "follow_up") {
-        const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
-        if (cr) cr.session.followUp(msg.text).catch(console.error);
-      }
-
-      if (msg.type === "abort") {
-        const cwd = getCwd(msg);
-        let cr = findSessionForClient(ws) || cwdSessions.get(cwd);
-        
-        if (!cr) {
-          // No session for this client - check if there's any active session for this cwd
-          console.log(`[abort] No active session for client, checking CWD ${cwd}`);
-          // Can't abort if no session exists
-          ws.send(JSON.stringify({ type: "error", message: "No active session to stop" }));
-          return;
-        }
-        
-        cr.session.abort().then(() => {
-          console.log(`[abort] Successfully triggered abort for ${cwd}`);
-          broadcastToClients(cr, { type: "rpc_info", message: "Stop command sent" });
-        }).catch((e: Error) => {
-          console.error(`[abort] Failed: ${e.message}`);
-          broadcastToClients(cr, { type: "error", message: `Stop failed: ${e.message}` });
-        });
-      }
-
-      // ── Visibility Reporting ──
-      if (msg.type === "report_visibility") {
-        const clientId = (ws as any).clientId;
-        (ws as any).visible = msg.visible;
-        (ws as any).activeSessionId = msg.activeSessionId;
-        console.log(`👁️ Client ${clientId} visibility: ${msg.visible} (session: ${msg.activeSessionId})`);
-      }
-
-      // ── State & Model ──
-      if (msg.type === "get_state") {
-        const cwd = getCwd(msg);
-        const cr = findSessionForClient(ws) || cwdSessions.get(cwd);
-        if (cr) {
-          const s = cr.session;
-          // Include idle state so client knows if agent is working
-          broadcastToClients(cr, {
-            type: "state",
-            model: s.model?.id,
-            provider: s.model?.provider,
-            thinkingLevel: s.thinkingLevel,
-            messages: s.messages.length,
-            sessionId: s.sessionId,
-            sessionFile: s.sessionFile,
-            isWorking: !cr.idle,
-            stateVersion: cr.stateVersion,
-            workingDuration: cr.workingStartTime ? Date.now() - cr.workingStartTime : null,
-            lastEventType: cr.lastEventType,
-            cwd: cr.cwd,
-          });
-        } else {
-          // No session exists for this cwd yet - this is fine for new sessions
-          ws.send(JSON.stringify({ type: "state", cwd, isWorking: false }));
-        }
-      }
-
-      if (msg.type === "set_model") {
-        const cwd = getCwd(msg);
-        try {
-          // Persist to settings.json
-          try {
-            const settingsPath = path.join(AGENT_DIR, "settings.json");
-            if (fs.existsSync(settingsPath)) {
-              const s = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-              s.defaultProvider = msg.provider;
-              s.defaultModel = msg.modelId;
-              fs.writeFileSync(settingsPath, JSON.stringify(s, null, 2));
-            }
-          } catch (e: any) { console.error(`[set_model] write error: ${e.message}`); }
-
-          let cr = findSessionForClient(ws) || cwdSessions.get(cwd);
-          if (!cr) {
-            // No active session yet — create one so the model can be set
-            console.log(`[set_model] No active session for ${cwd}, creating one...`);
-            cr = await createCwdSession(cwd);
-          }
-          cr.clients.add(ws);
-
-          const model = await resolveModelWithAuth(msg.provider, msg.modelId);
-          if (model) {
-            await cr.session.setModel(model);
-            broadcastToClients(cr, { type: "model_info", model: `${msg.provider}/${msg.modelId}` });
-            console.log(`[set_model] Set model to ${msg.provider}/${msg.modelId} for ${cwd}`);
-          } else {
-            console.error(`[set_model] Model not found: ${msg.provider}/${msg.modelId}`);
-            broadcastToClients(cr, { type: "rpc_error", command: "set_model", error: `Model not found: ${msg.provider}/${msg.modelId}` });
-          }
-        } catch (e: any) {
-          console.error(`[set_model] Failed: ${e.message}`);
-          const cr = cwdSessions.get(cwd);
-          if (cr) {
-            broadcastToClients(cr, { type: "rpc_error", command: "set_model", error: e.message });
-          } else {
-            ws.send(JSON.stringify({ type: "error", message: `Failed to set model: ${e.message}` }));
-          }
-        }
-      }
-
-      if (msg.type === "cycle_model") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          try {
-            const result = await cr.session.cycleModel();
-            if (result?.model) {
-              broadcastToClients(cr, { type: "model_info", model: result.model.id });
-            }
-          } catch (e: any) {
-            console.error(`[cycle_model] Failed: ${e.message}`);
-            broadcastToClients(cr, { type: "rpc_error", command: "cycle_model", error: e.message });
-          }
-        }
-      }
-
-      if (msg.type === "set_thinking_level") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          try { cr.session.setThinkingLevel(msg.level); }
-          catch (e: any) { console.error(`[set_thinking_level] Failed: ${e.message}`); }
-        }
-      }
-
-      if (msg.type === "cycle_thinking_level") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          try { cr.session.cycleThinkingLevel(); }
-          catch (e: any) { console.error(`[cycle_thinking_level] Failed: ${e.message}`); }
-        }
-      }
-
-      if (msg.type === "get_messages") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          // Collect active tool executions (tool_call_start without matching end)
-          const activeToolExecutions = new Map<string, { name: string; args?: any }>();
-          // We track via the session's message history — scan for in-progress tool calls
-          const messages = cr.session.messages;
-          const toolCallStates: Array<{ id?: string; name: string; isRunning: boolean }> = [];
-          for (const msg of messages) {
-            if (msg.role === "assistant" && Array.isArray(msg.content)) {
-              for (const part of msg.content) {
-                if (part.type === "toolCall" && part.id) {
-                  toolCallStates.push({ id: part.id, name: part.name || "unknown", isRunning: false });
-                }
-              }
-            }
-          }
-          // Check for ongoing tool executions by looking at recent events
-          // The SDK doesn't expose a direct API for this, so we use the idle flag
-          broadcastToClients(cr, {
-            type: "rpc_response",
-            command: "get_messages",
-            data: {
-              messages,
-              isWorking: !cr.idle,
-              sessionId: cr.session.sessionId,
-            }
-          });
-        }
-      }
-
-      if (msg.type === "get_available_models") {
-        const cr = findSessionForClient(ws) || cwdSessions.get(getCwd(msg));
-        try {
-          // Load extensions first to register their models/providers
-          await loadExtensionsForModels();
-
-          // Get models from shared registry (now includes extension-registered models)
-          const available = await modelRegistry.getAvailable();
-
-          // Load models from pre-generated CLI output (models.json)
-          const cliModelsPath = path.join(__dirname, '..', 'models.json');
-          const cliModels = fs.existsSync(cliModelsPath)
-            ? JSON.parse(fs.readFileSync(cliModelsPath, 'utf8'))
-            : [];
-
-          for (const m of cliModels) {
-            if (!available.some(a => a.provider === m.provider && a.id === m.id)) {
-              available.push(m);
-            }
-          }
-
-          // Include custom models from getCustomModels (they have their own auth handling)
-          const custom = getCustomModels();
-          const customModelsList = Object.values(custom).map((m: any) => ({
-            id: m.id,
-            name: m.name || m.id,
-            provider: m.provider,
-            reasoning: m.reasoning || false,
-            input: m.input || ["text"],
-          }));
-
-          // Merge and deduplicate by provider/id
-          const all = [...available];
-          for (const cm of customModelsList) {
-            if (!all.some(m => m.provider === cm.provider && m.id === cm.id)) {
-              all.push(cm);
-            }
-          }
-
-          const target = cr || { clients: new Set([ws]) } as CwdSession;
-          broadcastToClients(target, { type: "rpc_response", command: "get_available_models", data: { models: all } });
-        } catch (e: any) {
-          console.error(`[get_available_models] Failed: ${e.message}`);
-        }
-      }
-
-      if (msg.type === "get_session_stats") {
-        // Try to find by client first, then by cwd
-        let cr = findSessionForClient(ws);
-        if (!cr && msg.cwd) {
-          cr = cwdSessions.get(msg.cwd);
-        }
-        if (cr) {
-          const s = cr.session;
-          const contextUsage = s.getContextUsage();
-          ws.send(JSON.stringify({
-            type: "rpc_response",
-            command: "get_session_stats",
-            data: {
-              sessionId: s.sessionId,
-              sessionFile: s.sessionFile,
-              messages: s.messages.length,
-              model: s.model?.id,
-              thinkingLevel: s.thinkingLevel,
-              // Context usage info
-              tokensBefore: contextUsage?.tokens ?? 0,
-              contextUsage: contextUsage?.percent ?? 0,
-              contextWindow: contextUsage?.contextWindow ?? 0,
-            }
-          }));
-        } else {
-          // No session found, send empty stats
-          ws.send(JSON.stringify({
-            type: "rpc_response",
-            command: "get_session_stats",
-            data: {
-              sessionId: '',
-              sessionFile: '',
-              messages: 0,
-              model: '',
-              thinkingLevel: '',
-              tokensBefore: 0,
-              contextUsage: 0,
-              contextWindow: 0,
-            }
-          }));
-        }
-      }
-
-      if (msg.type === "get_commands") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          broadcastToClients(cr, {
-            type: "rpc_response",
-            command: "get_commands",
-            data: { commands: [] }
-          });
-        }
-      }
-
-      // ── Session Management ──
-      if (msg.type === "create_session" || msg.type === "new_session") {
-        const cwd = getCwd(msg);
-        console.log(`[${msg.type}] cwd=${cwd}`);
-
-        // Dispose old runtime
-        await disposeSession(cwd);
-
-        // Create fresh runtime
-        const cr = await createCwdSession(cwd, SessionManager.create(cwd));
-        cr.clients.add(ws);
-        cr.idle = true;
-        cr.lastPromptMsg = null;
-        cr.lastPromptImages = null;
-
-        broadcastToClients(cr, {
-          type: "session_created",
-          sessionId: cr.session.sessionId,
-          sessionFile: cr.session.sessionFile,
-        });
-        console.log(`🆕 ${msg.type} ready for ${cwd}`);
-      }
-
-      if (msg.type === "resume_session") {
-        const cwd = getCwd(msg);
-        const cr = await getOrCreateSession(cwd, false, undefined);
-        cr.clients.add(ws);
-      }
-
-      if (msg.type === "load_session") {
-        const cwd = getCwd(msg);
-        const sessionId = msg.sessionId;
-        console.log(`[load_session] cwd=${cwd}, sessionId=${sessionId}`);
-
-        const sessionPath = findSessionFileBySessionId(cwd, sessionId);
-        if (!sessionPath) {
-          ws.send(JSON.stringify({ type: "error", message: `Session file not found: ${sessionId}` }));
-          return;
-        }
-
-        // Check if there's already an active session for this cwd
-        const existingCr = cwdSessions.get(cwd);
-        console.log(`[load_session] existingCr=${!!existingCr}, existingSessionId=${existingCr?.session.sessionId}, reqSessionId=${sessionId}`);
-        if (existingCr && existingCr.session.sessionId === sessionId) {
-          // Same session already active, just add this client and preserve state
-          existingCr.clients.add(ws);
-          
-          // Send session loaded immediately
-          ws.send(JSON.stringify({
-            type: "session_loaded",
-            sessionId: existingCr.session.sessionId,
-            sessionFile: existingCr.session.sessionFile,
-          }));
-          
-          // If agent is currently working, send agent_start directly to this client
-          if (!existingCr.idle) {
-            ws.send(JSON.stringify({ type: "agent_start", isWorking: true }));
-            
-            // Also send turn_start if we're in a turn
-            if (existingCr.lastEventType === "turn_start" || existingCr.lastEventType === "message_start") {
-              ws.send(JSON.stringify({
-                type: "turn_start",
-                model: existingCr.session.model?.provider + "/" + existingCr.session.model?.id
-              }));
-            }
-          }
-          
-          // Send full state immediately
-          const s = existingCr.session;
-          ws.send(JSON.stringify({
-            type: "state",
-            model: s.model?.id,
-            provider: s.model?.provider,
-            thinkingLevel: s.thinkingLevel,
-            messages: s.messages.length,
-            sessionId: s.sessionId,
-            sessionFile: s.sessionFile,
-            isWorking: !existingCr.idle,
-            stateVersion: existingCr.stateVersion,
-            workingDuration: existingCr.workingStartTime ? Date.now() - existingCr.workingStartTime : null,
-            lastEventType: existingCr.lastEventType,
-            cwd: existingCr.cwd,
-          }));
-          
-          // Send full message history
-          ws.send(JSON.stringify({
-            type: "rpc_response",
-            command: "get_messages",
-            data: {
-              messages: s.messages,
-              isWorking: !existingCr.idle,
-              sessionId: s.sessionId,
-            }
-          }));
-          
-          console.log(`📖 Session ${sessionId} already active for ${cwd}, state preserved`);
-          return;
-        }
-
-        // Dispose old runtime and create new one with this session
-        await disposeSession(cwd);
-        const cr = await createCwdSession(cwd, SessionManager.open(sessionPath));
-        cr.clients.add(ws);
-        // Don't force idle=true - preserve previous session state
-
-        broadcastToClients(cr, {
-          type: "session_loaded",
-          sessionId: cr.session.sessionId,
-          sessionFile: cr.session.sessionFile,
-        });
-
-        // Send current state after a short delay
-        setTimeout(() => {
-          const s = cr.session;
-          broadcastToClients(cr, {
-            type: "state",
-            model: s.model?.id,
-            provider: s.model?.provider,
-            thinkingLevel: s.thinkingLevel,
-            messages: s.messages.length,
-            sessionId: s.sessionId,
-            sessionFile: s.sessionFile,
-            isWorking: !cr.idle,
-            cwd: cr.cwd,
-          });
-          // Also send messages so client has full conversation history
-          broadcastToClients(cr, {
-            type: "rpc_response",
-            command: "get_messages",
-            data: {
-              messages: s.messages,
-              isWorking: !cr.idle,
-              sessionId: s.sessionId,
-            }
-          });
-        }, 100);
-
-        console.log(`📖 Loaded session ${sessionId} for ${cwd}`);
-      }
-
-      if (msg.type === "switch_session") {
-        const cr = findSessionForClient(ws);
-        if (cr && msg.sessionPath) {
-          // Dispose old, create new with target session
-          await disposeSession(cr.cwd);
-          const newCr = await createCwdSession(cr.cwd, SessionManager.open(msg.sessionPath));
-          for (const c of cr.clients) newCr.clients.add(c);
-          broadcastToClients(newCr, {
-            type: "session_switched",
-            sessionId: newCr.session.sessionId,
-          });
-        }
-      }
-
-      if (msg.type === "fork") {
-        const cr = findSessionForClient(ws);
-        if (cr && msg.entryId) {
-          // Fork via session tree: create branched session
-          const sm = SessionManager.open(cr.session.sessionFile!);
-          sm.createBranchedSession(msg.entryId);
-          // Reload with the new session
-          await disposeSession(cr.cwd);
-          const newCr = await createCwdSession(cr.cwd, SessionManager.continueRecent(cr.cwd));
-          for (const c of cr.clients) newCr.clients.add(c);
-          broadcastToClients(newCr, {
-            type: "session_forked",
-            sessionId: newCr.session.sessionId,
-          });
-        }
-      }
-
-      if (msg.type === "set_session_name") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          // Session naming is handled via the session file
-          console.log(`[set_session_name] ${msg.name}`);
-        }
-      }
-
-      // ── Compaction & Retry ──
-      if (msg.type === "compact") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          cr.session.compact(msg.customInstructions).catch(console.error);
-        }
-      }
-
-      if (msg.type === "set_auto_compaction") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          cr.settingsManager.applyOverrides({ compaction: { enabled: msg.enabled } });
-          await cr.settingsManager.flush();
-        }
-      }
-
-      if (msg.type === "set_auto_retry") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          cr.settingsManager.applyOverrides({ retry: { enabled: msg.enabled } });
-          await cr.settingsManager.flush();
-        }
-      }
-
-      if (msg.type === "set_steering_mode") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          cr.settingsManager.applyOverrides({ steeringMode: msg.mode });
-          await cr.settingsManager.flush();
-        }
-      }
-
-      if (msg.type === "set_follow_up_mode") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          cr.settingsManager.applyOverrides({ followUpMode: msg.mode });
-          await cr.settingsManager.flush();
-        }
-      }
-
-      if (msg.type === "bash") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          // SDK doesn't have direct bash — use prompt
-          cr.session.prompt(`!${msg.command}`).catch(console.error);
-        }
-      }
-
-      if (msg.type === "export_html") {
-        const cr = findSessionForClient(ws);
-        if (cr) {
-          // Export via session file — handled by frontend or separate endpoint
-          console.log(`[export_html] outputPath=${msg.outputPath}`);
-        }
-      }
-    });
-
-    ws.on("close", () => {
-      console.log("🔌 Client disconnected");
-      const cr = findSessionForClient(ws);
-      if (cr) {
-        cr.clients.delete(ws);
-        if (cr.clients.size === 0) {
-          // Don't set idle=true here — the agent may still be working.
-          // The idle flag should only be set by agent_end events.
-          // This ensures reconnection properly restores isWorking state.
-          console.log(`📡 Last client left for ${cr.cwd}, preserving idle=${cr.idle}`);
-          resetIdleTimer(cr);
-        }
-      }
-    });
-  });
-}
 
 // Graceful shutdown
 let shuttingDown = false;
@@ -1619,11 +1082,9 @@ async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log("\n👋 Shutting down...");
-  if (pingTimer) clearInterval(pingTimer);
   for (const [, cr] of cwdSessions) {
     try { await cr.session(); } catch {}
   }
-  wss?.close();
   server?.close();
   setTimeout(() => process.exit(0), 2000).unref();
 }

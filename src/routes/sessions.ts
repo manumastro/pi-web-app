@@ -327,7 +327,54 @@ export function registerSessionRoutes(app: any): void {
     res.json({ success: true, deleted: files.length });
   });
 
-  // POST /api/sessions/:id/model - Set model
+  // POST /api/sessions/model - Set model for active session (auto-creates session if needed)
+  app.post('/api/sessions/model', async (req: Request, res: Response) => {
+    const { provider, modelId, cwd } = req.body;
+    const targetCwd = cwd || HOME;
+    const AGENT_DIR = path.join(HOME, ".pi", "agent");
+
+    // Persist to settings.json (same as WebSocket handler)
+    try {
+      const settingsPath = path.join(AGENT_DIR, "settings.json");
+      let settingsData: any = {};
+      if (fs.existsSync(settingsPath)) {
+        settingsData = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      }
+      settingsData.defaultProvider = provider;
+      settingsData.defaultModel = modelId;
+      fs.writeFileSync(settingsPath, JSON.stringify(settingsData, null, 2));
+    } catch (e: any) {
+      console.error(`[set_model] settings write error: ${e.message}`);
+    }
+
+    let cr = getCwdSessions().get(targetCwd);
+    
+    // Auto-create session if none exists
+    if (!cr) {
+      try {
+        await disposeSessionFn(targetCwd);
+        const sm = await SessionManager.create(targetCwd);
+        cr = await createCwdSessionFn(targetCwd, sm);
+      } catch (e: any) {
+        // Session creation failed but settings saved - return success
+        res.json({ 
+          status: 'model_set', 
+          model: modelId,
+          provider: provider,
+          note: 'Settings saved, session will use model on next prompt'
+        });
+        return;
+      }
+    }
+
+    res.json({ 
+      status: 'model_set', 
+      model: modelId,
+      provider: provider 
+    });
+  });
+
+  // POST /api/sessions/:id/model - Set model (with session ID)
   app.post('/api/sessions/:id/model', async (req: Request, res: Response) => {
     const { provider, modelId, cwd } = req.body;
     const targetCwd = cwd || HOME;

@@ -63,6 +63,7 @@ export interface ModelInfo {
 
 // ── WebSocket Events (Server → Client) ──
 export type WsEvent =
+  | { type: 'server.connected'; cwd: string; timestamp: number }
   | { type: 'state'; model?: string; provider?: string; thinkingLevel?: string; messages: number; sessionId?: string; sessionFile?: string; isWorking: boolean; cwd?: string; workingDuration?: number | null; stateVersion?: number }
   | { type: 'model_info'; model: string }
   | { type: 'thinking_start' }
@@ -80,10 +81,10 @@ export type WsEvent =
   | { type: 'agent_start' }
   | { type: 'agent_end'; messages?: any[] }
   | { type: 'done'; messages?: any[] }
-  | { type: 'turn_start'; model?: string }
-  | { type: 'turn_end'; message?: any; toolResults?: any[] }
-  | { type: 'message_start'; message?: any }
-  | { type: 'message_end'; message?: any }
+  | { type: 'turn_start'; model?: string; turnIndex?: number }
+  | { type: 'turn_end'; message?: any; toolResults?: any[]; turnIndex?: number }
+  | { type: 'message_start'; message?: any; messageIndex?: number }
+  | { type: 'message_end'; message?: any; messageIndex?: number }
   | { type: 'compaction_start'; reason?: string }
   | { type: 'compaction_end'; reason?: string; aborted?: boolean; willRetry?: boolean; summary?: string }
   | { type: 'auto_retry_start'; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string; errorCategory?: string; isRetryable?: boolean }

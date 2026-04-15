@@ -1,5 +1,7 @@
 # Pi Web — Documentation Index
 
+> **Server**: systemd service `pi-web` in `/etc/systemd/system/pi-web.service` (gestisce porta 3210)
+
 ## 📚 All Documentation
 
 | Document | Path | Description |
