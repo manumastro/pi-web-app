@@ -65,12 +65,12 @@ app.use(express.static(path.join(__dirname, "..", "public"), {
 // ── SSE & REST Routes (Phase 2) ──
 import { registerSSERoutes } from "./routes/events";
 import { registerMessageRoutes } from "./routes/messages";
-import { registerSessionRoutes } from "./routes/sessions";
+import { registerSessionRoutes, type RegisterSessionRoutesType } from "./routes/sessions";
 
-// Register routes - they use cwdSessions and getOrCreateSession from this file
+// Register SSE and Message routes early (they use context setters)
 registerSSERoutes(app);
 registerMessageRoutes(app);
-registerSessionRoutes(app);
+// NOTE: registerSessionRoutes is called AFTER setSessionContext (see below)
 
 // ── Session Discovery (reads JSONL files directly — no running process needed) ──
 function decodeDirName(encoded: string): string {
@@ -974,6 +974,10 @@ setSessionContext(
   getOrCreateSession,
   findSessionFileBySessionId
 );
+
+// Register session routes AFTER context is set
+registerSessionRoutes(app);
+
 console.log('✅ Route context setup complete');
 
 function setupWebSocket(wss: WebSocketServer) {

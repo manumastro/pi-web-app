@@ -87,17 +87,20 @@ function getAllSessions() {
 let getCwdSessions: () => Map<string, any>;
 let createCwdSessionFn: (cwd: string, sm: any) => Promise<any>;
 let disposeSessionFn: (cwd: string) => Promise<void>;
+let getOrCreateSessionFn: (cwd: string, forceNew?: boolean, sessionId?: string) => Promise<any>;
 let findSessionFileFn: (cwd: string, sessionId: string) => string | null;
 
 export function setSessionContext(
   getSessions: () => Map<string, any>,
   createSession: (cwd: string, sm: any) => Promise<any>,
   dispose: (cwd: string) => Promise<void>,
+  getOrCreate: (cwd: string, forceNew?: boolean, sessionId?: string) => Promise<any>,
   findFile: (cwd: string, sessionId: string) => string | null
 ) {
   getCwdSessions = getSessions;
   createCwdSessionFn = createSession;
   disposeSessionFn = dispose;
+  getOrCreateSessionFn = getOrCreate;
   findSessionFileFn = findFile;
 }
 
@@ -138,7 +141,8 @@ export function registerSessionRoutes(app: any): void {
 
     try {
       await disposeSessionFn(targetCwd);
-      const cr = await createCwdSessionFn(targetCwd, SessionManager.create(targetCwd));
+      const sm = await SessionManager.create(targetCwd);
+      const cr = await createCwdSessionFn(targetCwd, sm);
       cr.idle = true;
 
       res.json({
@@ -151,7 +155,54 @@ export function registerSessionRoutes(app: any): void {
     }
   });
 
-  // POST /api/sessions/:id/load - Load specific session
+  // POST /api/sessions/load - Load specific session by sessionId in body (MUST be before /:id)
+  app.post('/api/sessions/load', async (req: Request, res: Response) => {
+    const { sessionId, cwd } = req.body;
+    console.log(`[load_session] sessionId=${sessionId}, cwd=${cwd}`);
+    if (!sessionId) {
+      res.status(400).json({ error: 'sessionId is required' });
+      return;
+    }
+    const targetCwd = cwd || HOME;
+
+    try {
+      const sessionPath = findSessionFileFn(targetCwd, sessionId);
+      console.log(`[load_session] sessionPath=${sessionPath}`);
+      if (!sessionPath) {
+        res.status(404).json({ error: `Session not found: ${sessionId}` });
+        return;
+      }
+
+      const existingCr = getCwdSessions().get(targetCwd);
+      if (existingCr && existingCr.session.sessionId === sessionId) {
+        res.json({
+          sessionId: existingCr.session.sessionId,
+          sessionFile: existingCr.session.sessionFile,
+          isWorking: !existingCr.idle,
+          cwd: targetCwd,
+        });
+        return;
+      }
+
+      await disposeSessionFn(targetCwd);
+      console.log(`[load_session] opening session...`);
+      const sm = await SessionManager.open(sessionPath);
+      console.log(`[load_session] sm=${typeof sm}`);
+      const cr = await createCwdSessionFn(targetCwd, sm);
+      console.log(`[load_session] done`);
+
+      res.json({
+        sessionId: cr.session.sessionId,
+        sessionFile: cr.session.sessionFile,
+        isWorking: !cr.idle,
+        cwd: targetCwd,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST /api/sessions/:id/load - Load specific session by URL param
   app.post('/api/sessions/:id/load', async (req: Request, res: Response) => {
     const sessionId = req.params.id;
     const { cwd } = req.body;
@@ -176,7 +227,8 @@ export function registerSessionRoutes(app: any): void {
       }
 
       await disposeSessionFn(targetCwd);
-      const cr = await createCwdSessionFn(targetCwd, SessionManager.open(sessionPath));
+      const sm = await SessionManager.open(sessionPath);
+      const cr = await createCwdSessionFn(targetCwd, sm);
 
       res.json({
         sessionId: cr.session.sessionId,
