@@ -1147,7 +1147,183 @@ Components re-render (via selectors, not full store)
 
 ## 13. Testing Strategy
 
-### 13.1 Test Pyramid
+> **⚠️ MANDATORY: Test-Driven Development (TDD)**
+>
+> Ogni implementazione segue il ciclo TDD. I test vengono scritti PRIMA del codice.
+> Nessuna feature viene implementata senza test che la guidino.
+
+### 13.1 TDD Workflow (Obbligatorio)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CICLO TDD PER OGNI FEATURE                │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│   ┌─────────┐    ┌─────────┐    ┌─────────┐                 │
+│   │   RED   │───►│  GREEN  │───►│ REFACTOR │                 │
+│   └────┬────┘    └────┬────┘    └────┬────┘                 │
+│        │               │               │                     │
+│        ▼               ▼               ▼                     │
+│   Scrivi test    Scrivi codice    Migliora codice            │
+│   che fallisce   minimo per       mantenendo test            │
+│   (non esiste    far passare      verdi (clean code)         │
+│   ancora)        il test                                    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Regole ferree:**
+
+| Fase | Azione | Criterio |
+|------|--------|----------|
+| **RED** | Scrivi test per la funzionalità desiderata | Test deve FALLIRE (il codice non esiste) |
+| **GREEN** | Scrivi il minimo codice per far passare il test | Solo funzionalità necessaria, niente extra |
+| **REFACTOR** | Migliora codice mantenendo test verdi | Test sempre verdi, codice più pulito |
+
+### 13.2 TDD per Backend
+
+**Framework:** Vitest + supertest
+
+**Ciclo per ogni modulo backend:**
+
+```
+1. Scrivi test per il modulo (RED)
+   ├── Importa modulo da testare
+   ├── Mocka dipendenze esterne (SDK, filesystem)
+   ├── Definisci behavior atteso con assertions
+   └── Verifica che test fallisca (modulo non esiste)
+
+2. Implementa il modulo (GREEN)
+   ├── Scrivi codice minimale per far passare test
+   ├── Usa solo funzionalità strettamente necessarie
+   └── Verifica che tutti i test passino
+
+3. Refactor (REFACTOR)
+   ├── Estrai codice duplicato
+   ├── Rinomina per chiarezza
+   ├── Aggiungi JSDoc se necessario
+   └── Test devono rimanere verdi
+```
+
+**Esempio struttura test backend:**
+
+```typescript
+// src/backend/__tests__/jsonl.test.ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { parseJsonlToMessages } from '../jsonl';
+
+describe('jsonl', () => {
+  describe('parseJsonlToMessages', () => {
+    it('should parse valid JSONL lines into messages', () => {
+      const input = `{"type":"user","content":"Hello"}\n{"type":"assistant","content":"Hi"}`;
+      const messages = parseJsonlToMessages(input);
+      expect(messages).toHaveLength(2);
+      expect(messages[0]).toMatchObject({ role: 'user', content: 'Hello' });
+    });
+
+    it('should skip malformed JSON lines', () => {
+      const input = `{"type":"user","content":"OK"}\nINVALID_JSON\n{"type":"assistant"}`;
+      const messages = parseJsonlToMessages(input);
+      expect(messages).toHaveLength(2);
+    });
+
+    it('should return empty array for empty input', () => {
+      expect(parseJsonlToMessages('')).toEqual([]);
+    });
+  });
+});
+```
+
+### 13.3 TDD per Frontend
+
+**Framework:** Vitest + @testing-library/react
+
+**Ciclo per ogni componente/hook:**
+
+```
+1. Scrivi test per il componente (RED)
+   ├── Usa @testing-library/react (no enzyme)
+   ├── Testa behavior, non implementazione
+   ├── Mocka API calls (MSW o mock fetch)
+   ├── Definisci user interaction attesa
+   └── Verifica che test fallisca
+
+2. Implementa il componente (GREEN)
+   ├── Scrivi componente minimale
+   ├── Usa solo hook standard
+   └── Verifica che test passino
+
+3. Refactor (REFACTOR)
+   ├── Estrai logica in hook se complesso
+   ├── Split se > 200 righe
+   └── Test devono rimanere verdi
+```
+
+**Esempio struttura test frontend:**
+
+```typescript
+// src/frontend/__tests__/useChatStore.test.ts
+import { describe, it, expect } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useChatStore } from '../stores/useChatStore';
+
+describe('useChatStore', () => {
+  it('should add message to store', async () => {
+    const { result } = renderHook(() => useChatStore());
+    
+    await act(async () => {
+      result.current.addMessage({
+        id: '1',
+        role: 'user',
+        content: 'Hello',
+      });
+    });
+
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages[0].content).toBe('Hello');
+  });
+});
+```
+
+**Esempio test componente ChatView:**
+
+```typescript
+// src/frontend/__tests__/ChatView.test.tsx
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { ChatView } from '../components/ChatView';
+
+// Mock SSE hook
+vi.mock('../hooks/useSSE', () => ({
+  useSSE: () => ({ events: [], status: 'idle' }),
+}));
+
+describe('ChatView', () => {
+  it('should render input and send button', () => {
+    render(<ChatView />);
+    expect(screen.getByPlaceholderText(/message/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /send/i })).toBeInTheDocument();
+  });
+
+  it('should send message on button click', async () => {
+    const mockSend = vi.fn();
+    vi.stubGlobal('fetch', mockSend);
+    
+    render(<ChatView />);
+    fireEvent.change(screen.getByPlaceholderText(/message/i), {
+      target: { value: 'Test message' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send/i }));
+    
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.stringContaining('/api/messages/prompt'),
+      expect.objectContaining({ method: 'POST' })
+    );
+  });
+});
+```
+
+### 13.4 Test Pyramid
 
 ```
          ┌─────────┐
@@ -1159,30 +1335,95 @@ Components re-render (via selectors, not full store)
    └───────────────────┘
 ```
 
-### 13.2 Unit Tests (Priority)
+### 13.5 TDD Coverage Requirements
 
-| Module | Test Cases |
-|--------|-----------|
-| `jsonl.ts` | Parse valid lines, skip malformed, empty file, large files |
-| `events.ts` | Zod validation for each event type, reject invalid |
-| `config.ts` | Missing vars use defaults, invalid values throw |
-| `state machine` | All valid transitions, invalid transitions throw |
-| `bridge.ts` | Event forwarding, error handling, abort behavior |
-| `manager.ts` | Add/remove clients, broadcast, CWD isolation |
-| `useSSE.ts` | Connect, disconnect, reconnect, event parsing |
-| `session store` | Append messages, update streaming, finalize |
+**Requisiti minimi di copertura per ogni feature:**
 
-### 13.3 Integration Tests
+| Tipo | Copertura Minima | Note |
+|------|-----------------|------|
+| Unit tests (backend) | 90% statements | Ogni funzione pura testata |
+| Unit tests (frontend) | 80% statements | Componenti e hook |
+| Integration tests | 100% API endpoints | Ogni endpoint REST testato |
+| E2E (future) | Critical paths | Login, chat, session management |
+
+**Criteri di accettazione TDD:**
+
+- [ ] Test RED: Test scritto PRIMA del codice
+- [ ] Test GREEN: Codice implementato per far passare il test
+- [ ] Test REFACTOR: Codice migliorato senza rompere test
+- [ ] Nessun test saltato o commentato
+- [ ] Coverage report generato e allegato alla PR
+
+**Checklist per ogni PR:**
+
+```
+PR Checklist - TDD Compliance
+├── [ ] Test scritti PRIMA dell'implementazione (vedi git log)
+├── [ ] Tutti i test passano locally
+├── [ ] Coverage report allegato (>80%)
+├── [ ] Nessun `it.skip` o `describe.skip`
+├── [ ] Mock usati correttamente (no mock globale)
+└── [ ] Test leggibili e documentati (given/when/then)
+```
+
+**Struttura test file naming:**
+
+```
+src/
+├── backend/
+│   ├── __tests__/           <- Test alongside source
+│   │   ├── jsonl.test.ts
+│   │   ├── config.test.ts
+│   │   └── events.test.ts
+│   ├── jsonl.ts
+│   └── config.ts
+└── frontend/
+    ├── __tests__/
+    │   ├── useChatStore.test.ts
+    │   ├── useSSE.test.ts
+    │   └── ChatView.test.tsx
+    ├── stores/
+    │   └── useChatStore.ts
+    ├── components/
+    │   └── ChatView.tsx
+    └── hooks/
+        └── useSSE.ts
+```
+
+**Pattern Given-When-Then nei test:**
+
+```typescript
+describe('useChatStore', () => {
+  it('should append streaming text to last assistant message', async () => {
+    // GIVEN: Un messaggio assistant esistente
+    const { result } = renderHook(() => useChatStore());
+    await act(async () => {
+      result.current.addMessage({ id: '1', role: 'assistant', content: '' });
+    });
+
+    // WHEN: Arriva un text_chunk event
+    await act(async () => {
+      result.current.appendStreamingText('1', 'Hello ');
+      result.current.appendStreamingText('1', 'World');
+    });
+
+    // THEN: Il contenuto e' accumulato
+    expect(result.current.messages[0].content).toBe('Hello World');
+  });
+});
+```
+
+### 13.6 Integration Tests
 
 | Scenario | Test |
 |----------|------|
-| Prompt flow | POST prompt → SSE events received → message in store |
-| Abort flow | POST abort → streaming stops → done event |
-| Session CRUD | Create → list → load → delete → verify |
-| Model switch | PUT model → verify model changed |
-| Reconnection | Kill server → SSE reconnects → state recovered |
+| Prompt flow | POST prompt -> SSE events received -> message in store |
+| Abort flow | POST abort -> streaming stops -> done event |
+| Session CRUD | Create -> list -> load -> delete -> verify |
+| Model switch | PUT model -> verify model changed |
+| Reconnection | Kill server -> SSE reconnects -> state recovered |
 
-### 13.4 Test Commands
+### 13.7 Test Commands
 
 ```bash
 npm test                    # Run all tests
