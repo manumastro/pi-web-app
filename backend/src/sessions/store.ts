@@ -8,7 +8,6 @@ import { randomUUID } from 'crypto';
 export type SessionStatus =
   | 'idle'
   | 'prompting'
-  | 'steering'
   | 'answering'
   | 'waiting_question'
   | 'waiting_permission'

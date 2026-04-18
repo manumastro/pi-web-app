@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PermissionItem, QuestionItem } from './chatState';
-import { buildPermissionDecisionMessage, buildPermissionStatusLabel, buildQuestionFollowUpMessage, buildQuestionStatusLabel } from './interactionMessages';
+import { buildPermissionDecisionMessage, buildPermissionStatusLabel, buildQuestionResponseMessage, buildQuestionStatusLabel } from './interactionMessages';
 
 describe('interactionMessages', () => {
   const question: QuestionItem = {
@@ -21,9 +21,9 @@ describe('interactionMessages', () => {
     timestamp: '2026-04-15T10:00:01.000Z',
   };
 
-  it('formats question follow-up messages and labels', () => {
-    expect(buildQuestionFollowUpMessage(question, 'yes')).toContain('Question response [q1]');
-    expect(buildQuestionFollowUpMessage(question, 'yes')).toContain('=> yes');
+  it('formats question response messages and labels', () => {
+    expect(buildQuestionResponseMessage(question, 'yes')).toContain('Question response [q1]');
+    expect(buildQuestionResponseMessage(question, 'yes')).toContain('=> yes');
     expect(buildQuestionStatusLabel(question)).toContain('Risposta domanda:');
   });
 

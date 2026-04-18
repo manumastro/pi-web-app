@@ -21,6 +21,7 @@ function applyServiceEnvironment(): void {
 applyServiceEnvironment();
 
 const { app, config, logger } = createApp();
-app.listen(config.port, () => {
-  logger.info({ port: config.port }, 'pi-web backend listening');
+const host = process.env.HOST || '0.0.0.0';
+app.listen(config.port, host, () => {
+  logger.info({ port: config.port, host }, 'pi-web backend listening');
 });

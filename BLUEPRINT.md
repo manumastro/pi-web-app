@@ -1,11 +1,12 @@
 # Pi Web — Rewrite Blueprint
 
-> **Branch**: `rewrite` | **Date**: 2026-04-15 | **Status**: Planning
+> **Branch**: `rewrite` | **Date**: 2026-04-15 | **Status**: In progress
 
 ---
 
 ## Table of Contents
 
+0. [Current Implementation Snapshot](#0-current-implementation-snapshot)
 1. [Vision & Principles](#1-vision--principles)
 2. [Architecture Overview](#2-architecture-overview)
 3. [Technology Stack](#3-technology-stack)
@@ -23,6 +24,23 @@
 15. [Migration Checklist](#15-migration-checklist)
 
 ---
+
+## 0. Current Implementation Snapshot
+
+### 0.1 Delivered so far
+
+- Backend SDK bridge integrated with `@mariozechner/pi-coding-agent`, including dynamic `ModelRegistry` model keys.
+- Persistent JSONL session storage and replayable SSE history on disk.
+- REST + SSE backend wiring for sessions, messages, models, and live event streaming.
+- OpenChamber-inspired frontend layout with dynamic model search/filtering, session filtering, and a denser chat workspace.
+- Question/permission interaction UI and follow-up flows.
+- Responsive mobile refinements for the sidebar, workspace, composer, and message panels.
+- Build/test green, with the live `pi-web.service` running on the host.
+
+### 0.2 Notes
+
+- The implementation is already production-shaped, but the blueprint remains the planning source of truth.
+- A few original roadmap items are still deferred or intentionally simplified in the current codebase.
 
 ## 1. Vision & Principles
 
@@ -1515,6 +1533,20 @@ NODE_PATH=/usr/bin/node
 ---
 
 ## 15. Migration Checklist
+
+### 15.0 Status Snapshot
+
+#### Done
+- Backend SDK bridge, dynamic model registry, JSONL session persistence, SSE replay, and REST/SSE wiring.
+- Frontend OpenChamber-inspired compact one-screen layout, directory-based project selection, search-first collapsible model picker, session/model filtering, question/permission panel, and mobile drawer responsiveness.
+- Live service start-up and validation; build/test currently green.
+
+#### In Progress
+- OpenChamber-style polish pass: typography/palette tuning, tighter message/composer styling, send-only composer, and small density refinements.
+
+#### Deferred
+- Light theme, markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, and broader accessibility polish.
+
 
 ### 15.1 Phase 0: Setup
 

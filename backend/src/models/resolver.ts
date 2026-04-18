@@ -1,51 +1,126 @@
-export interface ModelInfo {
-  id: string;
-  name: string;
+export interface ModelLike {
   provider: string;
-  authRequired: boolean;
-  description?: string;
-  isDefault?: boolean;
+  id: string;
+  name?: string;
+  reasoning?: boolean;
+  input?: Array<'text' | 'image'>;
+  contextWindow?: number;
+  maxTokens?: number;
 }
 
-const DEFAULT_MODELS: ModelInfo[] = [
-  {
-    id: 'claude-3-5-sonnet-20241022',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'anthropic',
-    authRequired: true,
-    description: 'Balanced model for coding and reasoning.',
-    isDefault: true,
-  },
-  {
-    id: 'gpt-4.1',
-    name: 'GPT-4.1',
-    provider: 'openai',
-    authRequired: true,
-    description: 'General-purpose coding model.',
-  },
-  {
-    id: 'llama-3.1-70b',
-    name: 'Llama 3.1 70B',
-    provider: 'ollama',
-    authRequired: false,
-    description: 'Local model for offline usage.',
-  },
-];
-
-export function listModels(currentModel?: string): ModelInfo[] {
-  return DEFAULT_MODELS.map((model) => ({
-    ...model,
-    isDefault: model.id === (currentModel ?? DEFAULT_MODELS[0]?.id),
-  }));
+export interface ModelSummary {
+  key: string;
+  id: string;
+  provider: string;
+  name: string;
+  available: boolean;
+  authConfigured: boolean;
+  reasoning: boolean;
+  input: Array<'text' | 'image'>;
+  contextWindow: number;
+  maxTokens: number;
+  isSelected: boolean;
 }
 
-export function findModelById(modelId: string | undefined): ModelInfo | undefined {
+export interface ModelReference {
+  provider: string;
+  modelId: string;
+  key: string;
+}
+
+export function modelKey(model: Pick<ModelLike, 'provider' | 'id'>): string {
+  return `${model.provider}/${model.id}`;
+}
+
+export function parseModelKey(value: string | undefined): ModelReference | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const [provider, ...rest] = value.split('/');
+  if (!provider || rest.length === 0) {
+    return undefined;
+  }
+
+  const modelId = rest.join('/');
   if (!modelId) {
     return undefined;
   }
-  return DEFAULT_MODELS.find((model) => model.id === modelId);
+
+  return { provider, modelId, key: `${provider}/${modelId}` };
 }
 
-export function resolveModelId(modelId: string | undefined, fallbackModel?: string): string {
-  return findModelById(modelId)?.id ?? fallbackModel ?? DEFAULT_MODELS[0]?.id ?? 'claude-3-5-sonnet-20241022';
+function matchesModelKey(model: ModelLike, value: string): boolean {
+  return modelKey(model) === value;
+}
+
+function uniqueModelById(models: ModelLike[], modelId: string): ModelLike | undefined {
+  const matches = models.filter((model) => model.id === modelId);
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+export function resolveModelKey(models: ModelLike[], requested?: string, fallback?: string): string {
+  const byRequested = parseModelKey(requested);
+  if (byRequested) {
+    const match = models.find((model) => matchesModelKey(model, byRequested.key));
+    if (match) {
+      return modelKey(match);
+    }
+  }
+
+  if (requested) {
+    const byId = uniqueModelById(models, requested);
+    if (byId) {
+      return modelKey(byId);
+    }
+  }
+
+  const byFallback = parseModelKey(fallback);
+  if (byFallback) {
+    const match = models.find((model) => matchesModelKey(model, byFallback.key));
+    if (match) {
+      return modelKey(match);
+    }
+  }
+
+  if (fallback) {
+    const byFallbackId = uniqueModelById(models, fallback);
+    if (byFallbackId) {
+      return modelKey(byFallbackId);
+    }
+  }
+
+  return modelKey(models[0] ?? { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' });
+}
+
+export function summarizeModels(params: {
+  models: ModelLike[];
+  availableKeys: Set<string>;
+  selectedKey?: string;
+}): ModelSummary[] {
+  const { models, availableKeys, selectedKey } = params;
+  return [...models]
+    .sort((left, right) => {
+      const providerCompare = left.provider.localeCompare(right.provider);
+      if (providerCompare !== 0) {
+        return providerCompare;
+      }
+      return left.id.localeCompare(right.id);
+    })
+    .map((model) => {
+      const key = modelKey(model);
+      return {
+        key,
+        id: model.id,
+        provider: model.provider,
+        name: model.name ?? model.id,
+        available: availableKeys.has(key),
+        authConfigured: availableKeys.has(key),
+        reasoning: model.reasoning ?? false,
+        input: model.input ?? ['text'],
+        contextWindow: model.contextWindow ?? 128000,
+        maxTokens: model.maxTokens ?? 16384,
+        isSelected: selectedKey === key,
+      };
+    });
 }

@@ -8,6 +8,7 @@ export interface SessionMessage {
 export interface SessionInfo {
   id: string;
   cwd: string;
+  title?: string;
   model?: string;
   status: string;
   messages: SessionMessage[];
@@ -15,13 +16,20 @@ export interface SessionInfo {
   updatedAt: string;
 }
 
+export interface DirectoryInfo {
+  cwd: string;
+  label: string;
+  sessionCount: number;
+  updatedAt: string;
+}
+
 export interface ModelInfo {
+  key: string;
   id: string;
-  name: string;
-  provider: string;
-  authRequired: boolean;
-  description?: string;
-  isDefault?: boolean;
+  label: string;
+  available: boolean;
+  active: boolean;
+  provider: string | undefined;
 }
 
 export type StreamingState = 'idle' | 'connecting' | 'streaming' | 'error';

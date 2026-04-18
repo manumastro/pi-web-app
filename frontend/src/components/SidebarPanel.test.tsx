@@ -1,73 +1,139 @@
-import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import SidebarPanel from './SidebarPanel';
+import type { DirectoryInfo, ModelInfo, SessionInfo } from '../types';
 
-const models = [
-  { id: 'm1', name: 'Claude 3.5 Sonnet', provider: 'anthropic', authRequired: true, isDefault: true },
-  { id: 'm2', name: 'GPT-4.1', provider: 'openai', authRequired: true },
+const models: ModelInfo[] = [
+  {
+    key: 'anthropic/claude-3-5-sonnet-20241022',
+    id: 'claude-3-5-sonnet-20241022',
+    label: 'Claude 3.5 Sonnet',
+    available: true,
+    active: true,
+    provider: 'anthropic',
+  },
+  {
+    key: 'openai/gpt-4o',
+    id: 'gpt-4o',
+    label: 'GPT-4o',
+    available: false,
+    active: false,
+    provider: 'openai',
+  },
 ];
 
-const sessions = [
-  { id: 's1', cwd: '/tmp', model: 'm1', status: 'idle', messages: [], createdAt: '2026-04-15T10:00:00.000Z', updatedAt: '2026-04-15T10:00:00.000Z' },
-  { id: 's2', cwd: '/var/app', model: 'm2', status: 'done', messages: [], createdAt: '2026-04-15T10:01:00.000Z', updatedAt: '2026-04-15T10:01:00.000Z' },
+const sessions: SessionInfo[] = [
+  {
+    id: 's1',
+    cwd: '/tmp',
+    model: 'anthropic/claude-3-5-sonnet-20241022',
+    title: 'Prima sessione',
+    status: 'idle',
+    messages: [],
+    createdAt: '2026-04-15T10:00:00.000Z',
+    updatedAt: '2026-04-15T10:00:00.000Z',
+  },
+  {
+    id: 's2',
+    cwd: '/tmp',
+    model: 'openai/gpt-4o',
+    title: 'Seconda sessione',
+    status: 'done',
+    messages: [],
+    createdAt: '2026-04-15T10:05:00.000Z',
+    updatedAt: '2026-04-15T10:05:00.000Z',
+  },
+];
+
+const directories: DirectoryInfo[] = [
+  { cwd: '/tmp', label: 'tmp', sessionCount: 2, updatedAt: '2026-04-15T10:05:00.000Z' },
 ];
 
 describe('SidebarPanel', () => {
-  it('renders sessions, models and actions, and filters sessions', () => {
-    const onSelectSession = vi.fn();
-    const onDeleteSession = vi.fn();
-    const onCreateSession = vi.fn();
-    const onModelChange = vi.fn();
-    const onCwdCommit = vi.fn();
+  it('renders directories, sessions and model selector', () => {
+    const onDirectorySelect = vi.fn();
+    const onSessionSelect = vi.fn();
+    const onSessionDelete = vi.fn();
+    const onNewSession = vi.fn();
+    const onModelFilterChange = vi.fn();
+    const onModelSelect = vi.fn();
 
-    function Harness() {
-      const [sessionFilter, setSessionFilter] = useState('');
+    render(
+      <SidebarPanel
+        directories={directories}
+        sessions={sessions}
+        selectedDirectory="/tmp"
+        selectedSessionId="s1"
+        models={models}
+        modelFilter=""
+        onDirectorySelect={onDirectorySelect}
+        onSessionSelect={onSessionSelect}
+        onSessionDelete={onSessionDelete}
+        onNewSession={onNewSession}
+        onModelFilterChange={onModelFilterChange}
+        onModelSelect={onModelSelect}
+      />,
+    );
 
-      return (
-        <SidebarPanel
-          cwd="/tmp"
-          setCwd={vi.fn()}
-          sessionFilter={sessionFilter}
-          setSessionFilter={setSessionFilter}
-          statusMessage="Connesso"
-          error=""
-          sessions={sessions}
-          sessionId="s1"
-          models={models}
-          currentModelId="m1"
-          onCwdCommit={onCwdCommit}
-          onCreateSession={onCreateSession}
-          onModelChange={onModelChange}
-          onSelectSession={onSelectSession}
-          onDeleteSession={onDeleteSession}
-        />
-      );
-    }
+    // Header
+    expect(screen.getByText('Progetti')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nuova sessione' })).toBeInTheDocument();
 
-    render(<Harness />);
+    // Directory
+    expect(screen.getByText('tmp')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument(); // session count
 
-    expect(screen.getByText('Pi Web')).toBeInTheDocument();
-    expect(screen.getByLabelText('Sessione s1')).toBeInTheDocument();
-    expect(screen.getByLabelText('Sessione s2')).toBeInTheDocument();
-    expect(screen.getByRole('combobox')).toHaveValue('m1');
+    // Session list
+    expect(screen.getByText('Prima sessione')).toBeInTheDocument();
+    expect(screen.getByText('Seconda sessione')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Nuova sessione'));
-    fireEvent.click(screen.getByLabelText('Elimina sessione s1'));
-    expect(onCreateSession).toHaveBeenCalled();
-    expect(onDeleteSession).toHaveBeenCalledWith('s1');
+    // New session button
+    fireEvent.click(screen.getByRole('button', { name: 'Nuova sessione' }));
+    expect(onNewSession).toHaveBeenCalled();
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'm2' } });
-    expect(onModelChange).toHaveBeenCalledWith('m2');
+    // Session selection
+    fireEvent.click(screen.getByText('Seconda sessione'));
+    expect(onSessionSelect).toHaveBeenCalledWith('s2');
 
-    fireEvent.click(screen.getByLabelText('Cerca sessioni'));
-    fireEvent.change(screen.getByLabelText('Cerca sessioni'), { target: { value: 'var' } });
-    expect(screen.queryByLabelText('Sessione s1')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Sessione s2')).toBeInTheDocument();
+    // Session delete
+    const deleteButtons = screen.getAllByRole('button', { name: 'Elimina sessione' });
+    fireEvent.click(deleteButtons[0]!);
+    expect(onSessionDelete).toHaveBeenCalledWith('s1');
 
-    fireEvent.click(screen.getByLabelText('Sessione s2'));
-    expect(onSelectSession).toHaveBeenCalledWith('s2');
+    // Model filter
+    expect(screen.getByPlaceholderText('Cerca modello…')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('Cerca modello…'), { target: { value: 'gpt' } });
+    expect(onModelFilterChange).toHaveBeenCalledWith('gpt');
 
-    expect(onCwdCommit).not.toHaveBeenCalled();
+    // Model filter shows only matching models
+    fireEvent.change(screen.getByPlaceholderText('Cerca modello…'), { target: { value: 'gpt' } });
+    expect(onModelFilterChange).toHaveBeenCalledWith('gpt');
+
+    // Model selection — there should be at least one GPT-4o button
+    const modelButtons = screen.getAllByRole('button', { name: /GPT-4o/i });
+    expect(modelButtons.length).toBeGreaterThan(0);
+    fireEvent.click(modelButtons[0]!);
+    expect(onModelSelect).toHaveBeenCalledWith('openai/gpt-4o');
+  });
+
+  it('shows empty state when no sessions', () => {
+    render(
+      <SidebarPanel
+        directories={[]}
+        sessions={[]}
+        selectedDirectory="/empty"
+        selectedSessionId=""
+        models={[]}
+        modelFilter=""
+        onDirectorySelect={vi.fn()}
+        onSessionSelect={vi.fn()}
+        onSessionDelete={vi.fn()}
+        onNewSession={vi.fn()}
+        onModelFilterChange={vi.fn()}
+        onModelSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Nessuna sessione/)).toBeInTheDocument();
   });
 });

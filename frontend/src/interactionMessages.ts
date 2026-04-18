@@ -4,7 +4,7 @@ function truncate(value: string, max = 64): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
-export function buildQuestionFollowUpMessage(question: QuestionItem, answer: string): string {
+export function buildQuestionResponseMessage(question: QuestionItem, answer: string): string {
   return `Question response [${question.questionId}] ${truncate(question.question)} => ${answer}`;
 }
 

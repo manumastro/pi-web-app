@@ -90,7 +90,12 @@ export interface SsePayload {
 }
 
 function randomId(prefix: string): string {
-  return `${prefix}-${crypto.randomUUID()}`;
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return `${prefix}-${cryptoApi.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function toMessageItem(message: SessionMessage): MessageItem {

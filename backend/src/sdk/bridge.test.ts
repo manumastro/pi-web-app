@@ -7,7 +7,17 @@ const mocks = vi.hoisted(() => ({
   createAgentSessionMock: vi.fn(),
   authStorageCreateMock: vi.fn(() => ({})),
   modelRegistryCreateMock: vi.fn(() => ({
-    find: vi.fn((_provider: string, modelId: string) => ({ id: modelId, provider: 'anthropic' })),
+    refresh: vi.fn(),
+    getAll: vi.fn(() => [
+      { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', reasoning: true, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+      { provider: 'openai', id: 'gpt-4.1', name: 'GPT-4.1', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+      { provider: 'ollama', id: 'llama-3.1-70b', name: 'Llama 3.1 70B', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+    ]),
+    getAvailable: vi.fn(() => [
+      { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', reasoning: true, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+      { provider: 'ollama', id: 'llama-3.1-70b', name: 'Llama 3.1 70B', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+    ]),
+    find: vi.fn((provider: string, id: string) => ({ provider, id, name: `${provider}/${id}`, reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 })),
   })),
   sessionManagerInMemoryMock: vi.fn(() => ({})),
   settingsManagerCreateMock: vi.fn(() => ({})),
@@ -55,8 +65,6 @@ function createFakeAgentSession() {
       }
       return text;
     }),
-    steer: vi.fn(),
-    followUp: vi.fn(),
     abort: vi.fn(),
     setModel: vi.fn(),
   };
@@ -78,7 +86,7 @@ describe('sdk bridge', () => {
 
     const sessionStore = createSessionStore();
     const sseManager = createSseManager();
-    const events: unknown[] = [];
+    const events: string[] = [];
     const response = {
       write(chunk: string) {
         events.push(chunk);
@@ -92,7 +100,7 @@ describe('sdk bridge', () => {
         nodeEnv: 'development',
         sessionsDir: '/tmp/sessions',
         sdkCwd: '/tmp/project',
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'anthropic/claude-3-5-sonnet-20241022',
         corsOrigins: [],
         logLevel: 'info',
         sessionIdPrefix: 'session',
@@ -106,7 +114,7 @@ describe('sdk bridge', () => {
       sessionId: 'session-1',
       cwd: '/tmp/project',
       message: 'Hello SDK',
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'anthropic/claude-3-5-sonnet-20241022',
     });
 
     expect(result.sessionId).toBe('session-1');
@@ -122,42 +130,12 @@ describe('sdk bridge', () => {
     expect(events.join('')).toContain('event: done');
   });
 
-  it('routes steer and follow-up through the active sdk session', async () => {
-    const fake = createFakeAgentSession();
-    mocks.createAgentSessionMock.mockResolvedValue(fake);
-
-    const sessionStore = createSessionStore();
-    sessionStore.createSession('/tmp/project', 'claude-3-5-sonnet-20241022', 'session-3');
-    const sseManager = createSseManager();
-    const bridge = createSdkBridge({
-      config: {
-        port: 3210,
-        nodeEnv: 'development',
-        sessionsDir: '/tmp/sessions',
-        sdkCwd: '/tmp/project',
-        model: 'claude-3-5-sonnet-20241022',
-        corsOrigins: [],
-        logLevel: 'info',
-        sessionIdPrefix: 'session',
-        generateSessionId: () => 'generated-session-id',
-      },
-      sessionStore,
-      sseManager,
-    });
-
-    await bridge.steer('session-3', 'please focus on security');
-    await bridge.followUp('session-3', 'also explain the changes');
-
-    expect(fake.session.steer).toHaveBeenCalledWith('please focus on security');
-    expect(fake.session.followUp).toHaveBeenCalledWith('also explain the changes');
-  });
-
   it('updates the model through the sdk registry', async () => {
     const fake = createFakeAgentSession();
     mocks.createAgentSessionMock.mockResolvedValue(fake);
 
     const sessionStore = createSessionStore();
-    sessionStore.createSession('/tmp/project', 'claude-3-5-sonnet-20241022', 'session-2');
+    sessionStore.createSession('/tmp/project', 'anthropic/claude-3-5-sonnet-20241022', 'session-2');
     const sseManager = createSseManager();
     const bridge = createSdkBridge({
       config: {
@@ -165,7 +143,7 @@ describe('sdk bridge', () => {
         nodeEnv: 'development',
         sessionsDir: '/tmp/sessions',
         sdkCwd: '/tmp/project',
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'anthropic/claude-3-5-sonnet-20241022',
         corsOrigins: [],
         logLevel: 'info',
         sessionIdPrefix: 'session',
@@ -175,9 +153,34 @@ describe('sdk bridge', () => {
       sseManager,
     });
 
-    await bridge.setModel('session-2', 'gpt-4.1');
+    await bridge.setModel('session-2', 'openai/gpt-4.1');
 
     expect(fake.session.setModel).toHaveBeenCalled();
-    expect(sessionStore.getSession('session-2')?.model).toBe('gpt-4.1');
+    expect(sessionStore.getSession('session-2')?.model).toBe('openai/gpt-4.1');
+  });
+
+  it('lists only selectable models from the sdk registry', async () => {
+    const bridge = createSdkBridge({
+      config: {
+        port: 3210,
+        nodeEnv: 'development',
+        sessionsDir: '/tmp/sessions',
+        sdkCwd: '/tmp/project',
+        model: 'anthropic/claude-3-5-sonnet-20241022',
+        corsOrigins: [],
+        logLevel: 'info',
+        sessionIdPrefix: 'session',
+        generateSessionId: () => 'generated-session-id',
+      },
+      sessionStore: createSessionStore(),
+      sseManager: createSseManager(),
+    });
+
+    const models = await bridge.listModels('anthropic/claude-3-5-sonnet-20241022');
+    expect(models.map((model) => model.key)).toEqual([
+      'anthropic/claude-3-5-sonnet-20241022',
+      'ollama/llama-3.1-70b',
+    ]);
+    expect(models.every((model) => model.available)).toBe(true);
   });
 });

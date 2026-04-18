@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem } from './chatState';
 
 describe('chatState', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('maps session messages into conversation items', () => {
     const conversation = messagesToConversation([
       { id: 'm1', role: 'user', content: 'hello', timestamp: '2026-04-15T10:00:00.000Z' },
@@ -20,6 +24,15 @@ describe('chatState', () => {
     expect(conversation).toHaveLength(2);
     expect(conversation[0]).toEqual(expect.objectContaining({ role: 'user', content: 'write tests' }));
     expect(conversation[1]).toEqual(expect.objectContaining({ role: 'assistant', status: 'streaming' }));
+  });
+
+  it('falls back when crypto.randomUUID is unavailable', () => {
+    vi.stubGlobal('crypto', undefined);
+
+    const conversation = appendPrompt([], 'fallback ids');
+
+    expect(conversation[0]?.id).toMatch(/^user-/);
+    expect(conversation[1]?.id).toMatch(/^assistant-/);
   });
 
   it('applies sse payloads for streaming text, tools, completion and interactions', () => {

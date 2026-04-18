@@ -1,95 +1,142 @@
 import type { ConversationItem } from '../chatState';
 
 interface ConversationPanelProps {
-  conversation: ConversationItem[];
+  items: ConversationItem[];
+  error?: string;
 }
 
-function formatTimestamp(timestamp: string): string {
-  return timestamp === 'streaming' ? 'in streaming' : new Date(timestamp).toLocaleString();
+function formatTimestamp(ts: string): string {
+  return ts === 'streaming'
+    ? 'in streaming'
+    : new Date(ts).toLocaleString('it-IT', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
 }
 
-function badgeClass(kind: ConversationItem['kind'], state?: string): string {
-  if (kind === 'message') {
-    return state ? `message-badge ${state}` : 'message-badge';
-  }
-  return `message-badge ${kind}`;
+function roleLabel(role: string): string {
+  return role === 'user' ? 'Tu' : role === 'assistant' ? 'Assistant' : role;
 }
 
-export default function ConversationPanel({ conversation }: ConversationPanelProps) {
+function badgeClass(kind: ConversationItem['kind'], status?: string): string {
+  const map: Record<string, string> = {
+    message: status ? `message-badge ${status}` : 'message-badge',
+    thinking: 'message-badge thinking',
+    tool_call: 'message-badge',
+    tool_result: 'message-badge',
+    question: 'message-badge',
+    permission: 'message-badge',
+  };
+  return map[kind] ?? 'message-badge';
+}
+
+export default function ConversationPanel({ items, error: errorMsg }: ConversationPanelProps) {
   return (
-    <section className="panel messages-panel">
-      <div className="panel-title">Conversazione</div>
-      <div className="messages">
-        {conversation.length === 0 ? <p className="muted">Nessun messaggio ancora.</p> : null}
+    <div className="messages-panel" role="log" aria-label="Conversazione" aria-live="polite">
+      {errorMsg && (
+        <div className="message message-error" role="alert">
+          <div className="message-header">
+            <span className="message-role">Errore</span>
+          </div>
+          <div className="message-content">{errorMsg}</div>
+        </div>
+      )}
 
-        {conversation.map((item) => {
-          if (item.kind === 'message') {
-            return (
-              <article key={item.id} className={`message ${item.role} ${item.status ?? 'complete'}`}>
-                <header>
-                  <span className={badgeClass(item.kind, item.status)}>{item.role}</span>
-                  <span className="message-timestamp">{formatTimestamp(item.timestamp)}</span>
-                </header>
-                <pre>{item.content || '...'}</pre>
-              </article>
-            );
-          }
+      {items.length === 0 && !errorMsg && (
+        <div className="empty-state" style={{ minHeight: 'unset', padding: '3rem 1rem' }}>
+          <p className="empty-state-title">Nessun messaggio</p>
+          <p className="empty-state-subtitle">Inizia la conversazione scrivendo un prompt.</p>
+        </div>
+      )}
 
-          if (item.kind === 'thinking') {
-            return (
-              <details key={item.id} className="message thinking" open={item.done}>
-                <summary>
-                  <span className={badgeClass(item.kind)}>{item.done ? 'thinking · done' : 'thinking · live'}</span>
-                  <span className="message-timestamp">{formatTimestamp(item.timestamp)}</span>
-                </summary>
-                <pre>{item.content || '...'}</pre>
-              </details>
-            );
-          }
-
-          if (item.kind === 'tool_call') {
-            return (
-              <details key={item.id} className="message tool-call" open>
-                <summary>
-                  <span className={badgeClass(item.kind)}>{item.toolName}</span>
-                  <span className="message-timestamp">{formatTimestamp(item.timestamp)}</span>
-                </summary>
-                <pre>{item.input}</pre>
-              </details>
-            );
-          }
-
-          if (item.kind === 'tool_result') {
-            return (
-              <details key={item.id} className={`message tool-result ${item.success ? 'success' : 'error'}`} open>
-                <summary>
-                  <span className={badgeClass(item.kind, item.success ? 'success' : 'error')}>
-                    {item.success ? 'tool result' : 'tool error'}
-                  </span>
-                  <span className="message-timestamp">{formatTimestamp(item.timestamp)}</span>
-                </summary>
-                <pre>{item.result || '...'}</pre>
-              </details>
-            );
-          }
-
-          if (item.kind === 'question' || item.kind === 'permission') {
-            return null;
-          }
-
+      {items.map((item) => {
+        if (item.kind === 'message') {
           return (
-            <article key={item.id} className="message error">
-              <header>
-                <span className={badgeClass(item.kind, item.recoverable ? 'recoverable' : 'fatal')}>
-                  {item.category}
-                </span>
-                <span className="message-timestamp">{formatTimestamp(item.timestamp)}</span>
-              </header>
-              <pre>{item.message}</pre>
+            <article
+              key={item.id}
+              className={`message message-${item.role === 'user' ? 'user' : 'assistant'} ${
+                item.status === 'streaming' ? 'streaming' : ''
+              }`}
+            >
+              <div className="message-header">
+                <span className="message-role">{roleLabel(item.role)}</span>
+                <span className="message-time">{formatTimestamp(item.timestamp)}</span>
+              </div>
+              <div className="message-content">
+                {item.content || (item.status === 'streaming' ? '…' : '—')}
+              </div>
             </article>
           );
-        })}
-      </div>
-    </section>
+        }
+
+        if (item.kind === 'thinking') {
+          return (
+            <details key={item.id} className="message message-thinking" open={item.done}>
+              <summary>
+                <span className={badgeClass(item.kind)}>
+                  {item.done ? '⏹ thinking · completato' : '◉ thinking · in corso'}
+                </span>
+                <span className="message-time">{formatTimestamp(item.timestamp)}</span>
+              </summary>
+              <div className="message-content" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-code)' }}>
+                {item.content || '…'}
+              </div>
+            </details>
+          );
+        }
+
+        if (item.kind === 'tool_call') {
+          return (
+            <details key={item.id} className="message message-tool-call" open>
+              <summary>
+                <span className="message-badge">{item.toolName}</span>
+                <span className="message-time">{formatTimestamp(item.timestamp)}</span>
+              </summary>
+              <pre
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--text-code)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  margin: '0.5rem 0 0',
+                  color: 'var(--foreground)',
+                }}
+              >
+                {item.input}
+              </pre>
+            </details>
+          );
+        }
+
+        if (item.kind === 'tool_result') {
+          return (
+            <details key={item.id} className={`message message-tool-result ${item.success ? 'success' : 'error'}`} open>
+              <summary>
+                <span className="message-badge" style={item.success ? {} : { color: 'var(--destructive)' }}>
+                  {item.success ? '✓ result' : '✗ error'}
+                </span>
+                <span className="message-time">{formatTimestamp(item.timestamp)}</span>
+              </summary>
+              <pre
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--text-code)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  margin: '0.5rem 0 0',
+                  color: item.success ? 'var(--foreground)' : 'var(--destructive)',
+                }}
+              >
+                {item.result || '…'}
+              </pre>
+            </details>
+          );
+        }
+
+        return null;
+      })}
+    </div>
   );
 }

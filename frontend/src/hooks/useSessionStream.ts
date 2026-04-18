@@ -23,58 +23,99 @@ export function useSessionStream({
   onConnectionLost,
 }: UseSessionStreamOptions): void {
   const callbacksRef = useRef({ onPayload, onConnected, onConnectionLost });
+  const reconnectTimerRef = useRef<number | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const generationRef = useRef(0);
 
   useEffect(() => {
     callbacksRef.current = { onPayload, onConnected, onConnectionLost };
   }, [onPayload, onConnected, onConnectionLost]);
 
   useEffect(() => {
+    generationRef.current += 1;
+    const generation = generationRef.current;
+
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
+
     if (!sessionId) {
       return;
     }
 
-    const source = new EventSource(`/api/events?sessionId=${encodeURIComponent(sessionId)}`);
-
-    source.onopen = () => {
-      callbacksRef.current.onConnected?.();
-    };
-
-    const handlePayload = (event: Event): void => {
-      if (!(event instanceof MessageEvent) || typeof event.data !== 'string') {
+    const openSource = () => {
+      if (generationRef.current !== generation) {
         return;
       }
 
-      const payload = parsePayload(event.data);
-      if (!payload || payload.sessionId !== sessionId) {
-        return;
-      }
+      const source = new EventSource(`/api/events?sessionId=${encodeURIComponent(sessionId)}`);
+      eventSourceRef.current = source;
 
-      callbacksRef.current.onPayload(payload);
-    };
+      source.onopen = () => {
+        callbacksRef.current.onConnected?.();
+      };
 
-    source.addEventListener('text_chunk', handlePayload);
-    source.addEventListener('thinking', handlePayload);
-    source.addEventListener('question', handlePayload);
-    source.addEventListener('permission', handlePayload);
-    source.addEventListener('tool_call', handlePayload);
-    source.addEventListener('tool_result', handlePayload);
-    source.addEventListener('done', handlePayload);
-    source.addEventListener('error', handlePayload);
-
-    source.onerror = (event) => {
-      if (event instanceof MessageEvent && typeof event.data === 'string') {
-        const payload = parsePayload(event.data);
-        if (payload && payload.sessionId === sessionId) {
-          callbacksRef.current.onPayload(payload);
+      const handlePayload = (event: Event): void => {
+        if (!(event instanceof MessageEvent) || typeof event.data !== 'string') {
           return;
         }
-      }
 
-      callbacksRef.current.onConnectionLost?.();
+        const payload = parsePayload(event.data);
+        if (!payload || payload.sessionId !== sessionId) {
+          return;
+        }
+
+        callbacksRef.current.onPayload(payload);
+      };
+
+      source.addEventListener('text_chunk', handlePayload);
+      source.addEventListener('thinking', handlePayload);
+      source.addEventListener('question', handlePayload);
+      source.addEventListener('permission', handlePayload);
+      source.addEventListener('tool_call', handlePayload);
+      source.addEventListener('tool_result', handlePayload);
+      source.addEventListener('done', handlePayload);
+      source.addEventListener('error', handlePayload);
+
+      source.onerror = (event) => {
+        if (generationRef.current !== generation) {
+          return;
+        }
+
+        if (event instanceof MessageEvent && typeof event.data === 'string') {
+          const payload = parsePayload(event.data);
+          if (payload && payload.sessionId === sessionId) {
+            callbacksRef.current.onPayload(payload);
+            return;
+          }
+        }
+
+        callbacksRef.current.onConnectionLost?.();
+        source.close();
+        eventSourceRef.current = null;
+
+        reconnectTimerRef.current = window.setTimeout(() => {
+          if (generationRef.current === generation) {
+            openSource();
+          }
+        }, 3000);
+      };
     };
 
+    openSource();
+
     return () => {
-      source.close();
+      generationRef.current += 1;
+      if (reconnectTimerRef.current !== null) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
     };
   }, [sessionId]);
 }

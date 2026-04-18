@@ -8,7 +8,14 @@ import {
   type AgentSessionEvent,
 } from '@mariozechner/pi-coding-agent';
 import type { Config } from '../config/index.js';
-import { findModelById, resolveModelId } from '../models/resolver.js';
+import {
+  modelKey,
+  parseModelKey,
+  resolveModelKey,
+  summarizeModels,
+  type ModelLike,
+  type ModelSummary,
+} from '../models/resolver.js';
 import type { Session, SessionStore } from '../sessions/store.js';
 import type { SseManager } from '../sse/manager.js';
 import type { SseEvent } from './events.js';
@@ -26,11 +33,10 @@ export interface PromptResult {
 }
 
 export interface SdkBridge {
+  listModels: (selectedModelKey?: string) => Promise<ModelSummary[]>;
   prompt: (request: PromptRequest) => Promise<PromptResult>;
-  steer: (sessionId: string, message: string) => Promise<void>;
-  followUp: (sessionId: string, message: string) => Promise<void>;
   abort: (sessionId: string) => Promise<void>;
-  setModel: (sessionId: string, modelId: string) => Promise<void>;
+  setModel: (sessionId: string, modelKey: string) => Promise<void>;
 }
 
 interface ActiveAgentSession {
@@ -133,8 +139,15 @@ export function createSdkBridge(params: {
   const modelRegistry = ModelRegistry.create(authStorage);
   const sessions = new Map<string, ActiveAgentSession>();
 
-  function ensureStoredSession(sessionId: string, cwd: string, modelId?: string): Session {
-    return sessionStore.getSession(sessionId) ?? sessionStore.createSession(cwd, resolveModelId(modelId, config.model), sessionId);
+  function refreshModels(): ModelLike[] {
+    modelRegistry.refresh();
+    return modelRegistry.getAll() as ModelLike[];
+  }
+
+  function ensureStoredSession(sessionId: string, cwd: string, modelKeyOrId?: string): Session {
+    const models = refreshModels();
+    const resolvedModelKey = resolveModelKey(models, modelKeyOrId, config.model);
+    return sessionStore.getSession(sessionId) ?? sessionStore.createSession(cwd, resolvedModelKey, sessionId);
   }
 
   function getSessionMessage(sessionId: string): Session | undefined {
@@ -220,9 +233,10 @@ export function createSdkBridge(params: {
 
     session.agent.sessionId = stored.id;
 
-    const resolvedModel = findModelById(stored.model ?? modelId ?? config.model);
-    if (resolvedModel) {
-      const model = modelRegistry.find(resolvedModel.provider, resolvedModel.id);
+    const modelKeyRef = resolveModelKey(refreshModels(), stored.model ?? modelId ?? config.model, config.model);
+    const parsed = parseModelKey(modelKeyRef);
+    if (parsed) {
+      const model = modelRegistry.find(parsed.provider, parsed.modelId);
       if (model) {
         session.setModel(model);
       }
@@ -389,22 +403,22 @@ export function createSdkBridge(params: {
   async function prompt(request: PromptRequest): Promise<PromptResult> {
     const sessionId = request.sessionId ?? config.generateSessionId();
     const cwd = request.cwd ?? config.sdkCwd;
-    const resolvedModelId = resolveModelId(request.model, config.model);
-    const session = ensureStoredSession(sessionId, cwd, resolvedModelId);
+    const resolvedModelKey = resolveModelKey(refreshModels(), request.model, config.model);
+    const session = ensureStoredSession(sessionId, cwd, resolvedModelKey);
 
-    sessionStore.updateSession(session.id, { status: 'prompting', cwd, model: resolvedModelId });
+    sessionStore.updateSession(session.id, { status: 'prompting', cwd, model: resolvedModelKey });
     sessionStore.addMessage(session.id, { role: 'user', content: request.message });
     sessionStore.addMessage(session.id, { role: 'assistant', content: '' });
 
     try {
-      const active = await getOrCreateAgentSession(session.id, cwd, resolvedModelId);
+      const active = await getOrCreateAgentSession(session.id, cwd, resolvedModelKey);
       active.assistantMessageId = config.generateSessionId();
       active.assistantContent = '';
       active.aborted = false;
 
-      const modelInfo = findModelById(resolvedModelId);
-      if (modelInfo) {
-        const model = modelRegistry.find(modelInfo.provider, modelInfo.id);
+      const parsed = parseModelKey(resolvedModelKey);
+      if (parsed) {
+        const model = modelRegistry.find(parsed.provider, parsed.modelId);
         if (model) {
           active.agentSession.setModel(model);
         }
@@ -420,36 +434,6 @@ export function createSdkBridge(params: {
     } catch (cause) {
       emitSdkError(session.id, cause);
       throw cause;
-    }
-  }
-
-  async function dispatchQueuedMessage(
-    sessionId: string,
-    message: string,
-    mode: 'steer' | 'followUp',
-    cwd?: string,
-    model?: string,
-  ): Promise<void> {
-    const session = ensureStoredSession(sessionId, cwd ?? config.sdkCwd, model ?? config.model);
-    const active = await getOrCreateAgentSession(session.id, session.cwd, session.model ?? model);
-
-    if (!active.agentSession.isStreaming) {
-      const promptRequest: PromptRequest = {
-        sessionId: session.id,
-        cwd: session.cwd,
-        message,
-      };
-      if (session.model) {
-        promptRequest.model = session.model;
-      }
-      await prompt(promptRequest);
-      return;
-    }
-
-    if (mode === 'steer') {
-      await active.agentSession.steer(message);
-    } else {
-      await active.agentSession.followUp(message);
     }
   }
 
@@ -476,34 +460,33 @@ export function createSdkBridge(params: {
     finalizeAssistantMessage(sessionId, true);
   }
 
-  async function setModel(sessionId: string, modelId: string): Promise<void> {
+  async function listModels(selectedModelKey?: string): Promise<ModelSummary[]> {
+    refreshModels();
+    const models = modelRegistry.getAvailable() as ModelLike[];
+    const availableKeys = new Set(models.map((model) => modelKey(model)));
+    return summarizeModels({ models, availableKeys, selectedKey: selectedModelKey ?? config.model });
+  }
+
+  async function setModel(sessionId: string, modelKeyInput: string): Promise<void> {
     const session = sessionStore.getSession(sessionId);
     if (!session) {
       return;
     }
 
-    const resolvedModelId = resolveModelId(modelId, session.model ?? config.model);
-    sessionStore.updateSession(sessionId, { model: resolvedModelId });
+    const resolvedModelKey = resolveModelKey(refreshModels(), modelKeyInput, session.model ?? config.model);
+    sessionStore.updateSession(sessionId, { model: resolvedModelKey });
 
-    const active = await getOrCreateAgentSession(sessionId, session.cwd, resolvedModelId);
-    const modelInfo = findModelById(resolvedModelId);
-    if (!modelInfo) {
+    const active = await getOrCreateAgentSession(sessionId, session.cwd, resolvedModelKey);
+    const parsed = parseModelKey(resolvedModelKey);
+    if (!parsed) {
       return;
     }
 
-    const model = modelRegistry.find(modelInfo.provider, modelInfo.id);
+    const model = modelRegistry.find(parsed.provider, parsed.modelId);
     if (model) {
       active.agentSession.setModel(model);
     }
   }
 
-  async function steer(sessionId: string, message: string): Promise<void> {
-    await dispatchQueuedMessage(sessionId, message, 'steer');
-  }
-
-  async function followUp(sessionId: string, message: string): Promise<void> {
-    await dispatchQueuedMessage(sessionId, message, 'followUp');
-  }
-
-  return { prompt, steer, followUp, abort, setModel };
+  return { listModels, prompt, abort, setModel };
 }

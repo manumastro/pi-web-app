@@ -31,7 +31,7 @@ export function createApp() {
   });
 
   registerApiRoutes(app, { bridge, sessionStore });
-  app.use('/api/events', createSseRouter(sseManager));
+  app.use('/api/events', createSseRouter(sseManager, sessionStore));
 
   const publicDir = path.resolve(process.cwd(), 'dist/public');
   if (fs.existsSync(publicDir)) {

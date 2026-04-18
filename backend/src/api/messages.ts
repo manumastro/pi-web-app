@@ -33,29 +33,5 @@ export function createMessagesRouter(bridge: SdkBridge): Router {
     res.json({ ok: true });
   });
 
-  router.post('/steer', async (req: Request, res: Response) => {
-    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
-    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : '';
-    if (!message || !sessionId) {
-      res.status(400).json({ error: 'sessionId and message are required' });
-      return;
-    }
-
-    await bridge.steer(sessionId, message);
-    res.json({ ok: true });
-  });
-
-  router.post('/follow-up', async (req: Request, res: Response) => {
-    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
-    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : '';
-    if (!message || !sessionId) {
-      res.status(400).json({ error: 'sessionId and message are required' });
-      return;
-    }
-
-    await bridge.followUp(sessionId, message);
-    res.json({ ok: true });
-  });
-
   return router;
 }

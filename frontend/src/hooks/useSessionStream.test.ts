@@ -66,9 +66,10 @@ describe('useSessionStream', () => {
   beforeEach(() => {
     MockEventSource.instances = [];
     vi.stubGlobal('EventSource', MockEventSource as never);
+    vi.useFakeTimers();
   });
 
-  it('subscribes to session events and handles reconnect errors', () => {
+  it('subscribes to session events and reconnects on errors', async () => {
     const onPayload = vi.fn();
     const onConnected = vi.fn();
     const onConnectionLost = vi.fn();
@@ -100,5 +101,8 @@ describe('useSessionStream', () => {
 
     instance.fail();
     expect(onConnectionLost).toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(MockEventSource.instances).toHaveLength(2);
   });
 });

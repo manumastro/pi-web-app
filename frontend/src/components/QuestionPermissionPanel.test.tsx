@@ -34,22 +34,36 @@ describe('QuestionPermissionPanel', () => {
       />,
     );
 
-    expect(screen.getByText('Domande')).toBeInTheDocument();
-    expect(screen.getByText('Permessi')).toBeInTheDocument();
+    // Questions and permissions are rendered (no section headers anymore)
     expect(screen.getByText('Do you want to continue?')).toBeInTheDocument();
     expect(screen.getByText('write')).toBeInTheDocument();
 
+    // Option buttons
     fireEvent.click(screen.getByRole('button', { name: 'yes' }));
     expect(onAnswerQuestion).toHaveBeenCalledWith(expect.objectContaining({ questionId: 'q1' }), 'yes');
 
-    fireEvent.change(screen.getByLabelText('Risposta a q1'), { target: { value: 'custom answer' } });
+    // Custom answer
+    fireEvent.change(screen.getByLabelText('Risposta'), { target: { value: 'custom answer' } });
     fireEvent.click(screen.getByRole('button', { name: 'Invia' }));
     expect(onAnswerQuestion).toHaveBeenCalledWith(expect.objectContaining({ questionId: 'q1' }), 'custom answer');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approva' }));
+    // Permission approve/deny
+    fireEvent.click(screen.getByRole('button', { name: '✓ Approva' }));
     expect(onApprovePermission).toHaveBeenCalledWith(expect.objectContaining({ permissionId: 'p1' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Nega' }));
+    fireEvent.click(screen.getByRole('button', { name: '✗ Nega' }));
     expect(onDenyPermission).toHaveBeenCalledWith(expect.objectContaining({ permissionId: 'p1' }));
+  });
+
+  it('renders nothing when items are empty', () => {
+    render(
+      <QuestionPermissionPanel
+        items={[]}
+        onAnswerQuestion={vi.fn()}
+        onApprovePermission={vi.fn()}
+        onDenyPermission={vi.fn()}
+      />,
+    );
+    expect(document.body.textContent).toBe('');
   });
 });
