@@ -1,5 +1,5 @@
-import { ChevronDown, Maximize2, Plus, SendHorizontal, Settings2, Square } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
+import { ChevronDown, Maximize2, Plus, SendHorizontal, Settings2, Square, Star } from 'lucide-react';
+import { useState, type KeyboardEvent } from 'react';
 import type { ModelInfo, StreamingState } from '@/types';
 
 interface ComposerPanelProps {
@@ -39,14 +39,30 @@ export function ComposerPanel({
   onAbort,
   onModelSelect,
 }: ComposerPanelProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  
   const isStreaming = streaming === 'streaming';
   const isEmpty = prompt.trim().length === 0;
-  const availableModels = models.filter((model) => model.available);
-  const groups = groupModelsByProvider(availableModels);
-  const hasAvailableModels = groups.length > 0;
-  const selectedModelKey = hasAvailableModels && groups.some((group) => group.models.some((model) => model.key === activeModelKey))
-    ? activeModelKey
-    : '';
+  
+  // Show ALL models, not just available ones
+  const allModels = models;
+  const groups = groupModelsByProvider(allModels);
+  
+  // Filter by search query
+  const filteredGroups = groups
+    .map((group) => ({
+      provider: group.provider,
+      models: group.models.filter((model) =>
+        model.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        model.key.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
+    }))
+    .filter((group) => group.models.length > 0);
+  
+  const selectedModel = allModels.find((m) => m.key === activeModelKey);
+  const selectedModelLabel = selectedModel?.label ?? 'Select model';
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -55,6 +71,16 @@ export function ComposerPanel({
         void onSend();
       }
     }
+  }
+  
+  function toggleFavorite(modelKey: string) {
+    const newFavorites = new Set(favorites);
+    if (newFavorites.has(modelKey)) {
+      newFavorites.delete(modelKey);
+    } else {
+      newFavorites.add(modelKey);
+    }
+    setFavorites(newFavorites);
   }
 
   return (
@@ -118,30 +144,144 @@ export function ComposerPanel({
               <span>Default</span>
             </button>
 
-            <div className="composer-model-wrap">
-              <select
+            <div className="composer-model-wrap" style={{ position: 'relative' }}>
+              <button
+                type="button"
                 className="composer-model-select"
-                value={selectedModelKey}
-                onChange={(event) => onModelSelect(event.target.value)}
-                disabled={isStreaming || !hasAvailableModels}
+                onClick={() => setShowModelPicker(!showModelPicker)}
+                disabled={isStreaming}
                 aria-label="Select model"
                 title="Select model"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: isStreaming ? 'not-allowed' : 'pointer',
+                  padding: '0.5rem',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  color: 'inherit',
+                }}
               >
-                {hasAvailableModels ? (
-                  groups.map((group) => (
-                    <optgroup key={group.provider} label={group.provider}>
+                <span>{selectedModelLabel}</span>
+                <ChevronDown size={12} />
+              </button>
+              
+              {showModelPicker && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: 0,
+                    width: '360px',
+                    background: 'var(--background)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '0.875rem',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                    zIndex: 1000,
+                    maxHeight: '400px',
+                    overflow: 'auto',
+                    marginBottom: '0.5rem',
+                    padding: '0.75rem',
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="Search models..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      marginBottom: '0.75rem',
+                      background: 'var(--surface)',
+                      color: 'var(--foreground)',
+                    }}
+                    autoFocus
+                  />
+                  
+                  {filteredGroups.map((group) => (
+                    <div key={group.provider} style={{ marginBottom: '0.75rem' }}>
+                      <div
+                        style={{
+                          fontSize: '0.6875rem',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          color: 'var(--muted)',
+                          marginBottom: '0.5rem',
+                          paddingLeft: '0.5rem',
+                        }}
+                      >
+                        {group.provider}
+                      </div>
                       {group.models.map((model) => (
-                        <option key={model.key} value={model.key}>
-                          {model.label}
-                        </option>
+                        <div
+                          key={model.key}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            cursor: 'pointer',
+                            background: model.key === activeModelKey ? 'var(--surface-2)' : 'transparent',
+                            opacity: model.available ? 1 : 0.6,
+                          }}
+                          onClick={() => {
+                            if (model.available) {
+                              onModelSelect(model.key);
+                              setShowModelPicker(false);
+                              setSearchQuery('');
+                            }
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = 'var(--surface-3)';
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.background =
+                              model.key === activeModelKey ? 'var(--surface-2)' : 'transparent';
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFavorite(model.key);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              color: favorites.has(model.key) ? 'var(--warning)' : 'var(--muted)',
+                            }}
+                          >
+                            <Star size={14} fill={favorites.has(model.key) ? 'currentColor' : 'none'} />
+                          </button>
+                          <span style={{ flex: 1, fontSize: '0.875rem' }}>{model.label}</span>
+                          {!model.available && (
+                            <span
+                              style={{
+                                fontSize: '0.6875rem',
+                                color: 'var(--muted)',
+                              }}
+                            >
+                              Unavailable
+                            </span>
+                          )}
+                        </div>
                       ))}
-                    </optgroup>
-                  ))
-                ) : (
-                  <option value="">No models available</option>
-                )}
-              </select>
-              <ChevronDown size={12} className="composer-model-chevron" aria-hidden />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <span className="composer-build-chip">Build</span>
