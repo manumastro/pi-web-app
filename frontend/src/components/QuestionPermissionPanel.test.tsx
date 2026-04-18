@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import QuestionPermissionPanel from './QuestionPermissionPanel';
 
 describe('QuestionPermissionPanel', () => {
-  it('renders questions and permissions when present', () => {
+  it('renders questions and permissions and wires actions', () => {
+    const onAnswerQuestion = vi.fn();
+    const onApprovePermission = vi.fn();
+    const onDenyPermission = vi.fn();
+
     render(
       <QuestionPermissionPanel
         items={[
@@ -24,6 +28,9 @@ describe('QuestionPermissionPanel', () => {
             timestamp: '2026-04-15T10:00:01.000Z',
           },
         ]}
+        onAnswerQuestion={onAnswerQuestion}
+        onApprovePermission={onApprovePermission}
+        onDenyPermission={onDenyPermission}
       />,
     );
 
@@ -31,5 +38,18 @@ describe('QuestionPermissionPanel', () => {
     expect(screen.getByText('Permessi')).toBeInTheDocument();
     expect(screen.getByText('Do you want to continue?')).toBeInTheDocument();
     expect(screen.getByText('write')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'yes' }));
+    expect(onAnswerQuestion).toHaveBeenCalledWith('q1', 'yes');
+
+    fireEvent.change(screen.getByLabelText('Risposta a q1'), { target: { value: 'custom answer' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Invia' }));
+    expect(onAnswerQuestion).toHaveBeenCalledWith('q1', 'custom answer');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approva' }));
+    expect(onApprovePermission).toHaveBeenCalledWith('p1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nega' }));
+    expect(onDenyPermission).toHaveBeenCalledWith('p1');
   });
 });

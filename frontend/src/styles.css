@@ -309,6 +309,25 @@ textarea {
   color: #c7d2e9;
 }
 
+.interaction-response,
+.interaction-actions,
+.interaction-options {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.interaction-response input {
+  flex: 1 1 220px;
+}
+
+.interaction-chip {
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(92, 200, 255, 0.16);
+  border-color: rgba(92, 200, 255, 0.32);
+}
+
 .composer {
   display: grid;
   gap: 0.75rem;

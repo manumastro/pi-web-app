@@ -12,9 +12,6 @@ function badgeClass(kind: ConversationItem['kind'], state?: string): string {
   if (kind === 'message') {
     return state ? `message-badge ${state}` : 'message-badge';
   }
-  if (kind === 'question' || kind === 'permission') {
-    return `message-badge ${kind}`;
-  }
   return `message-badge ${kind}`;
 }
 
@@ -50,39 +47,6 @@ export default function ConversationPanel({ conversation }: ConversationPanelPro
             );
           }
 
-          if (item.kind === 'question') {
-            return (
-              <details key={item.id} className="message question" open>
-                <summary>
-                  <span className={badgeClass(item.kind)}>question</span>
-                  <span className="message-timestamp">{formatTimestamp(item.timestamp)}</span>
-                </summary>
-                <p>{item.question}</p>
-                {item.options.length > 0 ? (
-                  <ul>
-                    {item.options.map((option) => (
-                      <li key={option}>{option}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </details>
-            );
-          }
-
-          if (item.kind === 'permission') {
-            return (
-              <article key={item.id} className="message permission">
-                <header>
-                  <span className={badgeClass(item.kind)}>permission</span>
-                  <span className="message-timestamp">{formatTimestamp(item.timestamp)}</span>
-                </header>
-                <p>
-                  <strong>{item.action}</strong> · {item.resource}
-                </p>
-              </article>
-            );
-          }
-
           if (item.kind === 'tool_call') {
             return (
               <details key={item.id} className="message tool-call" open>
@@ -107,6 +71,10 @@ export default function ConversationPanel({ conversation }: ConversationPanelPro
                 <pre>{item.result || '...'}</pre>
               </details>
             );
+          }
+
+          if (item.kind === 'question' || item.kind === 'permission') {
+            return null;
           }
 
           return (

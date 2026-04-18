@@ -182,15 +182,18 @@ export default function App() {
     }
   }
 
-  async function handleFollowUp(): Promise<void> {
-    const text = prompt.trim();
-    if (!text || !sessionId) {
+  async function sendFollowUpMessage(message: string, statusLabel: string): Promise<void> {
+    if (!sessionId) {
+      return;
+    }
+
+    const text = message.trim();
+    if (!text) {
       return;
     }
 
     setError('');
-    setPrompt('');
-    setStatusMessage('Invio follow-up...');
+    setStatusMessage(statusLabel);
 
     try {
       await apiRequest('/api/messages/follow-up', {
@@ -202,6 +205,29 @@ export default function App() {
       setStatusMessage('Errore follow-up');
       setError(cause instanceof Error ? cause.message : 'Errore sconosciuto');
     }
+  }
+
+  async function handleFollowUp(): Promise<void> {
+    const text = prompt.trim();
+    if (!text) {
+      return;
+    }
+
+    setPrompt('');
+    await sendFollowUpMessage(text, 'Invio follow-up...');
+  }
+
+  async function handleAnswerQuestion(questionId: string, answer: string): Promise<void> {
+    setPrompt('');
+    await sendFollowUpMessage(`Question ${questionId}: ${answer}`, 'Risposta domanda...');
+  }
+
+  async function handleApprovePermission(permissionId: string): Promise<void> {
+    await sendFollowUpMessage(`Permission ${permissionId}: approved`, 'Permesso approvato...');
+  }
+
+  async function handleDenyPermission(permissionId: string): Promise<void> {
+    await sendFollowUpMessage(`Permission ${permissionId}: denied`, 'Permesso negato...');
   }
 
   async function handleAbort(): Promise<void> {
@@ -279,7 +305,12 @@ export default function App() {
 
       <main className="content">
         <ConnectionStatusBanner streaming={streaming} statusMessage={statusMessage} error={error} />
-        <QuestionPermissionPanel items={conversation} />
+        <QuestionPermissionPanel
+          items={conversation}
+          onAnswerQuestion={handleAnswerQuestion}
+          onApprovePermission={handleApprovePermission}
+          onDenyPermission={handleDenyPermission}
+        />
         <ConversationPanel conversation={conversation} />
         <ComposerPanel
           prompt={prompt}
