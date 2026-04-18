@@ -167,7 +167,7 @@ describe('sdk bridge', () => {
     expect(sessionStore.getSession('session-2')?.model).toBe('openai/gpt-4.1');
   });
 
-  it('lists only selectable models from the sdk registry', async () => {
+  it('lists all models (available and unavailable) from the sdk registry', async () => {
     const bridge = createSdkBridge({
       config: {
         port: 3210,
@@ -185,10 +185,18 @@ describe('sdk bridge', () => {
     });
 
     const models = await bridge.listModels('anthropic/claude-3-5-sonnet-20241022');
-    expect(models.map((model) => model.key)).toEqual([
+    // Should include all models, not just available ones
+    expect(models.map((model) => model.key).sort()).toEqual([
+      'anthropic/claude-3-5-sonnet-20241022',
+      'ollama/llama-3.1-70b',
+      'openai/gpt-4.1',
+    ]);
+    // But only 2 should be marked as available
+    const availableModels = models.filter((m) => m.available);
+    expect(availableModels).toHaveLength(2);
+    expect(availableModels.map((m) => m.key).sort()).toEqual([
       'anthropic/claude-3-5-sonnet-20241022',
       'ollama/llama-3.1-70b',
     ]);
-    expect(models.every((model) => model.available)).toBe(true);
   });
 });

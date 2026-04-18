@@ -465,9 +465,11 @@ export function createSdkBridge(params: {
 
   async function listModels(selectedModelKey?: string): Promise<ModelSummary[]> {
     refreshModels();
-    const models = modelRegistry.getAvailable() as ModelLike[];
-    const availableKeys = new Set(models.map((model) => modelKey(model)));
-    return summarizeModels({ models, availableKeys, selectedKey: selectedModelKey ?? config.model });
+    // Get ALL models (not just available ones), matching /scoped-model behavior
+    const allModels = modelRegistry.getAll() as ModelLike[];
+    const availableModels = modelRegistry.getAvailable() as ModelLike[];
+    const availableKeys = new Set(availableModels.map((model) => modelKey(model)));
+    return summarizeModels({ models: allModels, availableKeys, selectedKey: selectedModelKey ?? config.model });
   }
 
   async function setModel(sessionId: string, modelKeyInput: string): Promise<void> {
