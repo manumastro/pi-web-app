@@ -54,6 +54,8 @@ export function useSessionStream({
 
     source.addEventListener('text_chunk', handlePayload);
     source.addEventListener('thinking', handlePayload);
+    source.addEventListener('question', handlePayload);
+    source.addEventListener('permission', handlePayload);
     source.addEventListener('tool_call', handlePayload);
     source.addEventListener('tool_result', handlePayload);
     source.addEventListener('done', handlePayload);

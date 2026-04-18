@@ -18,6 +18,24 @@ export interface ThinkingItem {
   timestamp: string;
 }
 
+export interface QuestionItem {
+  kind: 'question';
+  id: string;
+  questionId: string;
+  question: string;
+  options: string[];
+  timestamp: string;
+}
+
+export interface PermissionItem {
+  kind: 'permission';
+  id: string;
+  permissionId: string;
+  action: string;
+  resource: string;
+  timestamp: string;
+}
+
 export interface ToolCallItem {
   kind: 'tool_call';
   id: string;
@@ -45,15 +63,21 @@ export interface ErrorItem {
   timestamp: string;
 }
 
-export type ConversationItem = MessageItem | ThinkingItem | ToolCallItem | ToolResultItem | ErrorItem;
+export type ConversationItem = MessageItem | ThinkingItem | QuestionItem | PermissionItem | ToolCallItem | ToolResultItem | ErrorItem;
 
 export interface SsePayload {
-  type: 'text_chunk' | 'thinking' | 'tool_call' | 'tool_result' | 'error' | 'done';
+  type: 'text_chunk' | 'thinking' | 'question' | 'permission' | 'tool_call' | 'tool_result' | 'error' | 'done';
   sessionId: string;
   messageId?: string;
   content?: string;
   aborted?: boolean;
   done?: boolean;
+  questionId?: string;
+  question?: string;
+  options?: string[];
+  permissionId?: string;
+  action?: string;
+  resource?: string;
   toolCallId?: string;
   toolName?: string;
   input?: Record<string, unknown>;
@@ -192,6 +216,30 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
       messageId,
       content: payload.content ?? '',
       done: payload.done ?? false,
+      timestamp: payload.timestamp ?? new Date().toISOString(),
+    });
+  }
+
+  if (payload.type === 'question') {
+    const questionId = payload.questionId ?? randomId('question');
+    return upsertById(conversation, {
+      kind: 'question',
+      id: questionId,
+      questionId,
+      question: payload.question ?? payload.content ?? 'Domanda',
+      options: payload.options ?? [],
+      timestamp: payload.timestamp ?? new Date().toISOString(),
+    });
+  }
+
+  if (payload.type === 'permission') {
+    const permissionId = payload.permissionId ?? randomId('permission');
+    return upsertById(conversation, {
+      kind: 'permission',
+      id: permissionId,
+      permissionId,
+      action: payload.action ?? 'unknown',
+      resource: payload.resource ?? payload.content ?? '',
       timestamp: payload.timestamp ?? new Date().toISOString(),
     });
   }

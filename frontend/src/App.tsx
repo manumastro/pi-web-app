@@ -4,6 +4,7 @@ import { apiGet, apiRequest } from './api';
 import ConversationPanel from './components/ConversationPanel';
 import ComposerPanel from './components/ComposerPanel';
 import ConnectionStatusBanner from './components/ConnectionStatusBanner';
+import QuestionPermissionPanel from './components/QuestionPermissionPanel';
 import SidebarPanel from './components/SidebarPanel';
 import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
@@ -278,6 +279,7 @@ export default function App() {
 
       <main className="content">
         <ConnectionStatusBanner streaming={streaming} statusMessage={statusMessage} error={error} />
+        <QuestionPermissionPanel items={conversation} />
         <ConversationPanel conversation={conversation} />
         <ComposerPanel
           prompt={prompt}

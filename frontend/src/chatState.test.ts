@@ -22,13 +22,27 @@ describe('chatState', () => {
     expect(conversation[1]).toEqual(expect.objectContaining({ role: 'assistant', status: 'streaming' }));
   });
 
-  it('applies sse payloads for streaming text, tools, and completion', () => {
+  it('applies sse payloads for streaming text, tools, completion and interactions', () => {
     let conversation: ConversationItem[] = appendPrompt([], 'hello');
     conversation = applySsePayload(conversation, {
       type: 'text_chunk',
       sessionId: 's1',
       messageId: 'a1',
       content: 'Hi',
+    });
+    conversation = applySsePayload(conversation, {
+      type: 'question',
+      sessionId: 's1',
+      questionId: 'q1',
+      question: 'Proceed?',
+      options: ['yes', 'no'],
+    });
+    conversation = applySsePayload(conversation, {
+      type: 'permission',
+      sessionId: 's1',
+      permissionId: 'p1',
+      action: 'write',
+      resource: '/tmp/file',
     });
     conversation = applySsePayload(conversation, {
       type: 'tool_call',
@@ -53,6 +67,8 @@ describe('chatState', () => {
       aborted: false,
     });
 
+    expect(conversation.some((item) => item.kind === 'question')).toBe(true);
+    expect(conversation.some((item) => item.kind === 'permission')).toBe(true);
     expect(conversation.some((item) => item.kind === 'tool_call')).toBe(true);
     expect(conversation.some((item) => item.kind === 'tool_result')).toBe(true);
     expect(conversation.find((item) => item.kind === 'message' && item.role === 'assistant')).toEqual(

@@ -44,6 +44,8 @@ function createFakeAgentSession() {
         { type: 'message_start', message: baseMessage },
         { type: 'message_update', message: baseMessage, assistantMessageEvent: { type: 'text_delta', delta: 'Hel' } },
         { type: 'message_update', message: baseMessage, assistantMessageEvent: { type: 'text_delta', delta: 'lo' } },
+        { type: 'question', questionId: 'q1', question: 'Continue?', options: ['yes', 'no'] },
+        { type: 'permission', permissionId: 'p1', action: 'write', resource: '/tmp/file' },
         { type: 'message_end', message: { ...baseMessage, content: 'Hello' } },
         { type: 'agent_end', messages: [] },
       ]) {
@@ -115,6 +117,8 @@ describe('sdk bridge', () => {
     ]);
     expect(sessionStore.getSession('session-1')?.status).toBe('done');
     expect(events.join('')).toContain('event: text_chunk');
+    expect(events.join('')).toContain('event: question');
+    expect(events.join('')).toContain('event: permission');
     expect(events.join('')).toContain('event: done');
   });
 

@@ -104,6 +104,21 @@ function extractMessageText(message: { content?: unknown }): string {
   return '';
 }
 
+type ExtendedAgentSessionEvent =
+  | AgentSessionEvent
+  | {
+      type: 'question';
+      questionId: string;
+      question: string;
+      options?: string[];
+    }
+  | {
+      type: 'permission';
+      permissionId: string;
+      action: string;
+      resource: string;
+    };
+
 function emit(manager: SseManager, event: SseEvent): void {
   manager.broadcast(event);
 }
@@ -258,7 +273,7 @@ export function createSdkBridge(params: {
     active.aborted = false;
   }
 
-  function handleAgentEvent(active: ActiveAgentSession, event: AgentSessionEvent): void {
+  function handleAgentEvent(active: ActiveAgentSession, event: ExtendedAgentSessionEvent): void {
     switch (event.type) {
       case 'agent_start':
       case 'turn_start':
@@ -328,6 +343,28 @@ export function createSdkBridge(params: {
           toolCallId: event.toolCallId,
           result: stringifyResult(event.result),
           success: !event.isError,
+          timestamp: now(),
+        });
+        break;
+      case 'question':
+        emit(sseManager, {
+          type: 'question',
+          sessionId: active.sessionId,
+          messageId: active.assistantMessageId ?? config.generateSessionId(),
+          questionId: event.questionId,
+          question: event.question,
+          options: event.options,
+          timestamp: now(),
+        });
+        break;
+      case 'permission':
+        emit(sseManager, {
+          type: 'permission',
+          sessionId: active.sessionId,
+          messageId: active.assistantMessageId ?? config.generateSessionId(),
+          permissionId: event.permissionId,
+          action: event.action,
+          resource: event.resource,
           timestamp: now(),
         });
         break;
