@@ -113,13 +113,11 @@ function StatusChip({ state, message }: { state: StreamingState; message: string
 
 function AppHeader({
   sessionName,
-  modelName,
   state,
   statusMessage,
   onToggleSidebar,
 }: {
   sessionName: string;
-  modelName: string;
   state: StreamingState;
   statusMessage: string;
   onToggleSidebar: () => void;
@@ -142,13 +140,6 @@ function AppHeader({
         </button>
 
         <span className="app-header-title">{sessionName || 'Nessuna sessione'}</span>
-
-        {modelName && (
-          <>
-            <span style={{ color: 'var(--border)', fontSize: '0.75rem' }} aria-hidden>·</span>
-            <span className="app-header-model">{modelName}</span>
-          </>
-        )}
       </div>
 
       <div className="app-header-right">
@@ -218,7 +209,6 @@ export default function App() {
     ?? models[0]?.key
     ?? '';
 
-  const currentModel = models.find((m) => m.key === activeModelKey);
   const currentDirectoryLabel = formatDirectoryLabel(currentDirectory);
   const interactionItems = useMemo(
     () => conversation.filter(
@@ -473,9 +463,12 @@ export default function App() {
       <ComposerPanel
         prompt={prompt}
         streaming={streaming}
+        models={models}
+        activeModelKey={activeModelKey}
         onPromptChange={setPrompt}
         onSend={handleSend}
         onAbort={handleAbort}
+        onModelSelect={handleModelSelect}
       />
     </>
   ) : (
@@ -493,7 +486,6 @@ export default function App() {
       <main className="content">
         <AppHeader
           sessionName={currentSession?.title ?? currentDirectoryLabel ?? ''}
-          modelName={currentModel?.label ?? ''}
           state={streaming}
           statusMessage={statusMessage}
           onToggleSidebar={() => setSidebarOpen((o) => !o)}

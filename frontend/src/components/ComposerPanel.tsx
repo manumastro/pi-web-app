@@ -1,11 +1,14 @@
-import type { StreamingState } from '../types';
+import type { ModelInfo, StreamingState } from '../types';
 
 interface ComposerPanelProps {
   prompt: string;
   streaming: StreamingState;
+  models: ModelInfo[];
+  activeModelKey: string;
   onPromptChange: (value: string) => void;
   onSend: () => Promise<void>;
   onAbort: () => Promise<void>;
+  onModelSelect: (modelKey: string) => void;
 }
 
 function SendIcon() {
@@ -30,15 +33,43 @@ function StopIcon() {
   );
 }
 
+function ChevronDownIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+interface ModelGroup {
+  provider: string;
+  models: ModelInfo[];
+}
+
+function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
+  const groups = new Map<string, ModelInfo[]>();
+  for (const model of models) {
+    const p = model.provider ?? 'other';
+    const list = groups.get(p) ?? [];
+    list.push(model);
+    groups.set(p, list);
+  }
+  return Array.from(groups.entries()).map(([provider, ms]) => ({ provider, models: ms }));
+}
+
 export default function ComposerPanel({
   prompt,
   streaming,
+  models,
+  activeModelKey,
   onPromptChange,
   onSend,
   onAbort,
+  onModelSelect,
 }: ComposerPanelProps) {
   const isStreaming = streaming === 'streaming';
   const isEmpty = prompt.trim().length === 0;
+  const groups = groupModelsByProvider(models.filter((m) => m.available));
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -68,6 +99,37 @@ export default function ComposerPanel({
         />
 
         <div className="composer-actions">
+          {/* Model selector */}
+          <div className="model-selector">
+            <select
+              className="model-select"
+              value={activeModelKey}
+              onChange={(e) => {
+                if (e.target.value === '__manage__') {
+                  // Open model filter in sidebar — for now just focus the filter
+                  return;
+                }
+                onModelSelect(e.target.value);
+              }}
+              disabled={isStreaming}
+              title="Seleziona modello"
+              aria-label="Seleziona modello"
+            >
+              {groups.map((group) => (
+                <optgroup key={group.provider} label={group.provider}>
+                  {group.models.map((m) => (
+                    <option key={m.key} value={m.key}>
+                      {m.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <span className="model-select-chevron">
+              <ChevronDownIcon />
+            </span>
+          </div>
+
           <span className="composer-hint">
             {isStreaming ? 'Streaming in corso…' : 'Enter invia · Shift+Enter nuova riga'}
           </span>

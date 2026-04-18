@@ -12,14 +12,18 @@ export function createMessagesRouter(bridge: SdkBridge): Router {
       return;
     }
 
-    const result = await bridge.prompt({
-      sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined,
-      cwd: typeof req.body?.cwd === 'string' ? req.body.cwd : undefined,
-      message,
-      model: typeof req.body?.model === 'string' ? req.body.model : undefined,
-    });
-
-    res.status(202).json(result);
+    try {
+      const result = await bridge.prompt({
+        sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined,
+        cwd: typeof req.body?.cwd === 'string' ? req.body.cwd : undefined,
+        message,
+        model: typeof req.body?.model === 'string' ? req.body.model : undefined,
+      });
+      res.status(202).json(result);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      res.status(500).json({ error });
+    }
   });
 
   router.post('/abort', async (req: Request, res: Response) => {

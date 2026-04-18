@@ -787,18 +787,71 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .composer-hint {
   font-size: var(--text-meta);
   color: var(--muted);
+  flex: 1;
 }
 
 .composer-buttons {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Model selector */
+.model-selector {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.model-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-meta);
+  padding: 0.3rem 2rem 0.3rem 0.6rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 120ms ease;
+  max-width: 200px;
+}
+
+.model-select:hover {
+  border-color: var(--border-hover);
+}
+
+.model-select:focus {
+  border-color: var(--accent);
+}
+
+.model-select optgroup {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.model-select option {
+  color: var(--foreground);
+  background: var(--surface-2);
+}
+
+.model-select-chevron {
+  position: absolute;
+  right: 0.45rem;
+  pointer-events: none;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
 }
 
 /* =============================================
