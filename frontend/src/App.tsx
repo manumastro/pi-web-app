@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import './styles.css';
 import { apiGet, apiRequest } from './api';
 import ConversationPanel from './components/ConversationPanel';
 import ComposerPanel from './components/ComposerPanel';
 import SidebarPanel from './components/SidebarPanel';
-import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem, type SsePayload } from './chatState';
+import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem } from './chatState';
+import { useSessionStream } from './hooks/useSessionStream';
 import type { ModelInfo, SessionInfo } from './types';
 
 function getQueryParam(name: string): string {
@@ -34,7 +35,6 @@ export default function App() {
   const [streaming, setStreaming] = useState<'idle' | 'connecting' | 'streaming' | 'error'>('connecting');
   const [statusMessage, setStatusMessage] = useState('Caricamento...');
   const [error, setError] = useState('');
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   const currentSession = useMemo(
     () => sessions.find((session) => session.id === sessionId),
@@ -77,6 +77,7 @@ export default function App() {
 
     (async () => {
       try {
+        setStatusMessage('Caricamento...');
         await refreshModels();
         await refreshSessions(cwd);
 
@@ -103,68 +104,35 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-
-    eventSourceRef.current?.close();
-    setStreaming('connecting');
-    setStatusMessage('Connessione SSE...');
-    const source = new EventSource(`/api/events?sessionId=${encodeURIComponent(sessionId)}`);
-    eventSourceRef.current = source;
-
-    source.onopen = () => {
-      setStreaming('idle');
-      setStatusMessage('SSE attivo');
-      setError('');
-    };
-
-    const applyPayload = (event: MessageEvent): void => {
-      const payload = JSON.parse(event.data) as SsePayload;
-      if (payload.sessionId !== sessionId) {
+  useSessionStream({
+    sessionId,
+    onPayload: (payload) => {
+      setConversation((current) => applySsePayload(current, payload));
+      if (payload.type === 'text_chunk') {
+        setStreaming('streaming');
         return;
       }
-      setConversation((current) => applySsePayload(current, payload));
-    };
-
-    source.addEventListener('text_chunk', (event) => {
-      applyPayload(event as MessageEvent);
-      setStreaming('streaming');
-    });
-    source.addEventListener('thinking', (event) => applyPayload(event as MessageEvent));
-    source.addEventListener('tool_call', (event) => applyPayload(event as MessageEvent));
-    source.addEventListener('tool_result', (event) => applyPayload(event as MessageEvent));
-    source.addEventListener('done', (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
-      if (payload.sessionId !== sessionId) {
+      if (payload.type === 'done') {
+        setStreaming('idle');
+        setStatusMessage(payload.aborted ? 'Risposta interrotta' : 'Risposta completata');
         return;
       }
-      setStreaming('idle');
-      setStatusMessage(payload.aborted ? 'Risposta interrotta' : 'Risposta completata');
-      setConversation((current) => applySsePayload(current, payload));
-    });
-    source.addEventListener('error', (event) => {
-      if (event instanceof MessageEvent && event.data) {
-        const payload = JSON.parse(event.data) as SsePayload;
-        if (payload.sessionId !== sessionId) {
-          return;
-        }
-        setConversation((current) => applySsePayload(current, payload));
+      if (payload.type === 'error') {
         setError(payload.message ?? 'Errore del motore');
         setStatusMessage('Errore dal motore');
         setStreaming('error');
-        return;
       }
-
+    },
+    onConnected: () => {
+      setStreaming('idle');
+      setStatusMessage('SSE attivo');
+      setError('');
+    },
+    onConnectionLost: () => {
       setStreaming('connecting');
       setStatusMessage('Connessione persa, riconnessione in corso...');
-    });
-
-    return () => {
-      source.close();
-    };
-  }, [sessionId]);
+    },
+  });
 
   async function handleSend(): Promise<void> {
     const text = prompt.trim();
@@ -174,6 +142,7 @@ export default function App() {
 
     setError('');
     setStreaming('streaming');
+    setStatusMessage('Invio prompt...');
     setConversation((current) => appendPrompt(current, text));
     setPrompt('');
 
@@ -197,6 +166,7 @@ export default function App() {
 
     setError('');
     setPrompt('');
+    setStatusMessage('Invio steer...');
 
     try {
       await apiRequest('/api/messages/steer', {
@@ -218,6 +188,7 @@ export default function App() {
 
     setError('');
     setPrompt('');
+    setStatusMessage('Invio follow-up...');
 
     try {
       await apiRequest('/api/messages/follow-up', {
