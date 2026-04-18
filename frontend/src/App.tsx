@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './styles.css';
 import { apiGet, apiRequest } from './api';
+import ConversationPanel from './components/ConversationPanel';
+import ComposerPanel from './components/ComposerPanel';
 import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem, type SsePayload } from './chatState';
 import type { ModelInfo, SessionInfo } from './types';
 
@@ -18,10 +20,6 @@ function setQueryParams(params: { cwd?: string; sessionId?: string }): void {
   }
   const next = `${window.location.pathname}?${search.toString()}`;
   window.history.replaceState({}, '', next);
-}
-
-function formatTimestamp(timestamp: string): string {
-  return timestamp === 'streaming' ? 'in streaming' : new Date(timestamp).toLocaleString();
 }
 
 export default function App() {
@@ -110,6 +108,7 @@ export default function App() {
 
     eventSourceRef.current?.close();
     setStreaming('connecting');
+    setStatusMessage('Connessione SSE...');
     const source = new EventSource(`/api/events?sessionId=${encodeURIComponent(sessionId)}`);
     eventSourceRef.current = source;
 
@@ -119,39 +118,21 @@ export default function App() {
       setError('');
     };
 
+    const applyPayload = (event: MessageEvent): void => {
+      const payload = JSON.parse(event.data) as SsePayload;
+      if (payload.sessionId !== sessionId) {
+        return;
+      }
+      setConversation((current) => applySsePayload(current, payload));
+    };
+
     source.addEventListener('text_chunk', (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
-      if (payload.sessionId !== sessionId) {
-        return;
-      }
+      applyPayload(event as MessageEvent);
       setStreaming('streaming');
-      setConversation((current) => applySsePayload(current, payload));
     });
-
-    source.addEventListener('thinking', (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
-      if (payload.sessionId !== sessionId) {
-        return;
-      }
-      setConversation((current) => applySsePayload(current, payload));
-    });
-
-    source.addEventListener('tool_call', (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
-      if (payload.sessionId !== sessionId) {
-        return;
-      }
-      setConversation((current) => applySsePayload(current, payload));
-    });
-
-    source.addEventListener('tool_result', (event) => {
-      const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
-      if (payload.sessionId !== sessionId) {
-        return;
-      }
-      setConversation((current) => applySsePayload(current, payload));
-    });
-
+    source.addEventListener('thinking', (event) => applyPayload(event as MessageEvent));
+    source.addEventListener('tool_call', (event) => applyPayload(event as MessageEvent));
+    source.addEventListener('tool_result', (event) => applyPayload(event as MessageEvent));
     source.addEventListener('done', (event) => {
       const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
       if (payload.sessionId !== sessionId) {
@@ -161,7 +142,6 @@ export default function App() {
       setStatusMessage(payload.aborted ? 'Risposta interrotta' : 'Risposta completata');
       setConversation((current) => applySsePayload(current, payload));
     });
-
     source.addEventListener('error', (event) => {
       if (event instanceof MessageEvent && event.data) {
         const payload = JSON.parse(event.data) as SsePayload;
@@ -175,8 +155,8 @@ export default function App() {
         return;
       }
 
-      setStreaming('error');
-      setStatusMessage('Connessione persa');
+      setStreaming('connecting');
+      setStatusMessage('Connessione persa, riconnessione in corso...');
     });
 
     return () => {
@@ -359,95 +339,17 @@ export default function App() {
       </aside>
 
       <main className="content">
-        <section className="panel messages-panel">
-          <div className="panel-title">Conversazione</div>
-          <div className="messages">
-            {conversation.length === 0 ? <p className="muted">Nessun messaggio ancora.</p> : null}
-            {conversation.map((item) => {
-              if (item.kind === 'message') {
-                return (
-                  <article key={item.id} className={`message ${item.role} ${item.status ?? 'complete'}`}>
-                    <header>
-                      <strong>{item.role}</strong>
-                      <span>{formatTimestamp(item.timestamp)}</span>
-                    </header>
-                    <pre>{item.content || '...'}</pre>
-                  </article>
-                );
-              }
-
-              if (item.kind === 'thinking') {
-                return (
-                  <details key={item.id} className="message thinking" open={item.done}>
-                    <summary>
-                      <strong>thinking</strong>
-                      <span>{formatTimestamp(item.timestamp)}</span>
-                    </summary>
-                    <pre>{item.content || '...'}</pre>
-                  </details>
-                );
-              }
-
-              if (item.kind === 'tool_call') {
-                return (
-                  <article key={item.id} className="message tool-call">
-                    <header>
-                      <strong>tool · {item.toolName}</strong>
-                      <span>{formatTimestamp(item.timestamp)}</span>
-                    </header>
-                    <pre>{item.input}</pre>
-                  </article>
-                );
-              }
-
-              if (item.kind === 'tool_result') {
-                return (
-                  <article key={item.id} className={`message tool-result ${item.success ? 'success' : 'error'}`}>
-                    <header>
-                      <strong>result · {item.toolCallId}</strong>
-                      <span>{formatTimestamp(item.timestamp)}</span>
-                    </header>
-                    <pre>{item.result || '...'}</pre>
-                  </article>
-                );
-              }
-
-              return (
-                <article key={item.id} className="message error">
-                  <header>
-                    <strong>error · {item.category}</strong>
-                    <span>{formatTimestamp(item.timestamp)}</span>
-                  </header>
-                  <pre>{item.message}</pre>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="panel composer">
-          <textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Scrivi un prompt..."
-            rows={4}
-            disabled={streaming === 'streaming'}
-          />
-          <div className="actions">
-            <button onClick={handleSend} disabled={streaming === 'streaming' || prompt.trim().length === 0}>
-              Invia
-            </button>
-            <button onClick={handleSteer} disabled={prompt.trim().length === 0 || !sessionId}>
-              Steer
-            </button>
-            <button onClick={handleFollowUp} disabled={prompt.trim().length === 0 || !sessionId}>
-              Follow-up
-            </button>
-            <button onClick={handleAbort} disabled={streaming !== 'streaming'}>
-              Stop
-            </button>
-          </div>
-        </section>
+        {streaming === 'connecting' ? <div className="connection-banner">Riconnessione in corso...</div> : null}
+        <ConversationPanel conversation={conversation} />
+        <ComposerPanel
+          prompt={prompt}
+          setPrompt={setPrompt}
+          streaming={streaming}
+          onSend={handleSend}
+          onSteer={handleSteer}
+          onFollowUp={handleFollowUp}
+          onAbort={handleAbort}
+        />
       </main>
     </div>
   );

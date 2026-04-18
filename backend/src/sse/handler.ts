@@ -12,12 +12,18 @@ export function createSseRouter(sseManager: SseManager): Router {
       return;
     }
 
+    const lastEventId = typeof req.header('last-event-id') === 'string'
+      ? req.header('last-event-id')
+      : typeof req.query.lastEventId === 'string'
+        ? req.query.lastEventId
+        : undefined;
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const client = sseManager.subscribe(sessionId, res);
+    const client = sseManager.subscribe(sessionId, res, lastEventId ?? undefined);
 
     const heartbeat = setInterval(() => {
       res.write(': heartbeat\n\n');
