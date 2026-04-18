@@ -3,6 +3,8 @@ import type { ModelInfo, SessionInfo } from '../types';
 interface SidebarPanelProps {
   cwd: string;
   setCwd: (value: string) => void;
+  sessionFilter: string;
+  setSessionFilter: (value: string) => void;
   statusMessage: string;
   error: string;
   sessions: SessionInfo[];
@@ -23,6 +25,8 @@ function formatUpdatedAt(value: string): string {
 export default function SidebarPanel({
   cwd,
   setCwd,
+  sessionFilter,
+  setSessionFilter,
   statusMessage,
   error,
   sessions,
@@ -35,6 +39,14 @@ export default function SidebarPanel({
   onSelectSession,
   onDeleteSession,
 }: SidebarPanelProps) {
+  const normalizedFilter = sessionFilter.trim().toLowerCase();
+  const visibleSessions = normalizedFilter
+    ? sessions.filter((session) => {
+        const haystack = [session.id, session.cwd, session.model ?? ''].join(' ').toLowerCase();
+        return haystack.includes(normalizedFilter);
+      })
+    : sessions;
+
   return (
     <aside className="sidebar">
       <div className="panel">
@@ -65,9 +77,21 @@ export default function SidebarPanel({
       </div>
 
       <div className="panel">
-        <div className="panel-title">Sessioni</div>
+        <label>
+          Cerca sessioni
+          <input
+            aria-label="Cerca sessioni"
+            value={sessionFilter}
+            onChange={(event) => setSessionFilter(event.target.value)}
+            placeholder="id, cwd, modello"
+          />
+        </label>
+        <div className="panel-title session-count">
+          Sessioni <span>{visibleSessions.length}/{sessions.length}</span>
+        </div>
         <div className="session-list">
-          {sessions.map((session) => {
+          {visibleSessions.length === 0 ? <p className="muted">Nessuna sessione corrisponde al filtro.</p> : null}
+          {visibleSessions.map((session) => {
             const isActive = session.id === sessionId;
             return (
               <div key={session.id} className={isActive ? 'session active' : 'session'}>

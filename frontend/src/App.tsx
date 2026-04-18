@@ -27,6 +27,7 @@ export default function App() {
   const [cwd, setCwd] = useState(() => getQueryParam('cwd') || '/');
   const [sessionId, setSessionId] = useState(() => getQueryParam('session'));
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [sessionFilter, setSessionFilter] = useState('');
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [conversation, setConversation] = useState<ConversationItem[]>([]);
   const [prompt, setPrompt] = useState('');
@@ -284,6 +285,8 @@ export default function App() {
       <SidebarPanel
         cwd={cwd}
         setCwd={setCwd}
+        sessionFilter={sessionFilter}
+        setSessionFilter={setSessionFilter}
         statusMessage={statusMessage}
         error={error}
         sessions={sessions}

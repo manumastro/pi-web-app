@@ -120,6 +120,12 @@ textarea {
   gap: 0.5rem;
 }
 
+.session-count {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .session {
   display: grid;
   gap: 0.2rem;
@@ -207,6 +213,47 @@ textarea {
 
 .message summary::-webkit-details-marker {
   display: none;
+}
+
+.message-timestamp {
+  color: #8f9fbd;
+  font-size: 0.85rem;
+}
+
+.message-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e6edf7;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.message-badge.streaming,
+.message-badge.live {
+  background: rgba(92, 200, 255, 0.18);
+}
+
+.message-badge.complete,
+.message-badge.done,
+.message-badge.success {
+  background: rgba(52, 211, 153, 0.18);
+}
+
+.message-badge.error,
+.message-badge.fatal {
+  background: rgba(251, 113, 133, 0.18);
+}
+
+.message-badge.recoverable,
+.message-badge.thinking,
+.message-badge.tool_call,
+.message-badge.tool_result {
+  background: rgba(167, 139, 250, 0.18);
 }
 
 .message pre {
