@@ -1,0 +1,174 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0b1020;
+  color: #e6edf7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  min-width: 100%;
+}
+
+body {
+  background: linear-gradient(180deg, #09101f 0%, #0f172a 100%);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #2a3556;
+  border-radius: 10px;
+  background: #16213a;
+  color: #e6edf7;
+  padding: 0.7rem 0.9rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid #2a3556;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e6edf7;
+  padding: 0.75rem 0.9rem;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar,
+.content {
+  padding: 1rem;
+}
+
+.sidebar {
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(5, 10, 20, 0.5);
+}
+
+.panel {
+  background: rgba(16, 24, 40, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.panel-title {
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.muted {
+  color: #9fb0cf;
+}
+
+.error {
+  color: #ff8f8f;
+}
+
+.session-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.session {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: start;
+  text-align: left;
+  position: relative;
+}
+
+.session.active {
+  border-color: #7c8cff;
+}
+
+.session .delete {
+  position: absolute;
+  right: 0.7rem;
+  top: 0.65rem;
+  color: #ffb3b3;
+}
+
+.messages-panel {
+  min-height: 58vh;
+}
+
+.messages {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.message {
+  padding: 0.9rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.message.user {
+  border-left: 4px solid #5cc8ff;
+}
+
+.message.assistant {
+  border-left: 4px solid #8bffb0;
+}
+
+.message header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  color: #adc0e0;
+}
+
+.message pre {
+  white-space: pre-wrap;
+  margin: 0;
+  font-family: inherit;
+}
+
+.composer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}

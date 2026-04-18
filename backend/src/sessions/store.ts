@@ -26,7 +26,7 @@ export interface Message {
 export interface Session {
   id: string;
   cwd: string;
-  model?: string;
+  model: string | undefined;
   status: SessionStatus;
   messages: Message[];
   createdAt: string;
