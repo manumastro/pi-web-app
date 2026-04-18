@@ -32,17 +32,40 @@
 - Backend SDK bridge integrated with `@mariozechner/pi-coding-agent`, including dynamic `ModelRegistry` model keys.
 - Persistent JSONL session storage and replayable SSE history on disk.
 - REST + SSE backend wiring for sessions, messages, models, and live event streaming.
-- OpenChamber-inspired frontend layout (Flexoki dark palette, IBM Plex fonts, 280px sidebar, 48px header, status chip).
+- **OpenChamber-aligned frontend** with Tailwind CSS v4, Radix UI primitives, Flexoki dark palette, 250px sidebar, and 56px header.
 - Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
+- Model selection mirrors the CLI `/models` availability list: only selectable/available models are shown in the picker.
 - Question/permission interaction UI with inline answer cards.
 - Send-only composer (Enter to send, Shift+Enter newline), Stop button.
 - SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
-- Build/test green (16 frontend tests, 71 backend tests), live `pi-web.service` on `0.0.0.0:3210`.
+- **Build/test green (18 frontend tests, 71 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
+- Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` to prevent `totalTokens` crashes in multi-turn sessions.
+- Model selection now persisted per-session via `PUT /api/models/session/model`; active model is selected by `isSelected` flag from the API.
 
-### 0.2 Notes
+### 0.2 OpenChamber Migration Complete ✅
+
+The frontend has been restructured to match OpenChamber's architecture:
+
+```
+frontend/src/
+├── components/
+│   ├── chat/          # ChatView, ConversationPanel, ComposerPanel, etc.
+│   ├── layout/        # MainLayout, Header, Sidebar
+│   ├── session/       # SidebarPanel (directories, sessions, models)
+│   ├── ui/            # 20+ Radix-based primitives (Button, Dialog, etc.)
+│   └── views/         # ChatView container
+├── stores/           # Zustand stores (chatStore, sessionStore, uiStore)
+├── lib/              # Utilities (cn helper)
+├── styles/           # design-system.css, typography.css (Flexoki tokens)
+└── types.ts
+```
+
+### 0.3 Notes
 
 - Implementation is production-shaped and actively serving at `http://161.97.116.63:3210`.
 - Blueprint remains the planning source of truth for deferred items.
+- **OpenChamber migration complete** - frontend now uses same component organization, styling system, and UI primitives; model lists are now filtered to CLI-available models only.
+- Zustand stores fully integrated into App.tsx (chatStore, sessionStore, uiStore).
 - Remaining deferred: light theme, markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, slash commands, todo system.
 
 ## 1. Vision & Principles
@@ -1547,7 +1570,7 @@ NODE_PATH=/usr/bin/node
 - QuestionPermissionPanel: inline cards with option buttons and free-text answer input.
 - SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
 - Server binds to `0.0.0.0:3210` (accessible from public IP).
-- Build green, 71 backend tests + 16 frontend tests passing, `pi-web.service` active.
+- Build green, 71 backend tests + 18 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
 - Final polish: markdown rendering in messages, syntax highlighting for code blocks, keyboard shortcuts.

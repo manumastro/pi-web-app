@@ -223,6 +223,9 @@ export function createSdkBridge(params: {
 
     const stored = ensureStoredSession(sessionId, cwd, modelId);
     const settingsManager = SettingsManager.create(stored.cwd);
+    settingsManager.applyOverrides({
+      compaction: { enabled: false },
+    });
     const { session } = await createAgentSession({
       cwd: stored.cwd,
       sessionManager: SessionManager.inMemory(),

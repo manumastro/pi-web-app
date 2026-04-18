@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useCallback } from 'react';
 import { apiGet, apiRequest } from './api';
 import { appendPrompt, applySsePayload, messagesToConversation } from './chatState';
-import ComposerPanel from './components/ComposerPanel';
-import ConversationPanel from './components/ConversationPanel';
-import QuestionPermissionPanel from './components/QuestionPermissionPanel';
-import SidebarPanel from './components/SidebarPanel';
+import type { SsePayload } from './chatState';
 import {
   buildPermissionDecisionMessage,
   buildPermissionStatusLabel,
@@ -12,8 +9,30 @@ import {
   buildQuestionStatusLabel,
 } from './interactionMessages';
 import { useSessionStream } from './hooks/useSessionStream';
-import type { ConversationItem, PermissionItem, QuestionItem } from './chatState';
-import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from './types';
+import type { PermissionItem, QuestionItem } from './chatState';
+import type { ModelInfo, SessionInfo, StreamingState } from './types';
+
+// Store
+import { useChatStore } from './stores/chatStore';
+import { useSessionStore } from './stores/sessionStore';
+import { useUIStore } from './stores/uiStore';
+
+// Layout components
+import { MainLayout } from './components/layout/MainLayout';
+import { Header } from './components/layout/Header';
+import { Sidebar } from './components/layout/Sidebar';
+
+// Chat components
+import { ChatView } from './components/views/ChatView';
+import { ChatEmptyState } from './components/chat/ChatEmptyState';
+import { ConversationPanel } from './components/chat/ConversationPanel';
+import { ComposerPanel } from './components/chat/ComposerPanel';
+import { PermissionCard } from './components/chat/PermissionCard';
+import { QuestionCard } from './components/chat/QuestionCard';
+import { StatusRow } from './components/chat/StatusRow';
+import { Toaster } from './components/ui';
+
+// ─── Query Params ─────────────────────────────────────────────────────────────
 
 function getQueryParam(name: string): string {
   return new URLSearchParams(window.location.search).get(name) ?? '';
@@ -21,282 +40,162 @@ function getQueryParam(name: string): string {
 
 function setQueryParams(params: { cwd?: string; sessionId?: string }): void {
   const search = new URLSearchParams(window.location.search);
-  if (params.cwd !== undefined) {
-    search.set('cwd', params.cwd);
-  }
-  if (params.sessionId !== undefined) {
-    search.set('sessionId', params.sessionId);
-  }
+  if (params.cwd !== undefined) search.set('cwd', params.cwd);
+  if (params.sessionId !== undefined) search.set('sessionId', params.sessionId);
   const nextSearch = search.toString();
   const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
   window.history.replaceState({}, '', nextUrl);
 }
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDirectoryLabel(cwd: string): string {
   const parts = cwd.split('/').filter(Boolean);
   return parts.at(-1) ?? (cwd === '/' ? 'root' : cwd);
 }
 
-function summarizeDirectories(sessions: SessionInfo[]): DirectoryInfo[] {
-  const grouped = new Map<string, DirectoryInfo>();
-  for (const session of sessions) {
-    const current = grouped.get(session.cwd);
-    if (current) {
-      current.sessionCount += 1;
-      if (session.updatedAt > current.updatedAt) {
-        current.updatedAt = session.updatedAt;
-      }
-      continue;
-    }
-    grouped.set(session.cwd, {
-      cwd: session.cwd,
-      label: formatDirectoryLabel(session.cwd),
-      sessionCount: 1,
-      updatedAt: session.updatedAt,
-    });
-  }
-  return Array.from(grouped.values()).sort((l, r) => r.updatedAt.localeCompare(l.updatedAt));
-}
+// ─── Connection Banner ───────────────────────────────────────────────────────
 
-function pickInitialSelection(
-  sessions: SessionInfo[],
-  queryCwd: string,
-  querySessionId: string,
-): { cwd: string; sessionId: string } {
-  if (querySessionId) {
-    const found = sessions.find((s) => s.id === querySessionId);
-    if (found) return { cwd: found.cwd, sessionId: found.id };
-  }
-  const directories = summarizeDirectories(sessions);
-  if (queryCwd) {
-    const found = directories.find((d) => d.cwd === queryCwd);
-    if (found) {
-      const first = sessions.find((s) => s.cwd === found.cwd);
-      return { cwd: found.cwd, sessionId: first?.id ?? '' };
-    }
-  }
-  if (directories[0]) {
-    const first = sessions.find((s) => s.cwd === directories[0]!.cwd);
-    return { cwd: directories[0]!.cwd, sessionId: first?.id ?? '' };
-  }
-  return { cwd: queryCwd || '/', sessionId: '' };
-}
-
-// ─── Status chip ─────────────────────────────────────────────────────────────
-
-function StatusChip({ state, message }: { state: StreamingState; message: string }) {
-  const className =
-    state === 'streaming' || state === 'connecting'
-      ? 'status-chip connecting'
-      : state === 'error'
-        ? 'status-chip error'
-        : 'status-chip';
-
-  const dots =
-    state === 'streaming' || state === 'connecting' ? (
-      <span className="thinking-dots" aria-hidden>
-        <span />
-        <span />
-        <span />
-      </span>
-    ) : null;
-
+function ConnectionBanner({ state, message }: { state: StreamingState; message: string }) {
+  if (state === 'idle') return null;
   return (
-    <span className={className} title={message}>
-      {dots}
-      {message}
-    </span>
-  );
-}
-
-// ─── Header ──────────────────────────────────────────────────────────────────
-
-function AppHeader({
-  sessionName,
-  state,
-  statusMessage,
-  onToggleSidebar,
-}: {
-  sessionName: string;
-  state: StreamingState;
-  statusMessage: string;
-  onToggleSidebar: () => void;
-}) {
-  return (
-    <header className="app-header">
-      <div className="app-header-left">
-        <button
-          type="button"
-          className="btn btn-ghost btn-icon btn-sm"
-          onClick={onToggleSidebar}
-          aria-label="Toggle sidebar"
-          title="Sidebar"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <rect x="1" y="3" width="14" height="1.5" rx="0.75" fill="currentColor" />
-            <rect x="1" y="7.25" width="14" height="1.5" rx="0.75" fill="currentColor" />
-            <rect x="1" y="11.5" width="14" height="1.5" rx="0.75" fill="currentColor" />
-          </svg>
-        </button>
-
-        <span className="app-header-title">{sessionName || 'Nessuna sessione'}</span>
-      </div>
-
-      <div className="app-header-right">
-        <StatusChip state={state} message={statusMessage} />
-      </div>
-    </header>
-  );
-}
-
-// ─── Empty state ─────────────────────────────────────────────────────────────
-
-function EmptyState({ onNewSession }: { onNewSession: () => void }) {
-  return (
-    <div className="empty-state">
-      <svg
-        className="empty-state-icon"
-        width="56"
-        height="56"
-        viewBox="0 0 56 56"
-        fill="none"
-        aria-hidden
-      >
-        <circle cx="28" cy="28" r="26" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 3" />
-        <path
-          d="M20 28h16M28 20v16"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          opacity="0.5"
-        />
-      </svg>
-      <p className="empty-state-title">Nessuna sessione</p>
-      <p className="empty-state-subtitle">Seleziona una sessione nella sidebar o creane una nuova.</p>
-      <button type="button" className="btn btn-primary btn-sm" onClick={onNewSession}>
-        Nuova sessione
-      </button>
+    <div className={`connection-banner ${state === 'error' ? 'error' : ''}`}>
+      {state === 'connecting' ? '⟳' : state === 'streaming' ? '◉' : '✗'} {message}
     </div>
   );
 }
 
-// ─── Main App ────────────────────────────────────────────────────────────────
+// ─── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [selectedDirectory, setSelectedDirectory] = useState(() => getQueryParam('cwd') || '/');
-  const [sessionId, setSessionId] = useState<string>(() => getQueryParam('sessionId') || '');
-  const [modelFilter, setModelFilter] = useState('');
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [conversation, setConversation] = useState<ConversationItem[]>([]);
-  const [prompt, setPrompt] = useState('');
-  const [streaming, setStreaming] = useState<StreamingState>('idle');
-  const [statusMessage, setStatusMessage] = useState('Connessione in corso…');
-  const [error, setError] = useState('');
+  // ─── Store Selectors ────────────────────────────────────────────────────────
+  const {
+    conversation,
+    streaming,
+    statusMessage,
+    error,
+    setConversation,
+    appendPrompt: storeAppendPrompt,
+    setStreaming,
+    setStatusMessage,
+    setError,
+  } = useChatStore();
 
-  const sortedSessions = useMemo(
-    () => [...sessions].sort((l, r) => r.updatedAt.localeCompare(l.updatedAt)),
-    [sessions],
-  );
+  const {
+    sessions,
+    sortedSessions,
+    projectDirectories,
+    currentSession,
+    visibleSessions,
+    selectedDirectory,
+    selectedSessionId,
+    setSessions,
+    addSession,
+    updateSession,
+    deleteSession: deleteSessionFromStore,
+    setSelectedDirectory,
+    setSelectedSessionId,
+  } = useSessionStore();
 
-  const projectDirectories = useMemo(() => summarizeDirectories(sortedSessions), [sortedSessions]);
-  const currentSession = sessions.find((s) => s.id === sessionId);
+  const {
+    sidebarOpen,
+    toggleSidebar,
+    modelFilter,
+    setModelFilter,
+    models,
+    setModels,
+    activeModelKey,
+    setActiveModel,
+    prompt,
+    setPrompt,
+  } = useUIStore();
+
+  // ─── Derived State ──────────────────────────────────────────────────────────
   const currentDirectory = currentSession?.cwd ?? selectedDirectory;
-
-  const activeModelKey = currentSession?.model
-    ?? models.find((m) => m.available)?.key
-    ?? models[0]?.key
-    ?? '';
-
   const currentDirectoryLabel = formatDirectoryLabel(currentDirectory);
-  const interactionItems = useMemo(
-    () => conversation.filter(
-      (item): item is QuestionItem | PermissionItem =>
-        item.kind === 'question' || item.kind === 'permission',
-    ),
-    [conversation],
+  const interactionItems = conversation.filter(
+    (item): item is QuestionItem | PermissionItem =>
+      item.kind === 'question' || item.kind === 'permission',
   );
 
-  const visibleSessions = useMemo(
-    () =>
-      sortedSessions
-        .filter((s) => s.cwd === selectedDirectory)
-        .sort((l, r) => r.updatedAt.localeCompare(l.updatedAt)),
-    [sortedSessions, selectedDirectory],
-  );
-
-  async function loadSessions(): Promise<SessionInfo[]> {
-    const payload = await apiGet<{ sessions: SessionInfo[] }>('/api/sessions');
-    const next = [...payload.sessions].sort((l, r) => r.updatedAt.localeCompare(l.updatedAt));
-    setSessions(next);
-    return next;
-  }
-
-  async function refreshModels(selSessionId = sessionId): Promise<ModelInfo[]> {
+  // ─── API Functions ──────────────────────────────────────────────────────────
+  const refreshModels = useCallback(async (selSessionId?: string): Promise<ModelInfo[]> => {
     const url = selSessionId
       ? `/api/models?sessionId=${encodeURIComponent(selSessionId)}`
       : '/api/models';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const payload = await apiGet<{ models: any[] }>(url);
-    const mapped: ModelInfo[] = (payload.models ?? []).map((m) => ({
-      key: String(m.key ?? ''),
-      id: String(m.id ?? ''),
-      label: String(m.name ?? m.key?.split('/').pop() ?? m.key ?? ''),
-      available: Boolean(m.available),
-      active: Boolean(m.isSelected),
-      provider: m.provider ? String(m.provider) : undefined,
-    }));
+    const payload = await apiGet<{ models: unknown[] }>(url);
+    const mapped: ModelInfo[] = (payload.models ?? []).map((m: unknown) => {
+      const model = m as Record<string, unknown>;
+      return {
+        key: String(model.key ?? ''),
+        id: String(model.id ?? ''),
+        label: String(model.name ?? model.key?.toString().split('/').pop() ?? model.key ?? ''),
+        available: Boolean(model.available),
+        active: Boolean(model.isSelected),
+        provider: model.provider ? String(model.provider) : undefined,
+      };
+    });
     setModels(mapped);
     return mapped;
-  }
+  }, [setModels]);
 
-  async function loadSession(targetSessionId: string): Promise<void> {
+  const loadSession = useCallback(async (targetSessionId: string): Promise<void> => {
     const payload = await apiGet<{ session: SessionInfo }>(
       `/api/sessions/${encodeURIComponent(targetSessionId)}`,
     );
     setConversation(messagesToConversation(payload.session.messages));
-    setSessionId(payload.session.id);
+    setSelectedSessionId(payload.session.id);
     setSelectedDirectory(payload.session.cwd);
     setQueryParams({ cwd: payload.session.cwd, sessionId: payload.session.id });
-  }
+    await refreshModels(payload.session.id);
+  }, [setConversation, setSelectedSessionId, setSelectedDirectory, refreshModels]);
 
-  async function loadInitialState(): Promise<void> {
+  const loadInitialState = useCallback(async (): Promise<void> => {
     setStatusMessage('Caricamento…');
     try {
-      const nextSessions = await loadSessions();
-      const { cwd, sessionId: initSid } = pickInitialSelection(
-        nextSessions,
-        getQueryParam('cwd') || selectedDirectory,
-        getQueryParam('sessionId') || sessionId,
-      );
-      setSelectedDirectory(cwd);
-      if (initSid) {
-        await loadSession(initSid);
+      const payload = await apiGet<{ sessions: SessionInfo[] }>('/api/sessions');
+      setSessions(payload.sessions);
+      
+      const queryCwd = getQueryParam('cwd') || selectedDirectory;
+      const querySessionId = getQueryParam('sessionId') || selectedSessionId;
+      
+      const firstDir = projectDirectories[0];
+      const firstSession = sortedSessions.find(s => s.cwd === (firstDir?.cwd ?? '/'));
+      
+      const targetCwd = queryCwd || firstDir?.cwd || '/';
+      const targetSessionId = querySessionId || firstSession?.id;
+      
+      if (targetSessionId) {
+        await loadSession(targetSessionId);
+        setStatusMessage('Connesso');
       } else {
-        setSessionId('');
+        setSelectedDirectory(targetCwd);
+        setSelectedSessionId('');
         setConversation([]);
-        setQueryParams({ cwd });
+        setQueryParams({ cwd: targetCwd, sessionId: '' });
+        await refreshModels(undefined);
+        setStatusMessage('Seleziona o crea una sessione');
       }
-      await refreshModels(initSid || undefined);
-      setStatusMessage(initSid ? 'Connesso' : 'Seleziona o crea una sessione');
       setError('');
     } catch (cause) {
       setStatusMessage('Errore di caricamento');
       setError(cause instanceof Error ? cause.message : 'Errore sconosciuto');
       setStreaming('error');
     }
-  }
+  }, [setSessions, setConversation, setSelectedDirectory, setSelectedSessionId, setStatusMessage, setError, setStreaming, refreshModels, loadSession, projectDirectories, sortedSessions, selectedDirectory, selectedSessionId]);
 
+  // ─── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => {
     void loadInitialState();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useSessionStream({
-    sessionId: sessionId || undefined,
-    onPayload: (payload) => {
-      setConversation((current) => applySsePayload(current, payload));
+    sessionId: selectedSessionId || undefined,
+    onPayload: (payload: SsePayload) => {
+      const currentConversation = useChatStore.getState().conversation;
+      const updated = applySsePayload(currentConversation, payload);
+      setConversation(updated);
       if (payload.type === 'done') {
         setStreaming('idle');
         setStatusMessage(payload.aborted ? 'Interrotto' : 'Connesso');
@@ -306,7 +205,8 @@ export default function App() {
       }
     },
     onConnected: () => {
-      setStreaming((cur) => (cur === 'error' ? 'error' : 'idle'));
+      const currentState = useChatStore.getState().streaming;
+      setStreaming(currentState === 'error' ? 'error' : 'idle');
       setStatusMessage('Connesso');
     },
     onConnectionLost: () => {
@@ -315,128 +215,157 @@ export default function App() {
     },
   });
 
-  async function submitPrompt(message: string, statusLabel: string): Promise<void> {
+  // ─── Handlers ───────────────────────────────────────────────────────────────
+  const submitPrompt = useCallback(async (message: string, statusLabel: string): Promise<void> => {
+    const { selectedSessionId: sessionId } = useSessionStore.getState();
+    const { activeModelKey: model } = useUIStore.getState();
+    const cwd = useSessionStore.getState().currentSession?.cwd ?? useSessionStore.getState().selectedDirectory;
     if (!sessionId) return;
     setError('');
     setStreaming('streaming');
     setStatusMessage(statusLabel);
-    setConversation((current) => appendPrompt(current, message));
+    storeAppendPrompt(message, model);
     setPrompt('');
     try {
       await apiRequest('/api/messages/prompt', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, cwd: currentDirectory, message, model: activeModelKey }),
+        body: JSON.stringify({ sessionId, cwd, message, model }),
       });
     } catch (cause) {
       setStreaming('error');
       setStatusMessage('Errore');
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }
+  }, [setError, setStreaming, setStatusMessage, storeAppendPrompt, setPrompt]);
 
-  async function handleSend(): Promise<void> {
+  const handleSend = useCallback(async (): Promise<void> => {
     const text = prompt.trim();
     if (!text) return;
     await submitPrompt(text, 'Invio…');
-  }
+  }, [prompt, submitPrompt]);
 
-  async function handleAnswerQuestion(question: QuestionItem, answer: string): Promise<void> {
+  const handleAnswerQuestion = useCallback(async (question: QuestionItem, answer: string): Promise<void> => {
     await submitPrompt(
       buildQuestionResponseMessage(question, answer),
       buildQuestionStatusLabel(question),
     );
-  }
+  }, [submitPrompt]);
 
-  async function handleApprovePermission(permission: PermissionItem): Promise<void> {
+  const handleApprovePermission = useCallback(async (permission: PermissionItem): Promise<void> => {
     await submitPrompt(
       buildPermissionDecisionMessage(permission, 'approved'),
       buildPermissionStatusLabel(permission, 'approved'),
     );
-  }
+  }, [submitPrompt]);
 
-  async function handleDenyPermission(permission: PermissionItem): Promise<void> {
+  const handleDenyPermission = useCallback(async (permission: PermissionItem): Promise<void> => {
     await submitPrompt(
       buildPermissionDecisionMessage(permission, 'denied'),
       buildPermissionStatusLabel(permission, 'denied'),
     );
-  }
+  }, [submitPrompt]);
 
-  async function handleAbort(): Promise<void> {
+  const handleAbort = useCallback(async (): Promise<void> => {
+    const sessionId = useSessionStore.getState().selectedSessionId;
     if (!sessionId) return;
     await apiRequest('/api/messages/abort', {
       method: 'POST',
       body: JSON.stringify({ sessionId }),
     });
-  }
+  }, []);
 
-  async function handleCreateSession(): Promise<void> {
-    const defaultModel = models.find((m) => m.available)?.key ?? models[0]?.key ?? '';
+  const handleCreateSession = useCallback(async (): Promise<void> => {
+    const currentModels = useUIStore.getState().models;
+    const currentDirectory = useSessionStore.getState().selectedDirectory;
+    const defaultModel = currentModels.find((m) => m.active)?.key ?? currentModels.find((m) => m.available)?.key ?? currentModels[0]?.key ?? '';
     const created = await apiRequest<{ session: SessionInfo }>('/api/sessions', {
       method: 'POST',
       body: JSON.stringify({ cwd: currentDirectory, model: defaultModel }),
     });
-    const nextSessions = [created.session, ...sessions];
-    setSessions(nextSessions);
-    setSessionId(created.session.id);
+    addSession(created.session);
+    setSelectedSessionId(created.session.id);
     setSelectedDirectory(created.session.cwd);
     setQueryParams({ cwd: created.session.cwd, sessionId: created.session.id });
     setConversation([]);
     setStatusMessage('Sessione pronta');
-  }
+    await refreshModels(created.session.id);
+  }, [addSession, setSelectedSessionId, setSelectedDirectory, setConversation, setStatusMessage, refreshModels]);
 
-  async function handleDeleteSession(targetId: string): Promise<void> {
+  const handleDeleteSession = useCallback(async (targetId: string): Promise<void> => {
+    const { selectedSessionId, selectedDirectory, sortedSessions } = useSessionStore.getState();
     await apiRequest(`/api/sessions/${encodeURIComponent(targetId)}`, { method: 'DELETE' });
-    const nextSessions = sessions.filter((s) => s.id !== targetId);
-    setSessions(nextSessions);
-    if (sessionId === targetId) {
-      const next = nextSessions.find((s) => s.cwd === selectedDirectory) ?? nextSessions[0];
+    deleteSessionFromStore(targetId);
+    
+    if (selectedSessionId === targetId) {
+      const next = sortedSessions.find((s) => s.id !== targetId);
       if (next) {
-        setSessionId(next.id);
-        setQueryParams({ cwd: next.cwd, sessionId: next.id });
         await loadSession(next.id);
       } else {
-        setSessionId('');
+        setSelectedSessionId('');
         setConversation([]);
-        setQueryParams({ cwd: selectedDirectory });
+        setQueryParams({ cwd: selectedDirectory, sessionId: '' });
         setStatusMessage('Nessuna sessione');
       }
     }
-  }
+  }, [deleteSessionFromStore, loadSession, setSelectedSessionId, setConversation, setStatusMessage]);
 
-  async function handleDirectorySelect(nextDir: string): Promise<void> {
+  const handleDirectorySelect = useCallback(async (nextDir: string): Promise<void> => {
+    const { sortedSessions } = useSessionStore.getState();
     setSelectedDirectory(nextDir);
     setModelFilter('');
-    const next = sortedSessions
-      .filter((s) => s.cwd === nextDir)
-      .sort((l, r) => r.updatedAt.localeCompare(l.updatedAt))[0];
+    const next = sortedSessions.find((s) => s.cwd === nextDir);
     if (next) {
       await loadSession(next.id);
     } else {
-      setSessionId('');
+      setSelectedSessionId('');
       setConversation([]);
       setQueryParams({ cwd: nextDir, sessionId: '' });
       setStatusMessage('Nessuna sessione in questa directory');
     }
-  }
+  }, [setSelectedDirectory, setModelFilter, loadSession, setSelectedSessionId, setConversation, setStatusMessage]);
 
-  async function handleSessionSelect(targetId: string): Promise<void> {
+  const handleSessionSelect = useCallback(async (targetId: string): Promise<void> => {
     await loadSession(targetId);
     setStatusMessage('Connesso');
-  }
+  }, [loadSession, setStatusMessage]);
 
-  async function handleModelSelect(modelKey: string): Promise<void> {
+  const handleModelSelect = useCallback(async (modelKey: string): Promise<void> => {
+    // Read current state directly to avoid stale closures
+    const currentSessionId = useSessionStore.getState().selectedSessionId;
+    const currentModels = useUIStore.getState().models;
+    
     setModelFilter('');
-    setModels((current) =>
-      current.map((m) => ({ ...m, active: m.key === modelKey })),
-    );
-  }
+    if (!currentSessionId) {
+      setModels(currentModels.map((m) => ({ ...m, active: m.key === modelKey })));
+      return;
+    }
+    try {
+      const payload = await apiRequest<{ session: SessionInfo }>('/api/models/session/model', {
+        method: 'PUT',
+        body: JSON.stringify({ sessionId: currentSessionId, modelId: modelKey }),
+      });
+      updateSession(payload.session.id, payload.session);
+      setSelectedSessionId(payload.session.id);
+      setSelectedDirectory(payload.session.cwd);
+      setQueryParams({ cwd: payload.session.cwd, sessionId: payload.session.id });
+      setModels(currentModels.map((m) => ({ ...m, active: m.key === modelKey })));
+      setActiveModel(modelKey);
+      setError('');
+      await refreshModels(payload.session.id);
+    } catch (cause) {
+      setStreaming('error');
+      setStatusMessage('Errore');
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [setModelFilter, setModels, setSelectedSessionId, setSelectedDirectory, setActiveModel, setError, setStreaming, setStatusMessage, updateSession, refreshModels]);
 
-  const sidebarBody = (
-    <SidebarPanel
+  // ─── Render ─────────────────────────────────────────────────────────────────
+  const sidebar = (
+    <Sidebar
       directories={projectDirectories}
       sessions={visibleSessions}
       selectedDirectory={selectedDirectory}
-      selectedSessionId={sessionId}
+      selectedSessionId={selectedSessionId}
       models={models}
       modelFilter={modelFilter}
       onDirectorySelect={handleDirectorySelect}
@@ -448,18 +377,48 @@ export default function App() {
     />
   );
 
-  const chatBody = sessionId ? (
-    <>
-      <ConversationPanel
-        items={conversation}
-        error={error}
+  const header = (
+    <Header
+      sessionName={currentSession?.title ?? currentDirectoryLabel}
+      state={streaming}
+      statusMessage={statusMessage}
+      onToggleSidebar={toggleSidebar}
+    />
+  );
+
+  const content = selectedSessionId ? (
+    <ChatView sessionId={selectedSessionId}>
+      <ConversationPanel items={conversation} error={error} />
+      
+      {/* Permission cards */}
+      {interactionItems
+        .filter((item): item is PermissionItem => item.kind === 'permission')
+        .map((permission) => (
+          <PermissionCard
+            key={permission.id}
+            permission={permission}
+            onApprove={() => handleApprovePermission(permission)}
+            onDeny={() => handleDenyPermission(permission)}
+          />
+        ))}
+
+      {/* Question cards */}
+      {interactionItems
+        .filter((item): item is QuestionItem => item.kind === 'question')
+        .map((question) => (
+          <QuestionCard
+            key={question.id}
+            question={question}
+            onAnswer={(answer) => handleAnswerQuestion(question, answer)}
+          />
+        ))}
+
+      <StatusRow
+        state={streaming}
+        statusMessage={statusMessage}
+        onAbort={handleAbort}
       />
-      <QuestionPermissionPanel
-        items={interactionItems}
-        onAnswerQuestion={handleAnswerQuestion}
-        onApprovePermission={handleApprovePermission}
-        onDenyPermission={handleDenyPermission}
-      />
+
       <ComposerPanel
         prompt={prompt}
         streaming={streaming}
@@ -470,30 +429,20 @@ export default function App() {
         onAbort={handleAbort}
         onModelSelect={handleModelSelect}
       />
-    </>
+    </ChatView>
   ) : (
-    <EmptyState onNewSession={handleCreateSession} />
+    <ChatEmptyState onNewSession={handleCreateSession} />
   );
 
   return (
-    <div className="app-shell">
-      {/* Sidebar */}
-      <aside className={`sidebar${sidebarOpen ? '' : ' sidebar-closed'}`} aria-label="Sidebar">
-        {sidebarOpen && sidebarBody}
-      </aside>
-
-      {/* Main content */}
-      <main className="content">
-        <AppHeader
-          sessionName={currentSession?.title ?? currentDirectoryLabel ?? ''}
-          state={streaming}
-          statusMessage={statusMessage}
-          onToggleSidebar={() => setSidebarOpen((o) => !o)}
-        />
-        <div className="workspace">
-          <div className="chat-column">{chatBody}</div>
-        </div>
-      </main>
-    </div>
+    <>
+      <MainLayout
+        sidebar={sidebar}
+        header={header}
+        content={content}
+        connectionBanner={<ConnectionBanner state={streaming} message={statusMessage} />}
+      />
+      <Toaster />
+    </>
   );
 }

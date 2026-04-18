@@ -13,6 +13,14 @@ const models: ModelInfo[] = [
     provider: 'anthropic',
   },
   {
+    key: 'google/gemini-2.5-pro',
+    id: 'gemini-2.5-pro',
+    label: 'Gemini 2.5 Pro',
+    available: true,
+    active: false,
+    provider: 'google',
+  },
+  {
     key: 'openai/gpt-4o',
     id: 'gpt-4o',
     label: 'GPT-4o',
@@ -109,11 +117,12 @@ describe('SidebarPanel', () => {
     fireEvent.change(screen.getByPlaceholderText('Cerca modello…'), { target: { value: 'gpt' } });
     expect(onModelFilterChange).toHaveBeenCalledWith('gpt');
 
-    // Model selection — there should be at least one GPT-4o button
-    const modelButtons = screen.getAllByRole('button', { name: /GPT-4o/i });
-    expect(modelButtons.length).toBeGreaterThan(0);
-    fireEvent.click(modelButtons[0]!);
-    expect(onModelSelect).toHaveBeenCalledWith('openai/gpt-4o');
+    // Unavailable models are hidden to match the CLI /models list
+    expect(screen.queryByRole('button', { name: /GPT-4o/i })).not.toBeInTheDocument();
+
+    // Available models remain selectable
+    fireEvent.click(screen.getByRole('button', { name: /Gemini 2.5 Pro/i }));
+    expect(onModelSelect).toHaveBeenCalledWith('google/gemini-2.5-pro');
   });
 
   it('shows empty state when no sessions', () => {
@@ -134,6 +143,6 @@ describe('SidebarPanel', () => {
       />,
     );
 
-    expect(screen.getByText(/Nessuna sessione/)).toBeInTheDocument();
+    expect(screen.getByText('Nessun progetto')).toBeInTheDocument();
   });
 });

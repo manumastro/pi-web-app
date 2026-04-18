@@ -8,7 +8,7 @@ const mockModels = [
 ];
 
 describe('ComposerPanel', () => {
-  it('renders a compact composer with send and stop actions only', () => {
+  it('renders the stop action while streaming and hides send', () => {
     const onAbort = vi.fn();
 
     render(
@@ -24,7 +24,7 @@ describe('ComposerPanel', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Invia' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Invia' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Interrompi' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Interrompi' }));

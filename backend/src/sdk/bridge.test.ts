@@ -20,7 +20,10 @@ const mocks = vi.hoisted(() => ({
     find: vi.fn((provider: string, id: string) => ({ provider, id, name: `${provider}/${id}`, reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 })),
   })),
   sessionManagerInMemoryMock: vi.fn(() => ({})),
-  settingsManagerCreateMock: vi.fn(() => ({})),
+  settingsManagerApplyOverridesMock: vi.fn(),
+  settingsManagerCreateMock: vi.fn(() => ({
+    applyOverrides: mocks.settingsManagerApplyOverridesMock,
+  })),
 }));
 
 vi.mock('@mariozechner/pi-coding-agent', () => ({
@@ -78,6 +81,7 @@ describe('sdk bridge', () => {
     mocks.modelRegistryCreateMock.mockClear();
     mocks.authStorageCreateMock.mockClear();
     mocks.sessionManagerInMemoryMock.mockClear();
+    mocks.settingsManagerApplyOverridesMock.mockClear();
     mocks.settingsManagerCreateMock.mockClear();
   });
 
@@ -119,6 +123,10 @@ describe('sdk bridge', () => {
 
     expect(result.sessionId).toBe('session-1');
     expect(mocks.createAgentSessionMock).toHaveBeenCalled();
+    expect(mocks.settingsManagerCreateMock).toHaveBeenCalledWith('/tmp/project');
+    expect(mocks.settingsManagerApplyOverridesMock).toHaveBeenCalledWith({
+      compaction: { enabled: false },
+    });
     expect(sessionStore.getSession('session-1')?.messages).toEqual([
       expect.objectContaining({ role: 'user', content: 'Hello SDK' }),
       expect.objectContaining({ role: 'assistant', content: 'Hello' }),
