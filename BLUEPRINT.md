@@ -34,7 +34,7 @@
 - REST + SSE backend wiring for sessions, messages, models, and live event streaming.
 - **OpenChamber-aligned frontend** with Tailwind CSS v4, Radix UI primitives, light theme with warm/beige palette (oklch-based), IBM Plex Sans/Mono fonts, 304px sidebar, and 56px header.
 - Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
-- Model selection mirrors the CLI `/models` availability list: only selectable/available models are shown in the picker.
+- Model selection picker now lists the full CLI-scoped registry with search/favorites; availability is reflected from live auth state and model changes are guarded so missing keys no longer crash the backend.
 - Question/permission interaction UI with inline answer cards (all labels in English).
 - Send-only composer (Enter to send, Shift+Enter newline), Stop button, Build chip.
 - SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
@@ -64,9 +64,9 @@ frontend/src/
 
 ### 0.3 Notes
 
-- Implementation is production-shaped and actively serving at `http://161.97.116.63:3210`.
+- Implementation is production-shaped and actively serving at `http://161.97.116.63:3210`; systemd now sources `~/.bashrc` so the backend sees the same API keys as the CLI.
 - Blueprint remains the planning source of truth for deferred items.
-- **OpenChamber migration complete** - frontend now uses same component organization, styling system, and UI primitives; model lists are now filtered to CLI-available models only.
+- **OpenChamber migration complete** - frontend now uses same component organization, styling system, and UI primitives; model picker mirrors OpenChamber with search, favorites, provider groups, and the full CLI-scoped model set.
 - Zustand stores fully integrated into App.tsx (chatStore, sessionStore, uiStore).
 - UI fully translated to English with light theme (warm/beige palette).
 - Remaining deferred: markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, slash commands, todo system, command palette.

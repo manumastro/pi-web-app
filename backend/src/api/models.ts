@@ -22,9 +22,14 @@ export function createModelsRouter(params: { bridge: SdkBridge; sessionStore: Se
       return;
     }
 
-    await bridge.setModel(sessionId, modelKey);
-    const session = sessionStore.getSession(sessionId);
-    res.json({ session });
+    try {
+      await bridge.setModel(sessionId, modelKey);
+      const session = sessionStore.getSession(sessionId);
+      res.json({ session });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      res.status(400).json({ error: message });
+    }
   });
 
   return router;
