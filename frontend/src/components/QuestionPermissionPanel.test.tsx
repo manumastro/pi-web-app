@@ -40,16 +40,16 @@ describe('QuestionPermissionPanel', () => {
     expect(screen.getByText('write')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'yes' }));
-    expect(onAnswerQuestion).toHaveBeenCalledWith('q1', 'yes');
+    expect(onAnswerQuestion).toHaveBeenCalledWith(expect.objectContaining({ questionId: 'q1' }), 'yes');
 
     fireEvent.change(screen.getByLabelText('Risposta a q1'), { target: { value: 'custom answer' } });
     fireEvent.click(screen.getByRole('button', { name: 'Invia' }));
-    expect(onAnswerQuestion).toHaveBeenCalledWith('q1', 'custom answer');
+    expect(onAnswerQuestion).toHaveBeenCalledWith(expect.objectContaining({ questionId: 'q1' }), 'custom answer');
 
     fireEvent.click(screen.getByRole('button', { name: 'Approva' }));
-    expect(onApprovePermission).toHaveBeenCalledWith('p1');
+    expect(onApprovePermission).toHaveBeenCalledWith(expect.objectContaining({ permissionId: 'p1' }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Nega' }));
-    expect(onDenyPermission).toHaveBeenCalledWith('p1');
+    expect(onDenyPermission).toHaveBeenCalledWith(expect.objectContaining({ permissionId: 'p1' }));
   });
 });

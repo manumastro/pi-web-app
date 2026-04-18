@@ -6,4 +6,4 @@ Backend: Express + TypeScript + SSE/REST with sessions, models, api, and sse lay
 Frontend: React + Vite + Zustand with URL-driven state and reusable components/hooks.
 Add or update tests for every meaningful change; keep builds green.
 Use npm workspaces; verify with build/test/lint before handoff.
-Current state: backend/frontend scaffolded with mock SSE bridge, session/model APIs, basic chat UI, and passing build/tests.
+Current state: SDK bridge integrated, persistent sessions/SSE replay, modular React UI, question/permission interactions, build/tests green.

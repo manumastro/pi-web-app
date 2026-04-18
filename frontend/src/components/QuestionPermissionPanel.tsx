@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import type { ConversationItem } from '../chatState';
+import type { PermissionItem, QuestionItem } from '../chatState';
+
+type InteractionItem = QuestionItem | PermissionItem;
 
 interface QuestionPermissionPanelProps {
-  items: ConversationItem[];
-  onAnswerQuestion: (questionId: string, answer: string) => void | Promise<void>;
-  onApprovePermission: (permissionId: string) => void | Promise<void>;
-  onDenyPermission: (permissionId: string) => void | Promise<void>;
+  items: InteractionItem[];
+  onAnswerQuestion: (question: QuestionItem, answer: string) => void | Promise<void>;
+  onApprovePermission: (permission: PermissionItem) => void | Promise<void>;
+  onDenyPermission: (permission: PermissionItem) => void | Promise<void>;
 }
 
-function isQuestion(item: ConversationItem): item is Extract<ConversationItem, { kind: 'question' }> {
+function isQuestion(item: InteractionItem): item is QuestionItem {
   return item.kind === 'question';
 }
 
-function isPermission(item: ConversationItem): item is Extract<ConversationItem, { kind: 'permission' }> {
+function isPermission(item: InteractionItem): item is PermissionItem {
   return item.kind === 'permission';
 }
 
@@ -20,7 +22,7 @@ function QuestionCard({
   question,
   onAnswer,
 }: {
-  question: Extract<ConversationItem, { kind: 'question' }>;
+  question: QuestionItem;
   onAnswer: (answer: string) => void | Promise<void>;
 }) {
   const [answer, setAnswer] = useState('');
@@ -77,11 +79,7 @@ export default function QuestionPermissionPanel({
         <div className="interaction-group">
           <h3>Domande</h3>
           {questions.map((question) => (
-            <QuestionCard
-              key={question.id}
-              question={question}
-              onAnswer={(answer) => onAnswerQuestion(question.questionId, answer)}
-            />
+            <QuestionCard key={question.id} question={question} onAnswer={(answer) => onAnswerQuestion(question, answer)} />
           ))}
         </div>
       ) : null}
@@ -99,10 +97,10 @@ export default function QuestionPermissionPanel({
                 <strong>{permission.action}</strong> · {permission.resource}
               </p>
               <div className="interaction-actions">
-                <button type="button" onClick={() => void onApprovePermission(permission.permissionId)}>
+                <button type="button" onClick={() => void onApprovePermission(permission)}>
                   Approva
                 </button>
-                <button type="button" onClick={() => void onDenyPermission(permission.permissionId)}>
+                <button type="button" onClick={() => void onDenyPermission(permission)}>
                   Nega
                 </button>
               </div>

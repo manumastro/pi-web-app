@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import './styles.css';
 import { apiGet, apiRequest } from './api';
 import ConversationPanel from './components/ConversationPanel';
@@ -6,8 +6,14 @@ import ComposerPanel from './components/ComposerPanel';
 import ConnectionStatusBanner from './components/ConnectionStatusBanner';
 import QuestionPermissionPanel from './components/QuestionPermissionPanel';
 import SidebarPanel from './components/SidebarPanel';
-import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem } from './chatState';
+import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem, type PermissionItem, type QuestionItem } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
+import {
+  buildPermissionDecisionMessage,
+  buildPermissionStatusLabel,
+  buildQuestionFollowUpMessage,
+  buildQuestionStatusLabel,
+} from './interactionMessages';
 import type { ModelInfo, SessionInfo } from './types';
 
 function getQueryParam(name: string): string {
@@ -38,9 +44,9 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('Caricamento...');
   const [error, setError] = useState('');
 
-  const currentSession = useMemo(
-    () => sessions.find((session) => session.id === sessionId),
-    [sessions, sessionId],
+  const activeModelId = sessions.find((session) => session.id === sessionId)?.model ?? models[0]?.id ?? '';
+  const interactionItems = conversation.filter(
+    (item): item is QuestionItem | PermissionItem => item.kind === 'question' || item.kind === 'permission',
   );
 
   async function refreshSessions(nextCwd = cwd): Promise<void> {
@@ -64,7 +70,7 @@ export default function App() {
 
     const created = await apiRequest<{ session: SessionInfo }>('/api/sessions', {
       method: 'POST',
-      body: JSON.stringify({ cwd: nextCwd, model: models[0]?.id ?? '' }),
+      body: JSON.stringify({ cwd: nextCwd, model: activeModelId }),
     });
     return created.session.id;
   }
@@ -151,7 +157,7 @@ export default function App() {
     try {
       await apiRequest('/api/messages/prompt', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, cwd, message: text, model: currentSession?.model ?? models[0]?.id ?? '' }),
+        body: JSON.stringify({ sessionId, cwd, message: text, model: activeModelId }),
       });
     } catch (cause) {
       setStreaming('error');
@@ -173,7 +179,7 @@ export default function App() {
     try {
       await apiRequest('/api/messages/steer', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, cwd, message: text, model: currentSession?.model ?? models[0]?.id ?? '' }),
+        body: JSON.stringify({ sessionId, cwd, message: text, model: activeModelId }),
       });
     } catch (cause) {
       setStreaming('error');
@@ -198,7 +204,7 @@ export default function App() {
     try {
       await apiRequest('/api/messages/follow-up', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, cwd, message: text, model: currentSession?.model ?? models[0]?.id ?? '' }),
+        body: JSON.stringify({ sessionId, cwd, message: text, model: activeModelId }),
       });
     } catch (cause) {
       setStreaming('error');
@@ -217,17 +223,23 @@ export default function App() {
     await sendFollowUpMessage(text, 'Invio follow-up...');
   }
 
-  async function handleAnswerQuestion(questionId: string, answer: string): Promise<void> {
+  async function handleAnswerQuestion(question: QuestionItem, answer: string): Promise<void> {
     setPrompt('');
-    await sendFollowUpMessage(`Question ${questionId}: ${answer}`, 'Risposta domanda...');
+    await sendFollowUpMessage(buildQuestionFollowUpMessage(question, answer), buildQuestionStatusLabel(question));
   }
 
-  async function handleApprovePermission(permissionId: string): Promise<void> {
-    await sendFollowUpMessage(`Permission ${permissionId}: approved`, 'Permesso approvato...');
+  async function handleApprovePermission(permission: PermissionItem): Promise<void> {
+    await sendFollowUpMessage(
+      buildPermissionDecisionMessage(permission, 'approved'),
+      buildPermissionStatusLabel(permission, 'approved'),
+    );
   }
 
-  async function handleDenyPermission(permissionId: string): Promise<void> {
-    await sendFollowUpMessage(`Permission ${permissionId}: denied`, 'Permesso negato...');
+  async function handleDenyPermission(permission: PermissionItem): Promise<void> {
+    await sendFollowUpMessage(
+      buildPermissionDecisionMessage(permission, 'denied'),
+      buildPermissionStatusLabel(permission, 'denied'),
+    );
   }
 
   async function handleAbort(): Promise<void> {
@@ -243,7 +255,7 @@ export default function App() {
   async function handleCreateSession(): Promise<void> {
     const created = await apiRequest<{ session: SessionInfo }>('/api/sessions', {
       method: 'POST',
-      body: JSON.stringify({ cwd, model: models[0]?.id ?? '' }),
+      body: JSON.stringify({ cwd, model: activeModelId }),
     });
     setSessions((current) => [created.session, ...current]);
     setSessionId(created.session.id);
@@ -291,7 +303,7 @@ export default function App() {
         sessions={sessions}
         sessionId={sessionId}
         models={models}
-        currentModelId={currentSession?.model ?? models[0]?.id ?? ''}
+        currentModelId={activeModelId}
         onCwdCommit={() => setQueryParams({ cwd })}
         onCreateSession={handleCreateSession}
         onModelChange={handleModelChange}
@@ -306,7 +318,7 @@ export default function App() {
       <main className="content">
         <ConnectionStatusBanner streaming={streaming} statusMessage={statusMessage} error={error} />
         <QuestionPermissionPanel
-          items={conversation}
+          items={interactionItems}
           onAnswerQuestion={handleAnswerQuestion}
           onApprovePermission={handleApprovePermission}
           onDenyPermission={handleDenyPermission}
