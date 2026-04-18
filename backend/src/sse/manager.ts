@@ -1,6 +1,7 @@
 import type { ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { SseEvent } from '../sdk/events.js';
+import { appendSseHistorySync, loadSseHistoriesSync } from './history.js';
 
 export interface SseClient {
   id: string;
@@ -38,10 +39,17 @@ function parseLastEventId(lastEventId?: string): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-export function createSseManager(): SseManager {
+export function createSseManager(historyDir?: string): SseManager {
   const clients = new Map<string, SseClient>();
-  const histories = new Map<string, StoredEvent[]>();
+  const histories = historyDir ? loadSseHistoriesSync(historyDir) : new Map<string, StoredEvent[]>();
   const counters = new Map<string, number>();
+
+  for (const [sessionId, history] of histories.entries()) {
+    const last = history.at(-1);
+    if (last) {
+      counters.set(sessionId, last.id);
+    }
+  }
 
   function nextEventId(sessionId: string): number {
     const next = (counters.get(sessionId) ?? 0) + 1;
@@ -52,11 +60,17 @@ export function createSseManager(): SseManager {
   function recordEvent(sessionId: string, event: SseEvent): number {
     const id = nextEventId(sessionId);
     const history = histories.get(sessionId) ?? [];
-    history.push({ id, event });
+    const stored = { id, event };
+    history.push(stored);
     if (history.length > MAX_HISTORY) {
       history.splice(0, history.length - MAX_HISTORY);
     }
     histories.set(sessionId, history);
+
+    if (historyDir) {
+      appendSseHistorySync(historyDir, stored);
+    }
+
     return id;
   }
 

@@ -15,7 +15,7 @@ export function createApp() {
   const logger = pino({ level: config.logLevel });
   const sessionStore = createPersistentSessionStore(config.sessionsDir);
   sessionStore.hydrateSync();
-  const sseManager = createSseManager();
+  const sseManager = createSseManager(path.join(config.sessionsDir, '.sse-history'));
   const bridge = createSdkBridge({ config, sessionStore, sseManager });
 
   const app = express();
