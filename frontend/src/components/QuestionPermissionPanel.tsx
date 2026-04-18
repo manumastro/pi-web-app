@@ -31,9 +31,9 @@ function QuestionCard({
     <article className="interaction-panel" style={{ marginBottom: '0.5rem' }}>
       <div className="interaction-panel-header">
         <span className="interaction-panel-title" style={{ color: 'var(--accent-hover)' }}>
-          ✦ Domanda
+          ✦ Question
         </span>
-        <span className="message-time">{new Date(question.timestamp).toLocaleString('it-IT')}</span>
+        <span className="message-time">{new Date(question.timestamp).toLocaleString('en-US')}</span>
       </div>
       <div className="interaction-panel-body">
         <p className="interaction-panel-content">{question.question}</p>
@@ -114,10 +114,10 @@ export default function QuestionPermissionPanel({
         >
           <div className="interaction-panel-header">
             <span className="interaction-panel-title" style={{ color: '#d0a215' }}>
-              ⚡ Permesso
+              ⚡ Permission
             </span>
             <span className="message-time">
-              {new Date(permission.timestamp).toLocaleString('it-IT')}
+              {new Date(permission.timestamp).toLocaleString('en-US')}
             </span>
           </div>
           <div className="interaction-panel-body">

@@ -1,41 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import SidebarPanel from './SidebarPanel';
-import type { DirectoryInfo, ModelInfo, SessionInfo } from '../types';
-
-const models: ModelInfo[] = [
-  {
-    key: 'anthropic/claude-3-5-sonnet-20241022',
-    id: 'claude-3-5-sonnet-20241022',
-    label: 'Claude 3.5 Sonnet',
-    available: true,
-    active: true,
-    provider: 'anthropic',
-  },
-  {
-    key: 'google/gemini-2.5-pro',
-    id: 'gemini-2.5-pro',
-    label: 'Gemini 2.5 Pro',
-    available: true,
-    active: false,
-    provider: 'google',
-  },
-  {
-    key: 'openai/gpt-4o',
-    id: 'gpt-4o',
-    label: 'GPT-4o',
-    available: false,
-    active: false,
-    provider: 'openai',
-  },
-];
+import type { DirectoryInfo, SessionInfo } from '../types';
 
 const sessions: SessionInfo[] = [
   {
     id: 's1',
     cwd: '/tmp',
     model: 'anthropic/claude-3-5-sonnet-20241022',
-    title: 'Prima sessione',
+    title: 'First session',
     status: 'idle',
     messages: [],
     createdAt: '2026-04-15T10:00:00.000Z',
@@ -45,7 +18,7 @@ const sessions: SessionInfo[] = [
     id: 's2',
     cwd: '/tmp',
     model: 'openai/gpt-4o',
-    title: 'Seconda sessione',
+    title: 'Second session',
     status: 'done',
     messages: [],
     createdAt: '2026-04-15T10:05:00.000Z',
@@ -58,13 +31,11 @@ const directories: DirectoryInfo[] = [
 ];
 
 describe('SidebarPanel', () => {
-  it('renders directories, sessions and model selector', () => {
+  it('renders directories and sessions', () => {
     const onDirectorySelect = vi.fn();
     const onSessionSelect = vi.fn();
     const onSessionDelete = vi.fn();
     const onNewSession = vi.fn();
-    const onModelFilterChange = vi.fn();
-    const onModelSelect = vi.fn();
 
     render(
       <SidebarPanel
@@ -72,57 +43,33 @@ describe('SidebarPanel', () => {
         sessions={sessions}
         selectedDirectory="/tmp"
         selectedSessionId="s1"
-        models={models}
-        modelFilter=""
         onDirectorySelect={onDirectorySelect}
         onSessionSelect={onSessionSelect}
         onSessionDelete={onSessionDelete}
         onNewSession={onNewSession}
-        onModelFilterChange={onModelFilterChange}
-        onModelSelect={onModelSelect}
       />,
     );
-
-    // Header
-    expect(screen.getByText('Progetti')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Nuova sessione' })).toBeInTheDocument();
 
     // Directory
     expect(screen.getByText('tmp')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument(); // session count
 
     // Session list
-    expect(screen.getByText('Prima sessione')).toBeInTheDocument();
-    expect(screen.getByText('Seconda sessione')).toBeInTheDocument();
+    expect(screen.getByText('First session')).toBeInTheDocument();
+    expect(screen.getByText('Second session')).toBeInTheDocument();
 
     // New session button
-    fireEvent.click(screen.getByRole('button', { name: 'Nuova sessione' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New session' }));
     expect(onNewSession).toHaveBeenCalled();
 
     // Session selection
-    fireEvent.click(screen.getByText('Seconda sessione'));
+    fireEvent.click(screen.getByText('Second session'));
     expect(onSessionSelect).toHaveBeenCalledWith('s2');
 
     // Session delete
-    const deleteButtons = screen.getAllByRole('button', { name: 'Elimina sessione' });
+    const deleteButtons = screen.getAllByRole('button', { name: 'Delete session' });
     fireEvent.click(deleteButtons[0]!);
     expect(onSessionDelete).toHaveBeenCalledWith('s1');
-
-    // Model filter
-    expect(screen.getByPlaceholderText('Cerca modello…')).toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText('Cerca modello…'), { target: { value: 'gpt' } });
-    expect(onModelFilterChange).toHaveBeenCalledWith('gpt');
-
-    // Model filter shows only matching models
-    fireEvent.change(screen.getByPlaceholderText('Cerca modello…'), { target: { value: 'gpt' } });
-    expect(onModelFilterChange).toHaveBeenCalledWith('gpt');
-
-    // Unavailable models are hidden to match the CLI /models list
-    expect(screen.queryByRole('button', { name: /GPT-4o/i })).not.toBeInTheDocument();
-
-    // Available models remain selectable
-    fireEvent.click(screen.getByRole('button', { name: /Gemini 2.5 Pro/i }));
-    expect(onModelSelect).toHaveBeenCalledWith('google/gemini-2.5-pro');
   });
 
   it('shows empty state when no sessions', () => {
@@ -132,17 +79,13 @@ describe('SidebarPanel', () => {
         sessions={[]}
         selectedDirectory="/empty"
         selectedSessionId=""
-        models={[]}
-        modelFilter=""
         onDirectorySelect={vi.fn()}
         onSessionSelect={vi.fn()}
         onSessionDelete={vi.fn()}
         onNewSession={vi.fn()}
-        onModelFilterChange={vi.fn()}
-        onModelSelect={vi.fn()}
       />,
     );
 
-    expect(screen.getByText('Nessun progetto')).toBeInTheDocument();
+    expect(screen.getByText('No sessions in this workspace yet.')).toBeInTheDocument();
   });
 });

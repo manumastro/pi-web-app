@@ -98,10 +98,7 @@ export default function App() {
   } = useSessionStore();
 
   const {
-    sidebarOpen,
     toggleSidebar,
-    modelFilter,
-    setModelFilter,
     models,
     setModels,
     activeModelKey,
@@ -151,7 +148,7 @@ export default function App() {
   }, [setConversation, setSelectedSessionId, setSelectedDirectory, refreshModels]);
 
   const loadInitialState = useCallback(async (): Promise<void> => {
-    setStatusMessage('Caricamento…');
+    setStatusMessage('Loading…');
     try {
       const payload = await apiGet<{ sessions: SessionInfo[] }>('/api/sessions');
       setSessions(payload.sessions);
@@ -167,19 +164,19 @@ export default function App() {
       
       if (targetSessionId) {
         await loadSession(targetSessionId);
-        setStatusMessage('Connesso');
+        setStatusMessage('Connected');
       } else {
         setSelectedDirectory(targetCwd);
         setSelectedSessionId('');
         setConversation([]);
         setQueryParams({ cwd: targetCwd, sessionId: '' });
         await refreshModels(undefined);
-        setStatusMessage('Seleziona o crea una sessione');
+        setStatusMessage('Select or create a session');
       }
       setError('');
     } catch (cause) {
-      setStatusMessage('Errore di caricamento');
-      setError(cause instanceof Error ? cause.message : 'Errore sconosciuto');
+      setStatusMessage('Load failed');
+      setError(cause instanceof Error ? cause.message : 'Unknown error');
       setStreaming('error');
     }
   }, [setSessions, setConversation, setSelectedDirectory, setSelectedSessionId, setStatusMessage, setError, setStreaming, refreshModels, loadSession, projectDirectories, sortedSessions, selectedDirectory, selectedSessionId]);
@@ -198,20 +195,20 @@ export default function App() {
       setConversation(updated);
       if (payload.type === 'done') {
         setStreaming('idle');
-        setStatusMessage(payload.aborted ? 'Interrotto' : 'Connesso');
+        setStatusMessage(payload.aborted ? 'Stopped' : 'Connected');
       } else if (payload.type === 'error') {
         setStreaming('error');
-        setStatusMessage('Errore');
+        setStatusMessage('Error');
       }
     },
     onConnected: () => {
       const currentState = useChatStore.getState().streaming;
       setStreaming(currentState === 'error' ? 'error' : 'idle');
-      setStatusMessage('Connesso');
+      setStatusMessage('Connected');
     },
     onConnectionLost: () => {
       setStreaming('connecting');
-      setStatusMessage('Riconnessione…');
+      setStatusMessage('Reconnecting…');
     },
   });
 
@@ -233,7 +230,7 @@ export default function App() {
       });
     } catch (cause) {
       setStreaming('error');
-      setStatusMessage('Errore');
+      setStatusMessage('Error');
       setError(cause instanceof Error ? cause.message : String(cause));
     }
   }, [setError, setStreaming, setStatusMessage, storeAppendPrompt, setPrompt]);
@@ -241,7 +238,7 @@ export default function App() {
   const handleSend = useCallback(async (): Promise<void> => {
     const text = prompt.trim();
     if (!text) return;
-    await submitPrompt(text, 'Invio…');
+    await submitPrompt(text, 'Sending…');
   }, [prompt, submitPrompt]);
 
   const handleAnswerQuestion = useCallback(async (question: QuestionItem, answer: string): Promise<void> => {
@@ -287,7 +284,7 @@ export default function App() {
     setSelectedDirectory(created.session.cwd);
     setQueryParams({ cwd: created.session.cwd, sessionId: created.session.id });
     setConversation([]);
-    setStatusMessage('Sessione pronta');
+    setStatusMessage('Session ready');
     await refreshModels(created.session.id);
   }, [addSession, setSelectedSessionId, setSelectedDirectory, setConversation, setStatusMessage, refreshModels]);
 
@@ -304,7 +301,7 @@ export default function App() {
         setSelectedSessionId('');
         setConversation([]);
         setQueryParams({ cwd: selectedDirectory, sessionId: '' });
-        setStatusMessage('Nessuna sessione');
+        setStatusMessage('No session');
       }
     }
   }, [deleteSessionFromStore, loadSession, setSelectedSessionId, setConversation, setStatusMessage]);
@@ -312,7 +309,6 @@ export default function App() {
   const handleDirectorySelect = useCallback(async (nextDir: string): Promise<void> => {
     const { sortedSessions } = useSessionStore.getState();
     setSelectedDirectory(nextDir);
-    setModelFilter('');
     const next = sortedSessions.find((s) => s.cwd === nextDir);
     if (next) {
       await loadSession(next.id);
@@ -320,13 +316,13 @@ export default function App() {
       setSelectedSessionId('');
       setConversation([]);
       setQueryParams({ cwd: nextDir, sessionId: '' });
-      setStatusMessage('Nessuna sessione in questa directory');
+      setStatusMessage('No sessions in this directory');
     }
-  }, [setSelectedDirectory, setModelFilter, loadSession, setSelectedSessionId, setConversation, setStatusMessage]);
+  }, [setSelectedDirectory, loadSession, setSelectedSessionId, setConversation, setStatusMessage]);
 
   const handleSessionSelect = useCallback(async (targetId: string): Promise<void> => {
     await loadSession(targetId);
-    setStatusMessage('Connesso');
+    setStatusMessage('Connected');
   }, [loadSession, setStatusMessage]);
 
   const handleModelSelect = useCallback(async (modelKey: string): Promise<void> => {
@@ -334,7 +330,6 @@ export default function App() {
     const currentSessionId = useSessionStore.getState().selectedSessionId;
     const currentModels = useUIStore.getState().models;
     
-    setModelFilter('');
     if (!currentSessionId) {
       setModels(currentModels.map((m) => ({ ...m, active: m.key === modelKey })));
       return;
@@ -354,10 +349,10 @@ export default function App() {
       await refreshModels(payload.session.id);
     } catch (cause) {
       setStreaming('error');
-      setStatusMessage('Errore');
+      setStatusMessage('Error');
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [setModelFilter, setModels, setSelectedSessionId, setSelectedDirectory, setActiveModel, setError, setStreaming, setStatusMessage, updateSession, refreshModels]);
+  }, [setModels, setSelectedSessionId, setSelectedDirectory, setActiveModel, setError, setStreaming, setStatusMessage, updateSession, refreshModels]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   const sidebar = (
@@ -366,22 +361,18 @@ export default function App() {
       sessions={visibleSessions}
       selectedDirectory={selectedDirectory}
       selectedSessionId={selectedSessionId}
-      models={models}
-      modelFilter={modelFilter}
       onDirectorySelect={handleDirectorySelect}
       onSessionSelect={handleSessionSelect}
       onSessionDelete={handleDeleteSession}
       onNewSession={handleCreateSession}
-      onModelFilterChange={setModelFilter}
-      onModelSelect={handleModelSelect}
     />
   );
 
   const header = (
     <Header
-      sessionName={currentSession?.title ?? currentDirectoryLabel}
-      state={streaming}
-      statusMessage={statusMessage}
+      sessionName={currentSession?.title ?? 'Untitled Session'}
+      projectLabel={currentDirectoryLabel}
+      onNewSession={handleCreateSession}
       onToggleSidebar={toggleSidebar}
     />
   );
@@ -389,8 +380,7 @@ export default function App() {
   const content = selectedSessionId ? (
     <ChatView sessionId={selectedSessionId}>
       <ConversationPanel items={conversation} error={error} />
-      
-      {/* Permission cards */}
+
       {interactionItems
         .filter((item): item is PermissionItem => item.kind === 'permission')
         .map((permission) => (
@@ -402,7 +392,6 @@ export default function App() {
           />
         ))}
 
-      {/* Question cards */}
       {interactionItems
         .filter((item): item is QuestionItem => item.kind === 'question')
         .map((question) => (
@@ -413,11 +402,7 @@ export default function App() {
           />
         ))}
 
-      <StatusRow
-        state={streaming}
-        statusMessage={statusMessage}
-        onAbort={handleAbort}
-      />
+      <StatusRow state={streaming} statusMessage={statusMessage} onAbort={handleAbort} />
 
       <ComposerPanel
         prompt={prompt}

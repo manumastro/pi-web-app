@@ -24,10 +24,10 @@ describe('ComposerPanel', () => {
       />,
     );
 
-    expect(screen.queryByRole('button', { name: 'Invia' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Interrompi' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Interrompi' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(onAbort).toHaveBeenCalled();
   });
 
@@ -45,7 +45,7 @@ describe('ComposerPanel', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Invia' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   });
 
   it('enables send when prompt has content and not streaming', () => {
@@ -62,6 +62,6 @@ describe('ComposerPanel', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'Invia' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
   });
 });

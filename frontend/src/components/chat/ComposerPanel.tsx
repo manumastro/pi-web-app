@@ -1,3 +1,5 @@
+import { ChevronDown, Maximize2, Plus, SendHorizontal, Settings2, ShieldCheck, Square } from 'lucide-react';
+import type { KeyboardEvent } from 'react';
 import type { ModelInfo, StreamingState } from '@/types';
 
 interface ComposerPanelProps {
@@ -11,28 +13,6 @@ interface ComposerPanelProps {
   onModelSelect: (modelKey: string) => void;
 }
 
-function SendIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path
-        d="M12.5 7L1.5 1.5l2 5.5-2 5.5 11-4.5z"
-        fill="currentColor"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function StopIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-      <rect x="2" y="2" width="8" height="8" rx="1.5" fill="currentColor" />
-    </svg>
-  );
-}
-
 interface ModelGroup {
   provider: string;
   models: ModelInfo[];
@@ -41,12 +21,12 @@ interface ModelGroup {
 function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
   const groups = new Map<string, ModelInfo[]>();
   for (const model of models) {
-    const p = model.provider ?? 'other';
-    const list = groups.get(p) ?? [];
+    const provider = model.provider ?? 'other';
+    const list = groups.get(provider) ?? [];
     list.push(model);
-    groups.set(p, list);
+    groups.set(provider, list);
   }
-  return Array.from(groups.entries()).map(([provider, ms]) => ({ provider, models: ms }));
+  return Array.from(groups.entries()).map(([provider, groupedModels]) => ({ provider, models: groupedModels }));
 }
 
 export function ComposerPanel({
@@ -61,16 +41,16 @@ export function ComposerPanel({
 }: ComposerPanelProps) {
   const isStreaming = streaming === 'streaming';
   const isEmpty = prompt.trim().length === 0;
-  const availableModels = models.filter((m) => m.available);
+  const availableModels = models.filter((model) => model.available);
   const groups = groupModelsByProvider(availableModels);
   const hasAvailableModels = groups.length > 0;
-  const selectedModelKey = hasAvailableModels && groups.some((group) => group.models.some((m) => m.key === activeModelKey))
+  const selectedModelKey = hasAvailableModels && groups.some((group) => group.models.some((model) => model.key === activeModelKey))
     ? activeModelKey
     : '';
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
       if (!isEmpty && !isStreaming) {
         void onSend();
       }
@@ -83,10 +63,10 @@ export function ComposerPanel({
         <textarea
           className="composer-textarea"
           value={prompt}
-          onChange={(e) => onPromptChange(e.target.value)}
+          onChange={(event) => onPromptChange(event.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Scrivi un prompt… (Enter per inviare, Shift+Enter per andare a capo)"
-          rows={3}
+          placeholder="@ for files/agents; / for commands; ! for shell"
+          rows={4}
           disabled={isStreaming}
           aria-label="Prompt"
           autoComplete="off"
@@ -96,60 +76,75 @@ export function ComposerPanel({
         />
 
         <div className="composer-actions">
-          {/* Model selector */}
-          <div className="model-selector">
-            <select
-              className="model-select"
-              value={selectedModelKey}
-              onChange={(e) => {
-                if (e.target.value === '__manage__') {
-                  return;
-                }
-                onModelSelect(e.target.value);
-              }}
-              disabled={isStreaming || !hasAvailableModels}
-              title="Seleziona modello"
-              aria-label="Seleziona modello"
-            >
-              {hasAvailableModels ? (
-                groups.map((group) => (
-                  <optgroup key={group.provider} label={group.provider}>
-                    {group.models.map((m) => (
-                      <option key={m.key} value={m.key}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))
-              ) : (
-                <option value="">Nessun modello disponibile</option>
-              )}
-            </select>
+          <div className="composer-actions-left">
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Add attachment" title="Add attachment">
+              <Plus size={16} />
+            </button>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Toggle focus mode" title="Toggle focus mode">
+              <Maximize2 size={16} />
+            </button>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Enable permission auto-accept" title="Enable permission auto-accept">
+              <ShieldCheck size={16} />
+            </button>
           </div>
 
-          {/* Send / Stop button */}
-          {isStreaming ? (
-            <button
-              type="button"
-              className="stop-button"
-              onClick={() => void onAbort()}
-              aria-label="Interrompi"
-              title="Interrompi"
-            >
-              <StopIcon />
+          <div className="composer-actions-right">
+            <button type="button" className="composer-preset" aria-label="Default preset" title="Default preset">
+              <Settings2 size={14} />
+              <span>Default</span>
             </button>
-          ) : (
-            <button
-              type="button"
-              className="send-button"
-              onClick={() => void onSend()}
-              disabled={isEmpty}
-              aria-label="Invia"
-              title="Invia (Enter)"
-            >
-              <SendIcon />
-            </button>
-          )}
+
+            <div className="composer-model-wrap">
+              <select
+                className="composer-model-select"
+                value={selectedModelKey}
+                onChange={(event) => onModelSelect(event.target.value)}
+                disabled={isStreaming || !hasAvailableModels}
+                aria-label="Select model"
+                title="Select model"
+              >
+                {hasAvailableModels ? (
+                  groups.map((group) => (
+                    <optgroup key={group.provider} label={group.provider}>
+                      {group.models.map((model) => (
+                        <option key={model.key} value={model.key}>
+                          {model.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))
+                ) : (
+                  <option value="">No models available</option>
+                )}
+              </select>
+              <ChevronDown size={12} className="composer-model-chevron" aria-hidden />
+            </div>
+
+            <span className="composer-build-chip">Build</span>
+
+            {isStreaming ? (
+              <button
+                type="button"
+                className="composer-send-button"
+                onClick={() => void onAbort()}
+                aria-label="Stop"
+                title="Stop"
+              >
+                <Square size={14} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="composer-send-button"
+                onClick={() => void onSend()}
+                disabled={isEmpty}
+                aria-label="Send"
+                title="Send"
+              >
+                <SendHorizontal size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

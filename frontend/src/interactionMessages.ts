@@ -9,7 +9,7 @@ export function buildQuestionResponseMessage(question: QuestionItem, answer: str
 }
 
 export function buildQuestionStatusLabel(question: QuestionItem): string {
-  return `Risposta domanda: ${truncate(question.question)}`;
+  return `Answering question: ${truncate(question.question)}`;
 }
 
 export function buildPermissionDecisionMessage(permission: PermissionItem, decision: 'approved' | 'denied'): string {
@@ -17,5 +17,5 @@ export function buildPermissionDecisionMessage(permission: PermissionItem, decis
 }
 
 export function buildPermissionStatusLabel(permission: PermissionItem, decision: 'approved' | 'denied'): string {
-  return `${decision === 'approved' ? 'Approva' : 'Nega'} permesso: ${truncate(permission.action)}`;
+  return `${decision === 'approved' ? 'Approve' : 'Deny'} permission: ${truncate(permission.action)}`;
 }

@@ -24,11 +24,11 @@ describe('interactionMessages', () => {
   it('formats question response messages and labels', () => {
     expect(buildQuestionResponseMessage(question, 'yes')).toContain('Question response [q1]');
     expect(buildQuestionResponseMessage(question, 'yes')).toContain('=> yes');
-    expect(buildQuestionStatusLabel(question)).toContain('Risposta domanda:');
+    expect(buildQuestionStatusLabel(question)).toContain('Answering question:');
   });
 
   it('formats permission decision messages and labels', () => {
     expect(buildPermissionDecisionMessage(permission, 'approved')).toContain('Permission decision [p1] APPROVED write /tmp/file');
-    expect(buildPermissionStatusLabel(permission, 'approved')).toContain('Approva permesso:');
+    expect(buildPermissionStatusLabel(permission, 'approved')).toContain('Approve permission:');
   });
 });

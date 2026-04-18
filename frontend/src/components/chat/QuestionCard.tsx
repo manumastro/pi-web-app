@@ -76,7 +76,7 @@ export function QuestionCard({ question, onAnswer }: QuestionCardProps) {
         <div className="mt-4 pt-4 border-t border-border">
           <textarea
             className="w-full p-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:border-accent resize-none"
-            placeholder="Oppure scrivi una risposta personalizzata..."
+            placeholder="Or write a custom answer..."
             value={customText}
             onChange={(e) => setCustomText(e.target.value)}
             rows={2}
@@ -91,7 +91,7 @@ export function QuestionCard({ question, onAnswer }: QuestionCardProps) {
           onClick={() => void handleSubmit()}
           disabled={!hasAnswer || isSubmitting}
         >
-          {isSubmitting ? 'Invio...' : 'Conferma'}
+          {isSubmitting ? 'Sending...' : 'Submit'}
         </button>
       </div>
     </div>

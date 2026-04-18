@@ -47,18 +47,18 @@ export function PermissionCard({ permission, onApprove, onDeny }: PermissionCard
           {displayTool === 'bash' ? <TerminalIcon /> : <ToolIcon />}
         </div>
         <span className="permission-title">
-          Richiesta permesso: {displayTool}
+          Permission request: {displayTool}
         </span>
       </div>
 
       <div className="permission-content">
         <div className="typography-meta text-muted-foreground mb-2">
-          <span className="font-semibold">Azione:</span>{' '}
+          <span className="font-semibold">Action:</span>{' '}
           <code className="px-1 py-0.5 bg-muted/30 rounded text-xs">{permission.action}</code>
         </div>
 
         <div className="typography-meta text-muted-foreground mb-2">
-          <span className="font-semibold">Risorsa:</span>{' '}
+          <span className="font-semibold">Resource:</span>{' '}
           <code className="px-1 py-0.5 bg-muted/30 rounded text-xs">{permission.resource}</code>
         </div>
       </div>
@@ -69,14 +69,14 @@ export function PermissionCard({ permission, onApprove, onDeny }: PermissionCard
           className="btn btn-approve btn-sm"
           onClick={() => void onApprove()}
         >
-          Approva
+          Approve
         </button>
         <button
           type="button"
           className="btn btn-deny btn-sm"
           onClick={() => void onDeny()}
         >
-          Nega
+          Deny
         </button>
       </div>
     </div>

@@ -45,7 +45,7 @@ export function StatusRow({ state, statusMessage, onAbort, showAbort = true }: S
           onClick={() => void onAbort()}
         >
           <StopIcon />
-          Interrompi
+          Stop
         </button>
       )}
     </div>

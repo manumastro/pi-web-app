@@ -1,69 +1,70 @@
 import React from 'react';
-import { cn } from '@/lib/utils';
-import type { StreamingState } from '@/types';
+import { Layers3, Plus, SquareTerminal, PanelRightClose } from 'lucide-react';
 
 interface HeaderProps {
   sessionName: string;
-  state: StreamingState;
-  statusMessage: string;
+  projectLabel: string;
+  onNewSession: () => void;
   onToggleSidebar: () => void;
 }
 
-function StatusChip({ state, message }: { state: StreamingState; message: string }) {
-  const className = cn(
-    'status-chip',
-    (state === 'streaming' || state === 'connecting') && 'connecting',
-    state === 'error' && 'error'
-  );
-
-  const dots =
-    state === 'streaming' || state === 'connecting' ? (
-      <span className="thinking-dots" aria-hidden>
-        <span />
-        <span />
-        <span />
-      </span>
-    ) : null;
-
+function IconButton({
+  title,
+  label,
+  onClick,
+  children,
+}: {
+  title: string;
+  label: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <span className={className} title={message}>
-      {dots}
-      {message}
-    </span>
+    <button
+      type="button"
+      className="btn btn-ghost btn-icon btn-sm"
+      onClick={onClick}
+      aria-label={label}
+      title={title}
+    >
+      {children}
+    </button>
   );
 }
 
-function MenuIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <rect x="1" y="3" width="14" height="1.5" rx="0.75" fill="currentColor" />
-      <rect x="1" y="7.25" width="14" height="1.5" rx="0.75" fill="currentColor" />
-      <rect x="1" y="11.5" width="14" height="1.5" rx="0.75" fill="currentColor" />
-    </svg>
-  );
-}
+export function Header({ sessionName, projectLabel, onNewSession, onToggleSidebar }: HeaderProps) {
+  const title = sessionName.trim().length > 0 ? sessionName : 'Untitled Session';
 
-export function Header({ sessionName, state, statusMessage, onToggleSidebar }: HeaderProps) {
   return (
     <header className="app-header">
       <div className="app-header-left">
         <button
           type="button"
-          className="btn btn-ghost btn-icon btn-sm"
-          onClick={onToggleSidebar}
-          aria-label="Toggle sidebar"
-          title="Sidebar"
+          className="btn btn-primary btn-sm header-action-button"
+          onClick={onNewSession}
+          aria-label="Add action"
+          title="Add action"
         >
-          <MenuIcon />
+          <Plus size={16} />
+          <span>Add action</span>
         </button>
 
-        <span className="text-sm font-medium text-foreground truncate">
-          {sessionName || 'Nessuna sessione'}
-        </span>
+        <div className="header-title-group">
+          <div className="header-title">{title}</div>
+          <div className="header-subtitle">{projectLabel}</div>
+        </div>
       </div>
 
       <div className="app-header-right">
-        <StatusChip state={state} message={statusMessage} />
+        <IconButton title="Layers" label="Layers" onClick={undefined}>
+          <Layers3 size={16} />
+        </IconButton>
+        <IconButton title="Terminal" label="Terminal" onClick={undefined}>
+          <SquareTerminal size={16} />
+        </IconButton>
+        <IconButton title="Toggle sidebar" label="Toggle sidebar" onClick={onToggleSidebar}>
+          <PanelRightClose size={16} />
+        </IconButton>
       </div>
     </header>
   );
