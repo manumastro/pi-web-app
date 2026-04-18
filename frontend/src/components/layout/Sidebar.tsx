@@ -7,10 +7,12 @@ interface SidebarProps {
   sessions: SessionInfo[];
   selectedDirectory: string;
   selectedSessionId: string;
+  sidebarOpen?: boolean;
   onDirectorySelect: (cwd: string) => void;
   onSessionSelect: (id: string) => void;
   onSessionDelete: (id: string) => void;
   onNewSession: () => void;
+  onToggleSidebar: () => void;
 }
 
 export function Sidebar({
@@ -18,10 +20,12 @@ export function Sidebar({
   sessions,
   selectedDirectory,
   selectedSessionId,
+  sidebarOpen,
   onDirectorySelect,
   onSessionSelect,
   onSessionDelete,
   onNewSession,
+  onToggleSidebar,
 }: SidebarProps) {
   return (
     <SidebarPanel
@@ -29,10 +33,12 @@ export function Sidebar({
       sessions={sessions}
       selectedDirectory={selectedDirectory}
       selectedSessionId={selectedSessionId}
+      sidebarOpen={sidebarOpen}
       onDirectorySelect={onDirectorySelect}
       onSessionSelect={onSessionSelect}
       onSessionDelete={onSessionDelete}
       onNewSession={onNewSession}
+      onToggleSidebar={onToggleSidebar}
     />
   );
 }

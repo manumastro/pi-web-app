@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { CircleHelp, Folder, Info, PanelLeftClose, Plus, Search, Settings2, MessageSquareText, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { CircleHelp, Folder, Info, PanelLeftClose, PanelLeft, Plus, Search, Settings2, MessageSquareText, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DirectoryInfo, SessionInfo } from '@/types';
 
@@ -24,10 +24,12 @@ interface SidebarPanelProps {
   sessions: SessionInfo[];
   selectedDirectory: string;
   selectedSessionId: string;
+  sidebarOpen?: boolean;
   onDirectorySelect: (cwd: string) => void;
   onSessionSelect: (id: string) => void;
   onSessionDelete: (id: string) => void;
   onNewSession: () => void;
+  onToggleSidebar: () => void;
 }
 
 function SidebarIconButton({
@@ -59,10 +61,12 @@ export function SidebarPanel({
   sessions,
   selectedDirectory,
   selectedSessionId,
+  sidebarOpen = true,
   onDirectorySelect,
   onSessionSelect,
   onSessionDelete,
   onNewSession,
+  onToggleSidebar,
 }: SidebarPanelProps) {
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
 
@@ -73,8 +77,12 @@ export function SidebarPanel({
   return (
     <div className="sidebar-shell">
       <div className="sidebar-toolbar">
-        <SidebarIconButton label="Toggle sidebar" title="Toggle sidebar">
-          <PanelLeftClose size={16} />
+        <SidebarIconButton
+          label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          onClick={onToggleSidebar}
+        >
+          {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
         </SidebarIconButton>
 
         <div className="sidebar-toolbar-group">

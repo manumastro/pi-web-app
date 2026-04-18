@@ -1,9 +1,10 @@
 import React from 'react';
-import { Layers3, Plus, SquareTerminal, PanelRightClose } from 'lucide-react';
+import { Layers3, PanelLeft, Plus, SquareTerminal, PanelRightClose } from 'lucide-react';
 
 interface HeaderProps {
   sessionName: string;
   projectLabel: string;
+  sidebarOpen?: boolean;
   onNewSession: () => void;
   onToggleSidebar: () => void;
 }
@@ -32,7 +33,7 @@ function IconButton({
   );
 }
 
-export function Header({ sessionName, projectLabel, onNewSession, onToggleSidebar }: HeaderProps) {
+export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSession, onToggleSidebar }: HeaderProps) {
   const title = sessionName.trim().length > 0 ? sessionName : 'Untitled Session';
 
   return (
@@ -62,8 +63,12 @@ export function Header({ sessionName, projectLabel, onNewSession, onToggleSideba
         <IconButton title="Terminal" label="Terminal" onClick={undefined}>
           <SquareTerminal size={16} />
         </IconButton>
-        <IconButton title="Toggle sidebar" label="Toggle sidebar" onClick={onToggleSidebar}>
-          <PanelRightClose size={16} />
+        <IconButton
+          title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          onClick={onToggleSidebar}
+        >
+          {sidebarOpen ? <PanelRightClose size={16} /> : <PanelLeft size={16} />}
         </IconButton>
       </div>
     </header>

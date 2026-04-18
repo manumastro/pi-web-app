@@ -36,6 +36,7 @@ describe('SidebarPanel', () => {
     const onSessionSelect = vi.fn();
     const onSessionDelete = vi.fn();
     const onNewSession = vi.fn();
+    const onToggleSidebar = vi.fn();
 
     render(
       <SidebarPanel
@@ -47,6 +48,7 @@ describe('SidebarPanel', () => {
         onSessionSelect={onSessionSelect}
         onSessionDelete={onSessionDelete}
         onNewSession={onNewSession}
+        onToggleSidebar={onToggleSidebar}
       />,
     );
 
@@ -83,6 +85,7 @@ describe('SidebarPanel', () => {
         onSessionSelect={vi.fn()}
         onSessionDelete={vi.fn()}
         onNewSession={vi.fn()}
+        onToggleSidebar={vi.fn()}
       />,
     );
 

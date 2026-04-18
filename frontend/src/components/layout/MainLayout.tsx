@@ -7,16 +7,19 @@ interface MainLayoutProps {
   header: React.ReactNode;
   content: React.ReactNode;
   connectionBanner?: React.ReactNode;
+  sidebarOpen?: boolean;
 }
 
-export function MainLayout({ sidebar, header, content, connectionBanner }: MainLayoutProps) {
+export function MainLayout({ sidebar, header, content, connectionBanner, sidebarOpen = true }: MainLayoutProps) {
   return (
     <TooltipProvider>
-      <div className="app-shell" style={{ gridTemplateColumns: 'var(--sidebar-width, 250px) minmax(0, 1fr)' }}>
+      <div className={cn('app-shell', !sidebarOpen && 'sidebar-collapsed')}>
         {/* Sidebar */}
-        <aside className="sidebar">
-          {sidebar}
-        </aside>
+        {sidebarOpen && (
+          <aside className="sidebar">
+            {sidebar}
+          </aside>
+        )}
 
         {/* Main Content */}
         <main className="content">

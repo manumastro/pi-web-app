@@ -98,6 +98,7 @@ export default function App() {
   } = useSessionStore();
 
   const {
+    sidebarOpen,
     toggleSidebar,
     models,
     setModels,
@@ -361,10 +362,12 @@ export default function App() {
       sessions={visibleSessions}
       selectedDirectory={selectedDirectory}
       selectedSessionId={selectedSessionId}
+      sidebarOpen={sidebarOpen}
       onDirectorySelect={handleDirectorySelect}
       onSessionSelect={handleSessionSelect}
       onSessionDelete={handleDeleteSession}
       onNewSession={handleCreateSession}
+      onToggleSidebar={toggleSidebar}
     />
   );
 
@@ -372,6 +375,7 @@ export default function App() {
     <Header
       sessionName={currentSession?.title ?? 'Untitled Session'}
       projectLabel={currentDirectoryLabel}
+      sidebarOpen={sidebarOpen}
       onNewSession={handleCreateSession}
       onToggleSidebar={toggleSidebar}
     />
@@ -426,6 +430,7 @@ export default function App() {
         header={header}
         content={content}
         connectionBanner={<ConnectionBanner state={streaming} message={statusMessage} />}
+        sidebarOpen={sidebarOpen}
       />
       <Toaster />
     </>

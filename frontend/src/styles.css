@@ -799,6 +799,14 @@ details.message-thinking > summary {
     background: var(--background);
   }
 
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 0fr minmax(0, 1fr);
+  }
+
+  .app-shell.sidebar-collapsed .sidebar {
+    display: none;
+  }
+
   .sidebar {
     background: var(--sidebar);
     border-right: 1px solid var(--sidebar-border);
