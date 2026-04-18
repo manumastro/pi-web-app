@@ -86,16 +86,43 @@ export function SidebarPanel({
         </SidebarIconButton>
 
         <div className="sidebar-toolbar-group">
-          <SidebarIconButton label="Add project" title="Add project">
+          <SidebarIconButton
+            label="Add project"
+            title="Add project"
+            onClick={() => {
+              const dirPath = prompt('Enter project path:');
+              if (dirPath) {
+                // Placeholder: would need backend API to add project
+                alert(`Adding project: ${dirPath}`);
+              }
+            }}
+          >
             <Plus size={16} />
           </SidebarIconButton>
           <SidebarIconButton label="New session" title="New session" onClick={onNewSession}>
             <MessageSquareText size={16} />
           </SidebarIconButton>
-          <SidebarIconButton label="Search sessions" title="Search sessions">
+          <SidebarIconButton
+            label="Search sessions"
+            title="Search sessions"
+            onClick={() => {
+              const query = prompt('Search sessions:');
+              if (query) {
+                // Placeholder: would need to filter sessions by query
+                alert(`Searching sessions: ${query}`);
+              }
+            }}
+          >
             <Search size={16} />
           </SidebarIconButton>
-          <SidebarIconButton label="Session display mode" title="Session display mode">
+          <SidebarIconButton
+            label="Session display mode"
+            title="Session display mode"
+            onClick={() => {
+              // Placeholder: toggle between list/grid view
+              alert('Display mode toggle');
+            }}
+          >
             <SlidersHorizontal size={16} />
           </SidebarIconButton>
         </div>
@@ -181,13 +208,31 @@ export function SidebarPanel({
       </div>
 
       <div className="sidebar-footer">
-        <SidebarIconButton label="Settings" title="Settings">
+        <SidebarIconButton
+          label="Settings"
+          title="Settings"
+          onClick={() => {
+            alert('Settings panel coming soon');
+          }}
+        >
           <Settings2 size={16} />
         </SidebarIconButton>
-        <SidebarIconButton label="Help" title="Help">
+        <SidebarIconButton
+          label="Help"
+          title="Help"
+          onClick={() => {
+            alert('Help panel coming soon');
+          }}
+        >
           <CircleHelp size={16} />
         </SidebarIconButton>
-        <SidebarIconButton label="About" title="About">
+        <SidebarIconButton
+          label="About"
+          title="About"
+          onClick={() => {
+            alert('About Pi Web App - OpenChamber-style AI coding assistant');
+          }}
+        >
           <Info size={16} />
         </SidebarIconButton>
       </div>

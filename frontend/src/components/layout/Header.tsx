@@ -57,10 +57,22 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
       </div>
 
       <div className="app-header-right">
-        <IconButton title="Layers" label="Layers" onClick={undefined}>
+        <IconButton
+          title="Layers"
+          label="Layers"
+          onClick={() => {
+            alert('Layers panel coming soon');
+          }}
+        >
           <Layers3 size={16} />
         </IconButton>
-        <IconButton title="Terminal" label="Terminal" onClick={undefined}>
+        <IconButton
+          title="Terminal"
+          label="Terminal"
+          onClick={() => {
+            alert('Terminal coming soon');
+          }}
+        >
           <SquareTerminal size={16} />
         </IconButton>
         <IconButton

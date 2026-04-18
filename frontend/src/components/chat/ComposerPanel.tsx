@@ -1,4 +1,4 @@
-import { ChevronDown, Maximize2, Plus, SendHorizontal, Settings2, ShieldCheck, Square } from 'lucide-react';
+import { ChevronDown, Maximize2, Plus, SendHorizontal, Settings2, Square } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import type { ModelInfo, StreamingState } from '@/types';
 
@@ -77,19 +77,43 @@ export function ComposerPanel({
 
         <div className="composer-actions">
           <div className="composer-actions-left">
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Add attachment" title="Add attachment">
+            <button
+              type="button"
+              className="btn btn-ghost btn-icon btn-sm"
+              aria-label="Add attachment"
+              title="Add attachment"
+              onClick={() => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.multiple = true;
+                fileInput.click();
+              }}
+            >
               <Plus size={16} />
             </button>
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Toggle focus mode" title="Toggle focus mode">
+            <button
+              type="button"
+              className="btn btn-ghost btn-icon btn-sm"
+              aria-label="Toggle focus mode"
+              title="Toggle focus mode"
+              onClick={() => {
+                document.documentElement.classList.toggle('focus-mode');
+              }}
+            >
               <Maximize2 size={16} />
-            </button>
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label="Enable permission auto-accept" title="Enable permission auto-accept">
-              <ShieldCheck size={16} />
             </button>
           </div>
 
           <div className="composer-actions-right">
-            <button type="button" className="composer-preset" aria-label="Default preset" title="Default preset">
+            <button
+              type="button"
+              className="composer-preset"
+              aria-label="Default preset"
+              title="Default preset"
+              onClick={() => {
+                // Placeholder for preset selection
+              }}
+            >
               <Settings2 size={14} />
               <span>Default</span>
             </button>
