@@ -28,7 +28,7 @@ function QuestionCard({
   const [answer, setAnswer] = useState('');
 
   return (
-    <article className="message question">
+    <article className="message question interaction-question-card">
       <header>
         <strong>question</strong>
         <span>{new Date(question.timestamp).toLocaleString()}</span>

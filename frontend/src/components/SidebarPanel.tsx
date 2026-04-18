@@ -53,6 +53,8 @@ export default function SidebarPanel({
         <h1>Pi Web</h1>
         <p className="muted">{statusMessage}</p>
         {error ? <p className="error">{error}</p> : null}
+        <p className="sidebar-summary">Sessione attiva: {sessionId || 'nessuna'}</p>
+        <p className="sidebar-summary">Modello attivo: {currentModelId || 'predefinito'}</p>
       </div>
 
       <div className="panel">

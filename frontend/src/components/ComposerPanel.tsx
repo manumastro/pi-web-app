@@ -42,6 +42,7 @@ export default function ComposerPanel({
           Stop
         </button>
       </div>
+      <p className="composer-help">Invia crea un nuovo messaggio, Steer cambia direzione, Follow-up continua il thread.</p>
     </section>
   );
 }

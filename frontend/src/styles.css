@@ -107,6 +107,12 @@ textarea {
   margin-bottom: 0.75rem;
 }
 
+.sidebar-summary {
+  margin: 0.35rem 0 0;
+  color: #a9bad8;
+  font-size: 0.92rem;
+}
+
 .muted {
   color: #9fb0cf;
 }
@@ -331,6 +337,12 @@ textarea {
 .composer {
   display: grid;
   gap: 0.75rem;
+}
+
+.composer-help {
+  margin: 0;
+  color: #9fb0cf;
+  font-size: 0.92rem;
 }
 
 .actions {
