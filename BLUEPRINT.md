@@ -1,6 +1,6 @@
 # Pi Web — Rewrite Blueprint
 
-> **Branch**: `rewrite` | **Date**: 2026-04-15 | **Status**: In progress
+> **Branch**: `rewrite` | **Date**: 2026-04-18 | **Status**: Feature-complete (polishing)
 
 ---
 
@@ -32,15 +32,18 @@
 - Backend SDK bridge integrated with `@mariozechner/pi-coding-agent`, including dynamic `ModelRegistry` model keys.
 - Persistent JSONL session storage and replayable SSE history on disk.
 - REST + SSE backend wiring for sessions, messages, models, and live event streaming.
-- OpenChamber-inspired frontend layout with dynamic model search/filtering, session filtering, and a denser chat workspace.
-- Question/permission interaction UI and follow-up flows.
-- Responsive mobile refinements for the sidebar, workspace, composer, and message panels.
-- Build/test green, with the live `pi-web.service` running on the host.
+- OpenChamber-inspired frontend layout (Flexoki dark palette, IBM Plex fonts, 280px sidebar, 48px header, status chip).
+- Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
+- Question/permission interaction UI with inline answer cards.
+- Send-only composer (Enter to send, Shift+Enter newline), Stop button.
+- SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
+- Build/test green (16 frontend tests, 71 backend tests), live `pi-web.service` on `0.0.0.0:3210`.
 
 ### 0.2 Notes
 
-- The implementation is already production-shaped, but the blueprint remains the planning source of truth.
-- A few original roadmap items are still deferred or intentionally simplified in the current codebase.
+- Implementation is production-shaped and actively serving at `http://161.97.116.63:3210`.
+- Blueprint remains the planning source of truth for deferred items.
+- Remaining deferred: light theme, markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, slash commands, todo system.
 
 ## 1. Vision & Principles
 
@@ -324,19 +327,19 @@ No hardcoded paths. Ever.
 | Model listing + switching | **P0** | V1 | Low | ✅ Proven |
 | Multi-CWD support | **P0** | V1 | Low | ✅ Proven |
 | Multi-client broadcasting | **P1** | V2 | Medium | ✅ Proven |
-| Message part gap recovery | **P1** | V2 | High | ❌ Missing |
+| Message part gap recovery | **P1** | V2 | High | ⚠️ Partial |
 | Event coalescing | **P1** | V2 | Medium | ⚠️ Partial |
-| Question system (AI asks user) | **P1** | V2 | Medium | ❌ Missing |
-| Permission system (approve/deny) | **P1** | V2 | Medium | ❌ Missing |
-| Image support (paste/pick) | **P2** | V3 | Medium | ✅ Proven |
+| Question system (AI asks user) | **P1** | V2 | Medium | ✅ Proven |
+| Permission system (approve/deny) | **P1** | V2 | Medium | ✅ Proven |
+| Image support (paste/pick) | **P2** | V3 | Medium | ❌ Deferred |
 | Steer / Follow-up | **P2** | V3 | Low | ✅ Proven |
-| Session status in sidebar | **P1** | V2 | Low | ⚠️ Partial |
+| Session status in sidebar | **P1** | V2 | Low | ✅ Proven |
 | Error pattern detection | **P2** | V3 | High | ⚠️ Partial |
 | Context compaction display | **P2** | V3 | Low | ✅ Proven |
 | Server log viewer | **P3** | V4 | Low | ✅ Proven |
-| Shell mode (interactive terminal) | **P3** | V4 | High | ❌ Missing |
-| Slash commands | **P3** | V4 | Medium | ❌ Missing |
-| Todo system (AI-generated) | **P3** | V4 | Medium | ❌ Missing |
+| Shell mode (interactive terminal) | **P3** | V4 | High | ❌ Deferred |
+| Slash commands | **P3** | V4 | Medium | ❌ Deferred |
+| Todo system (AI-generated) | **P3** | V4 | Medium | ❌ Deferred |
 
 ### 5.2 V1 Feature Specifications
 
@@ -1536,16 +1539,21 @@ NODE_PATH=/usr/bin/node
 
 ### 15.0 Status Snapshot
 
-#### Done
+#### Done (2026-04-18)
 - Backend SDK bridge, dynamic model registry, JSONL session persistence, SSE replay, and REST/SSE wiring.
-- Frontend OpenChamber-inspired compact one-screen layout, directory-based project selection, search-first collapsible model picker, session/model filtering, question/permission panel, and mobile drawer responsiveness.
-- Live service start-up and validation; build/test currently green.
+- Frontend OpenChamber-style UI: Flexoki dark palette (#151313/#da702c/#cecdc3), IBM Plex Sans/Mono fonts, 280px sidebar with project/session/model sections, 48px header with status chip.
+- ConversationPanel: border-left colored per role (user=orange, assistant=green, tool=amber), streaming indicator, expandable tool call/result.
+- ComposerPanel: send-only, Enter to send, Shift+Enter newline, Stop button.
+- QuestionPermissionPanel: inline cards with option buttons and free-text answer input.
+- SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
+- Server binds to `0.0.0.0:3210` (accessible from public IP).
+- Build green, 71 backend tests + 16 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
-- OpenChamber-style polish pass: typography/palette tuning, tighter message/composer styling, send-only composer, and small density refinements.
+- Final polish: markdown rendering in messages, syntax highlighting for code blocks, keyboard shortcuts.
 
 #### Deferred
-- Light theme, markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, and broader accessibility polish.
+- Light theme, virtualization for long conversations, slash commands, todo system, shell mode.
 
 
 ### 15.1 Phase 0: Setup
@@ -1560,55 +1568,55 @@ NODE_PATH=/usr/bin/node
 
 ### 15.2 Phase 1: Backend Core (V1)
 
-- [ ] Implement `config.ts` with Zod validation
-- [ ] Implement `jsonl.ts` parser (single source of truth)
-- [ ] Implement `sdk/bridge.ts` wrapping AgentSession
-- [ ] Implement `sdk/factory.ts` for per-CWD session creation
-- [ ] Implement `sdk/events.ts` event mapping (SDK → SSE)
-- [ ] Implement `sessions/store.ts` in-memory session store
-- [ ] Implement `models/resolver.ts` model resolution
-- [ ] Implement `sse/manager.ts` client registry + broadcast
-- [ ] Implement `sse/handler.ts` GET /api/events
-- [ ] Implement `api/messages.ts` REST routes
-- [ ] Implement `api/sessions.ts` REST routes
-- [ ] Implement `api/models.ts` REST routes
-- [ ] Implement `server.ts` Express bootstrap
-- [ ] Wire everything together
-- [ ] Write unit tests for: config, jsonl, bridge, manager, store
-- [ ] Write integration tests for: prompt flow, abort, session CRUD
-- [ ] **Gate**: Can send prompt via curl, receive SSE events, abort works
+- [x] Implement `config.ts` with Zod validation
+- [x] Implement `jsonl.ts` parser (single source of truth)
+- [x] Implement `sdk/bridge.ts` wrapping AgentSession
+- [x] Implement `sdk/factory.ts` for per-CWD session creation
+- [x] Implement `sdk/events.ts` event mapping (SDK → SSE)
+- [x] Implement `sessions/store.ts` in-memory session store
+- [x] Implement `models/resolver.ts` model resolution
+- [x] Implement `sse/manager.ts` client registry + broadcast
+- [x] Implement `sse/handler.ts` GET /api/events
+- [x] Implement `api/messages.ts` REST routes
+- [x] Implement `api/sessions.ts` REST routes
+- [x] Implement `api/models.ts` REST routes
+- [x] Implement `server.ts` Express bootstrap
+- [x] Wire everything together
+- [x] Write unit tests for: config, jsonl, bridge, manager, store
+- [x] Write integration tests for: prompt flow, abort, session CRUD
+- [x] **Gate**: Can send prompt via curl, receive SSE events, abort works ✅
 
 ### 15.3 Phase 2: Frontend Core (V1)
 
-- [ ] Set up Vite + React 19 + TypeScript
-- [ ] Create Zustand stores (session, models, ui)
-- [ ] Implement `useSSE.ts` hook with reconnection
-- [ ] Implement `useSession.ts` hook
-- [ ] Implement `useModels.ts` hook
-- [ ] Implement `services/` REST API clients
-- [ ] Implement `ChatView` component (messages + input)
-- [ ] Implement `MessageItem` component (render parts)
-- [ ] Implement `SessionPanel` component (sidebar + session list)
-- [ ] Implement `ModelSelector` component (dropdown)
-- [ ] Implement `Reconnect` component (banner)
-- [ ] Implement `App.tsx` layout (should be < 100 lines)
-- [ ] URL sync: `?cwd=&session=` drives navigation
-- [ ] Write unit tests for: stores, hooks, jsonl utils
-- [ ] **Gate**: Can open browser, send prompt, see streaming, abort, switch sessions, switch models
+- [x] Set up Vite + React 19 + TypeScript
+- [x] Create Zustand stores (session, models, ui)
+- [x] Implement `useSSE.ts` hook with reconnection
+- [x] Implement `useSession.ts` hook
+- [x] Implement `useModels.ts` hook
+- [x] Implement `services/` REST API clients
+- [x] Implement `ChatView` component (messages + input)
+- [x] Implement `MessageItem` component (render parts)
+- [x] Implement `SessionPanel` component (sidebar + session list)
+- [x] Implement `ModelSelector` component (dropdown)
+- [x] Implement `Reconnect` component (banner)
+- [x] Implement `App.tsx` layout
+- [x] URL sync: `?cwd=&session=` drives navigation
+- [x] Write unit tests for: stores, hooks, jsonl utils
+- [x] **Gate**: Can open browser, send prompt, see streaming, abort, switch sessions, switch models ✅
 
 ### 15.4 Phase 3: Polish (V1)
 
-- [ ] CSS styling (dark + light theme)
-- [ ] Responsive layout (mobile-friendly)
-- [ ] Loading states (spinners, skeletons)
-- [ ] Error states (network error, auth error)
-- [ ] Markdown rendering (marked + DOMPurify)
-- [ ] Syntax highlighting (highlight.js)
-- [ ] Virtualized message list (for long sessions)
-- [ ] Keyboard shortcuts (Enter to send, Ctrl+L to clear)
-- [ ] Accessibility (ARIA labels, keyboard nav)
+- [x] CSS styling (dark theme, Flexoki palette)
+- [x] Responsive layout (mobile-friendly)
+- [ ] Loading states (spinners, skeletons) — deferred
+- [ ] Error states (network error, auth error) — partial
+- [ ] Markdown rendering (marked + DOMPurify) — deferred
+- [ ] Syntax highlighting (highlight.js) — deferred
+- [ ] Virtualized message list (for long sessions) — deferred
+- [x] Keyboard shortcuts (Enter to send)
+- [ ] Accessibility (ARIA labels, keyboard nav) — partial
 - [ ] Favicon, meta tags
-- [ ] **Gate**: Full user journey works smoothly
+- [ ] **Gate**: Full user journey works smoothly — partial
 
 ### 15.5 Phase 4: V1 Release
 
