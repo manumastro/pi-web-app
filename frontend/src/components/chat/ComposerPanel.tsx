@@ -1,5 +1,5 @@
 import { ChevronDown, Maximize2, Plus, SendHorizontal, Settings2, Square, Star } from 'lucide-react';
-import { useState, type KeyboardEvent } from 'react';
+import { useState, useEffect, type KeyboardEvent } from 'react';
 import type { ModelInfo, StreamingState } from '@/types';
 
 interface ComposerPanelProps {
@@ -43,10 +43,25 @@ export function ComposerPanel({
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   
+  // Load favorites from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('modelFavorites');
+    if (saved) {
+      try {
+        setFavorites(new Set(JSON.parse(saved)));
+      } catch { /* ignore */ }
+    }
+  }, []);
+  
+  // Save favorites to localStorage
+  useEffect(() => {
+    localStorage.setItem('modelFavorites', JSON.stringify(Array.from(favorites)));
+  }, [favorites]);
+  
   const isStreaming = streaming === 'streaming';
   const isEmpty = prompt.trim().length === 0;
-  
-  // Show ALL models, not just available ones
+
+  // ALL models are selectable - like OpenChamber
   const allModels = models;
   const groups = groupModelsByProvider(allModels);
   
@@ -230,14 +245,13 @@ export function ComposerPanel({
                             borderRadius: '0.5rem',
                             cursor: 'pointer',
                             background: model.key === activeModelKey ? 'var(--surface-2)' : 'transparent',
-                            opacity: model.available ? 1 : 0.6,
+                            // All models selectable - no availability check
                           }}
                           onClick={() => {
-                            if (model.available) {
-                              onModelSelect(model.key);
-                              setShowModelPicker(false);
-                              setSearchQuery('');
-                            }
+                            // All models selectable - no availability check
+                            onModelSelect(model.key);
+                            setShowModelPicker(false);
+                            setSearchQuery('');
                           }}
                           onMouseEnter={(e) => {
                             (e.currentTarget as HTMLElement).style.background = 'var(--surface-3)';
@@ -266,16 +280,6 @@ export function ComposerPanel({
                             <Star size={14} fill={favorites.has(model.key) ? 'currentColor' : 'none'} />
                           </button>
                           <span style={{ flex: 1, fontSize: '0.875rem' }}>{model.label}</span>
-                          {!model.available && (
-                            <span
-                              style={{
-                                fontSize: '0.6875rem',
-                                color: 'var(--muted)',
-                              }}
-                            >
-                              Unavailable
-                            </span>
-                          )}
                         </div>
                       ))}
                     </div>
