@@ -1,7 +1,7 @@
 import type { Router, Request, Response } from 'express';
 import express from 'express';
 import type { SessionStore } from '../sessions/store.js';
-import { listModels } from '../models/resolver.js';
+import { listModels, resolveModelId } from '../models/resolver.js';
 import type { SdkBridge } from '../sdk/bridge.js';
 
 export function createModelsRouter(params: { bridge: SdkBridge; sessionStore: SessionStore }): Router {
@@ -21,7 +21,7 @@ export function createModelsRouter(params: { bridge: SdkBridge; sessionStore: Se
       return;
     }
 
-    await bridge.setModel(sessionId, modelId);
+    await bridge.setModel(sessionId, resolveModelId(modelId));
     const session = sessionStore.getSession(sessionId);
     res.json({ session });
   });

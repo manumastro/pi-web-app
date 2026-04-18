@@ -39,9 +39,13 @@ export function listModels(currentModel?: string): ModelInfo[] {
   }));
 }
 
-export function resolveModel(modelId: string | undefined, fallbackModel?: string): string {
-  if (modelId && DEFAULT_MODELS.some((model) => model.id === modelId)) {
-    return modelId;
+export function findModelById(modelId: string | undefined): ModelInfo | undefined {
+  if (!modelId) {
+    return undefined;
   }
-  return fallbackModel ?? DEFAULT_MODELS[0]?.id ?? 'claude-3-5-sonnet-20241022';
+  return DEFAULT_MODELS.find((model) => model.id === modelId);
+}
+
+export function resolveModelId(modelId: string | undefined, fallbackModel?: string): string {
+  return findModelById(modelId)?.id ?? fallbackModel ?? DEFAULT_MODELS[0]?.id ?? 'claude-3-5-sonnet-20241022';
 }
