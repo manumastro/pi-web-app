@@ -32,15 +32,17 @@
 - Backend SDK bridge integrated with `@mariozechner/pi-coding-agent`, including dynamic `ModelRegistry` model keys.
 - Persistent JSONL session storage and replayable SSE history on disk.
 - REST + SSE backend wiring for sessions, messages, models, and live event streaming.
-- **OpenChamber-aligned frontend** with Tailwind CSS v4, Radix UI primitives, Flexoki dark palette, 250px sidebar, and 56px header.
+- **OpenChamber-aligned frontend** with Tailwind CSS v4, Radix UI primitives, light theme with warm/beige palette (oklch-based), IBM Plex Sans/Mono fonts, 304px sidebar, and 56px header.
 - Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
 - Model selection mirrors the CLI `/models` availability list: only selectable/available models are shown in the picker.
-- Question/permission interaction UI with inline answer cards.
-- Send-only composer (Enter to send, Shift+Enter newline), Stop button.
+- Question/permission interaction UI with inline answer cards (all labels in English).
+- Send-only composer (Enter to send, Shift+Enter newline), Stop button, Build chip.
 - SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
 - **Build/test green (18 frontend tests, 71 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
 - Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` to prevent `totalTokens` crashes in multi-turn sessions.
 - Model selection now persisted per-session via `PUT /api/models/session/model`; active model is selected by `isSelected` flag from the API.
+- Sidebar toggle functionality with dynamic icons (PanelLeftClose/PanelLeft).
+- `crypto.randomUUID()` fallback for browser compatibility.
 
 ### 0.2 OpenChamber Migration Complete ✅
 
@@ -66,7 +68,8 @@ frontend/src/
 - Blueprint remains the planning source of truth for deferred items.
 - **OpenChamber migration complete** - frontend now uses same component organization, styling system, and UI primitives; model lists are now filtered to CLI-available models only.
 - Zustand stores fully integrated into App.tsx (chatStore, sessionStore, uiStore).
-- Remaining deferred: light theme, markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, slash commands, todo system.
+- UI fully translated to English with light theme (warm/beige palette).
+- Remaining deferred: markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, slash commands, todo system, command palette.
 
 ## 1. Vision & Principles
 
