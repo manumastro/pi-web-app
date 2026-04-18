@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './styles.css';
 import { apiGet, apiRequest } from './api';
-import type { ModelInfo, SessionInfo, SessionMessage, StreamingState } from './types';
-
-interface SsePayload {
-  type: string;
-  sessionId: string;
-  messageId?: string;
-  content?: string;
-  aborted?: boolean;
-}
+import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem, type SsePayload } from './chatState';
+import type { ModelInfo, SessionInfo } from './types';
 
 function getQueryParam(name: string): string {
   return new URLSearchParams(window.location.search).get(name) ?? '';
@@ -27,14 +20,18 @@ function setQueryParams(params: { cwd?: string; sessionId?: string }): void {
   window.history.replaceState({}, '', next);
 }
 
+function formatTimestamp(timestamp: string): string {
+  return timestamp === 'streaming' ? 'in streaming' : new Date(timestamp).toLocaleString();
+}
+
 export default function App() {
   const [cwd, setCwd] = useState(() => getQueryParam('cwd') || '/');
   const [sessionId, setSessionId] = useState(() => getQueryParam('session'));
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const [messages, setMessages] = useState<SessionMessage[]>([]);
+  const [conversation, setConversation] = useState<ConversationItem[]>([]);
   const [prompt, setPrompt] = useState('');
-  const [streaming, setStreaming] = useState<StreamingState>('connecting');
+  const [streaming, setStreaming] = useState<'idle' | 'connecting' | 'streaming' | 'error'>('connecting');
   const [statusMessage, setStatusMessage] = useState('Caricamento...');
   const [error, setError] = useState('');
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -65,14 +62,14 @@ export default function App() {
 
     const created = await apiRequest<{ session: SessionInfo }>('/api/sessions', {
       method: 'POST',
-      body: JSON.stringify({ cwd: nextCwd, model: models[0]?.id }),
+      body: JSON.stringify({ cwd: nextCwd, model: models[0]?.id ?? '' }),
     });
     return created.session.id;
   }
 
   async function loadSession(nextSessionId: string): Promise<void> {
     const payload = await apiGet<{ session: SessionInfo }>(`/api/sessions/${encodeURIComponent(nextSessionId)}`);
-    setMessages(payload.session.messages);
+    setConversation(messagesToConversation(payload.session.messages));
   }
 
   useEffect(() => {
@@ -122,36 +119,37 @@ export default function App() {
       setError('');
     };
 
-    source.onerror = () => {
-      setStreaming('error');
-      setStatusMessage('Connessione persa');
-    };
-
     source.addEventListener('text_chunk', (event) => {
       const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
-      if (payload.sessionId !== sessionId || !payload.content) {
+      if (payload.sessionId !== sessionId) {
         return;
       }
-      const chunk = payload.content;
       setStreaming('streaming');
-      setMessages((current) => {
-        const next = [...current];
-        const last = next[next.length - 1];
-        if (last?.role === 'assistant' && last.timestamp === 'streaming') {
-          next[next.length - 1] = {
-            ...last,
-            content: `${last.content}${chunk}`,
-          };
-          return next;
-        }
-        next.push({
-          id: payload.messageId ?? crypto.randomUUID(),
-          role: 'assistant',
-          content: chunk,
-          timestamp: 'streaming',
-        });
-        return next;
-      });
+      setConversation((current) => applySsePayload(current, payload));
+    });
+
+    source.addEventListener('thinking', (event) => {
+      const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
+      if (payload.sessionId !== sessionId) {
+        return;
+      }
+      setConversation((current) => applySsePayload(current, payload));
+    });
+
+    source.addEventListener('tool_call', (event) => {
+      const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
+      if (payload.sessionId !== sessionId) {
+        return;
+      }
+      setConversation((current) => applySsePayload(current, payload));
+    });
+
+    source.addEventListener('tool_result', (event) => {
+      const payload = JSON.parse((event as MessageEvent).data) as SsePayload;
+      if (payload.sessionId !== sessionId) {
+        return;
+      }
+      setConversation((current) => applySsePayload(current, payload));
     });
 
     source.addEventListener('done', (event) => {
@@ -161,17 +159,24 @@ export default function App() {
       }
       setStreaming('idle');
       setStatusMessage(payload.aborted ? 'Risposta interrotta' : 'Risposta completata');
-      setMessages((current) =>
-        current.map((message, index) => {
-          if (index !== current.length - 1 || message.role !== 'assistant' || message.timestamp !== 'streaming') {
-            return message;
-          }
-          return {
-            ...message,
-            timestamp: new Date().toISOString(),
-          };
-        }),
-      );
+      setConversation((current) => applySsePayload(current, payload));
+    });
+
+    source.addEventListener('error', (event) => {
+      if (event instanceof MessageEvent && event.data) {
+        const payload = JSON.parse(event.data) as SsePayload;
+        if (payload.sessionId !== sessionId) {
+          return;
+        }
+        setConversation((current) => applySsePayload(current, payload));
+        setError(payload.message ?? 'Errore del motore');
+        setStatusMessage('Errore dal motore');
+        setStreaming('error');
+        return;
+      }
+
+      setStreaming('error');
+      setStatusMessage('Connessione persa');
     });
 
     return () => {
@@ -187,21 +192,7 @@ export default function App() {
 
     setError('');
     setStreaming('streaming');
-    setMessages((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content: text,
-        timestamp: new Date().toISOString(),
-      },
-      {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: '',
-        timestamp: 'streaming',
-      },
-    ]);
+    setConversation((current) => appendPrompt(current, text));
     setPrompt('');
 
     try {
@@ -212,6 +203,48 @@ export default function App() {
     } catch (cause) {
       setStreaming('error');
       setStatusMessage('Errore durante l’invio');
+      setError(cause instanceof Error ? cause.message : 'Errore sconosciuto');
+    }
+  }
+
+  async function handleSteer(): Promise<void> {
+    const text = prompt.trim();
+    if (!text || !sessionId) {
+      return;
+    }
+
+    setError('');
+    setPrompt('');
+
+    try {
+      await apiRequest('/api/messages/steer', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, cwd, message: text, model: currentSession?.model ?? models[0]?.id ?? '' }),
+      });
+    } catch (cause) {
+      setStreaming('error');
+      setStatusMessage('Errore steering');
+      setError(cause instanceof Error ? cause.message : 'Errore sconosciuto');
+    }
+  }
+
+  async function handleFollowUp(): Promise<void> {
+    const text = prompt.trim();
+    if (!text || !sessionId) {
+      return;
+    }
+
+    setError('');
+    setPrompt('');
+
+    try {
+      await apiRequest('/api/messages/follow-up', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, cwd, message: text, model: currentSession?.model ?? models[0]?.id ?? '' }),
+      });
+    } catch (cause) {
+      setStreaming('error');
+      setStatusMessage('Errore follow-up');
       setError(cause instanceof Error ? cause.message : 'Errore sconosciuto');
     }
   }
@@ -234,7 +267,7 @@ export default function App() {
     setSessions((current) => [created.session, ...current]);
     setSessionId(created.session.id);
     setQueryParams({ cwd, sessionId: created.session.id });
-    setMessages([]);
+    setConversation([]);
   }
 
   async function handleDeleteSession(targetSessionId: string): Promise<void> {
@@ -246,7 +279,7 @@ export default function App() {
     if (sessionId === targetSessionId) {
       const nextSession = nextSessions[0];
       setSessionId(nextSession?.id ?? '');
-      setMessages([]);
+      setConversation([]);
       if (nextSession) {
         setQueryParams({ cwd, sessionId: nextSession.id });
         await loadSession(nextSession.id);
@@ -310,7 +343,13 @@ export default function App() {
               >
                 <span>{session.id}</span>
                 <small>{session.model ?? 'modello predefinito'}</small>
-                <span className="delete" onClick={(event) => { event.stopPropagation(); void handleDeleteSession(session.id); }}>
+                <span
+                  className="delete"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleDeleteSession(session.id);
+                  }}
+                >
                   ✕
                 </span>
               </button>
@@ -321,18 +360,68 @@ export default function App() {
 
       <main className="content">
         <section className="panel messages-panel">
-          <div className="panel-title">Messaggi</div>
+          <div className="panel-title">Conversazione</div>
           <div className="messages">
-            {messages.length === 0 ? <p className="muted">Nessun messaggio ancora.</p> : null}
-            {messages.map((message) => (
-              <article key={message.id} className={`message ${message.role}`}>
-                <header>
-                  <strong>{message.role}</strong>
-                  <span>{message.timestamp === 'streaming' ? 'in streaming' : new Date(message.timestamp).toLocaleString()}</span>
-                </header>
-                <pre>{message.content || '...'}</pre>
-              </article>
-            ))}
+            {conversation.length === 0 ? <p className="muted">Nessun messaggio ancora.</p> : null}
+            {conversation.map((item) => {
+              if (item.kind === 'message') {
+                return (
+                  <article key={item.id} className={`message ${item.role} ${item.status ?? 'complete'}`}>
+                    <header>
+                      <strong>{item.role}</strong>
+                      <span>{formatTimestamp(item.timestamp)}</span>
+                    </header>
+                    <pre>{item.content || '...'}</pre>
+                  </article>
+                );
+              }
+
+              if (item.kind === 'thinking') {
+                return (
+                  <details key={item.id} className="message thinking" open={item.done}>
+                    <summary>
+                      <strong>thinking</strong>
+                      <span>{formatTimestamp(item.timestamp)}</span>
+                    </summary>
+                    <pre>{item.content || '...'}</pre>
+                  </details>
+                );
+              }
+
+              if (item.kind === 'tool_call') {
+                return (
+                  <article key={item.id} className="message tool-call">
+                    <header>
+                      <strong>tool · {item.toolName}</strong>
+                      <span>{formatTimestamp(item.timestamp)}</span>
+                    </header>
+                    <pre>{item.input}</pre>
+                  </article>
+                );
+              }
+
+              if (item.kind === 'tool_result') {
+                return (
+                  <article key={item.id} className={`message tool-result ${item.success ? 'success' : 'error'}`}>
+                    <header>
+                      <strong>result · {item.toolCallId}</strong>
+                      <span>{formatTimestamp(item.timestamp)}</span>
+                    </header>
+                    <pre>{item.result || '...'}</pre>
+                  </article>
+                );
+              }
+
+              return (
+                <article key={item.id} className="message error">
+                  <header>
+                    <strong>error · {item.category}</strong>
+                    <span>{formatTimestamp(item.timestamp)}</span>
+                  </header>
+                  <pre>{item.message}</pre>
+                </article>
+              );
+            })}
           </div>
         </section>
 
@@ -347,6 +436,12 @@ export default function App() {
           <div className="actions">
             <button onClick={handleSend} disabled={streaming === 'streaming' || prompt.trim().length === 0}>
               Invia
+            </button>
+            <button onClick={handleSteer} disabled={prompt.trim().length === 0 || !sessionId}>
+              Steer
+            </button>
+            <button onClick={handleFollowUp} disabled={prompt.trim().length === 0 || !sessionId}>
+              Follow-up
             </button>
             <button onClick={handleAbort} disabled={streaming !== 'streaming'}>
               Stop

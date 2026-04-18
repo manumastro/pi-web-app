@@ -32,6 +32,7 @@ function createFakeAgentSession() {
 
   const session = {
     agent,
+    isStreaming: true,
     subscribe(listener: (event: { type: string; [key: string]: unknown }) => void) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -52,6 +53,8 @@ function createFakeAgentSession() {
       }
       return text;
     }),
+    steer: vi.fn(),
+    followUp: vi.fn(),
     abort: vi.fn(),
     setModel: vi.fn(),
   };
@@ -110,8 +113,39 @@ describe('sdk bridge', () => {
       expect.objectContaining({ role: 'user', content: 'Hello SDK' }),
       expect.objectContaining({ role: 'assistant', content: 'Hello' }),
     ]);
+    expect(sessionStore.getSession('session-1')?.status).toBe('done');
     expect(events.join('')).toContain('event: text_chunk');
     expect(events.join('')).toContain('event: done');
+  });
+
+  it('routes steer and follow-up through the active sdk session', async () => {
+    const fake = createFakeAgentSession();
+    mocks.createAgentSessionMock.mockResolvedValue(fake);
+
+    const sessionStore = createSessionStore();
+    sessionStore.createSession('/tmp/project', 'claude-3-5-sonnet-20241022', 'session-3');
+    const sseManager = createSseManager();
+    const bridge = createSdkBridge({
+      config: {
+        port: 3210,
+        nodeEnv: 'development',
+        sessionsDir: '/tmp/sessions',
+        sdkCwd: '/tmp/project',
+        model: 'claude-3-5-sonnet-20241022',
+        corsOrigins: [],
+        logLevel: 'info',
+        sessionIdPrefix: 'session',
+        generateSessionId: () => 'generated-session-id',
+      },
+      sessionStore,
+      sseManager,
+    });
+
+    await bridge.steer('session-3', 'please focus on security');
+    await bridge.followUp('session-3', 'also explain the changes');
+
+    expect(fake.session.steer).toHaveBeenCalledWith('please focus on security');
+    expect(fake.session.followUp).toHaveBeenCalledWith('also explain the changes');
   });
 
   it('updates the model through the sdk registry', async () => {

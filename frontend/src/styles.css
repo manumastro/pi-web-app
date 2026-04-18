@@ -138,12 +138,42 @@ textarea {
   border-left: 4px solid #8bffb0;
 }
 
-.message header {
+.message.assistant.streaming {
+  opacity: 0.95;
+}
+
+.message.thinking {
+  border-left: 4px solid #a78bfa;
+}
+
+.message.tool-call {
+  border-left: 4px solid #f59e0b;
+}
+
+.message.tool-result.success {
+  border-left: 4px solid #34d399;
+}
+
+.message.tool-result.error,
+.message.error {
+  border-left: 4px solid #fb7185;
+}
+
+.message header,
+.message summary {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.5rem;
   color: #adc0e0;
+}
+
+.message summary {
+  cursor: pointer;
+}
+
+.message summary::-webkit-details-marker {
+  display: none;
 }
 
 .message pre {

@@ -35,19 +35,26 @@ export function createMessagesRouter(bridge: SdkBridge): Router {
 
   router.post('/steer', async (req: Request, res: Response) => {
     const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
-    if (!message) {
-      res.status(400).json({ error: 'message is required' });
+    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : '';
+    if (!message || !sessionId) {
+      res.status(400).json({ error: 'sessionId and message are required' });
       return;
     }
 
-    const result = await bridge.prompt({
-      sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined,
-      cwd: typeof req.body?.cwd === 'string' ? req.body.cwd : undefined,
-      message: `Steer: ${message}`,
-      model: typeof req.body?.model === 'string' ? req.body.model : undefined,
-    });
+    await bridge.steer(sessionId, message);
+    res.json({ ok: true });
+  });
 
-    res.status(202).json(result);
+  router.post('/follow-up', async (req: Request, res: Response) => {
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : '';
+    if (!message || !sessionId) {
+      res.status(400).json({ error: 'sessionId and message are required' });
+      return;
+    }
+
+    await bridge.followUp(sessionId, message);
+    res.json({ ok: true });
   });
 
   return router;

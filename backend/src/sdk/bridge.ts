@@ -27,6 +27,8 @@ export interface PromptResult {
 
 export interface SdkBridge {
   prompt: (request: PromptRequest) => Promise<PromptResult>;
+  steer: (sessionId: string, message: string) => Promise<void>;
+  followUp: (sessionId: string, message: string) => Promise<void>;
   abort: (sessionId: string) => Promise<void>;
   setModel: (sessionId: string, modelId: string) => Promise<void>;
 }
@@ -56,11 +58,50 @@ function stringifyResult(value: unknown): string {
   if (typeof value === 'string') {
     return value;
   }
+
   try {
     return JSON.stringify(value);
   } catch {
     return String(value);
   }
+}
+
+function extractMessageText(message: { content?: unknown }): string {
+  if (typeof message.content === 'string') {
+    return message.content;
+  }
+
+  if (Array.isArray(message.content)) {
+    return message.content
+      .map((part) => {
+        if (typeof part === 'string') {
+          return part;
+        }
+        if (part && typeof part === 'object') {
+          const maybeText = (part as { text?: unknown; content?: unknown; refusal?: unknown; thinking?: unknown }).text;
+          if (typeof maybeText === 'string') {
+            return maybeText;
+          }
+          const maybeContent = (part as { content?: unknown }).content;
+          if (typeof maybeContent === 'string') {
+            return maybeContent;
+          }
+          const maybeRefusal = (part as { refusal?: unknown }).refusal;
+          if (typeof maybeRefusal === 'string') {
+            return maybeRefusal;
+          }
+          const maybeThinking = (part as { thinking?: unknown }).thinking;
+          if (typeof maybeThinking === 'string') {
+            return maybeThinking;
+          }
+        }
+        return '';
+      })
+      .join('')
+      .trim();
+  }
+
+  return '';
 }
 
 function emit(manager: SseManager, event: SseEvent): void {
@@ -77,8 +118,73 @@ export function createSdkBridge(params: {
   const modelRegistry = ModelRegistry.create(authStorage);
   const sessions = new Map<string, ActiveAgentSession>();
 
-  function getSessionIdOrCreate(): string {
-    return config.generateSessionId();
+  function ensureStoredSession(sessionId: string, cwd: string, modelId?: string): Session {
+    return sessionStore.getSession(sessionId) ?? sessionStore.createSession(cwd, resolveModelId(modelId, config.model), sessionId);
+  }
+
+  function getSessionMessage(sessionId: string): Session | undefined {
+    return sessionStore.getSession(sessionId);
+  }
+
+  function ensureAssistantPlaceholder(sessionId: string): ActiveAgentSession | undefined {
+    const active = sessions.get(sessionId);
+    if (!active) {
+      return undefined;
+    }
+
+    if (!active.assistantMessageId) {
+      active.assistantMessageId = config.generateSessionId();
+    }
+
+    return active;
+  }
+
+  function appendIfMissing(sessionId: string, role: Session['messages'][number]['role'], content: string): void {
+    const session = getSessionMessage(sessionId);
+    if (!session) {
+      return;
+    }
+
+    for (let index = session.messages.length - 1; index >= 0; index -= 1) {
+      const message = session.messages[index];
+      if (!message) {
+        continue;
+      }
+      if (message.role === role && message.content === content && index >= session.messages.length - 2) {
+        return;
+      }
+    }
+
+    sessionStore.addMessage(sessionId, { role, content });
+  }
+
+  function updateLastAssistantMessage(sessionId: string, content: string): void {
+    const current = getSessionMessage(sessionId);
+    if (!current) {
+      return;
+    }
+
+    const last = current.messages.at(-1);
+    if (!last || last.role !== 'assistant') {
+      sessionStore.addMessage(sessionId, { role: 'assistant', content });
+      return;
+    }
+
+    sessionStore.updateSession(sessionId, {
+      messages: [...current.messages.slice(0, -1), { ...last, content }],
+    });
+  }
+
+  function emitSdkError(sessionId: string, message: unknown): void {
+    sessionStore.updateSession(sessionId, { status: 'error' });
+    emit(sseManager, {
+      type: 'error',
+      sessionId,
+      message: message instanceof Error ? message.message : stringifyResult(message),
+      category: 'sdk',
+      recoverable: true,
+      timestamp: now(),
+    });
   }
 
   async function getOrCreateAgentSession(sessionId: string, cwd: string, modelId?: string): Promise<ActiveAgentSession> {
@@ -87,7 +193,7 @@ export function createSdkBridge(params: {
       return existing;
     }
 
-    const stored = sessionStore.getSession(sessionId) ?? sessionStore.createSession(cwd, resolveModelId(modelId, config.model), sessionId);
+    const stored = ensureStoredSession(sessionId, cwd, modelId);
     const settingsManager = SettingsManager.create(stored.cwd);
     const { session } = await createAgentSession({
       cwd: stored.cwd,
@@ -128,77 +234,25 @@ export function createSdkBridge(params: {
     return active;
   }
 
-  function ensureAssistantPlaceholder(sessionId: string): ActiveAgentSession | undefined {
-    const active = sessions.get(sessionId);
-    if (!active) {
-      return undefined;
-    }
-
-    if (!active.assistantMessageId) {
-      active.assistantMessageId = getSessionIdOrCreate();
-    }
-
-    return active;
-  }
-
-  function updateAssistantMessage(sessionId: string, chunk: string): void {
-    const active = ensureAssistantPlaceholder(sessionId);
-    if (!active) {
-      return;
-    }
-
-    active.assistantContent += chunk;
-    const current = sessionStore.getSession(sessionId);
-    if (!current) {
-      return;
-    }
-
-    const messages = current.messages;
-    const last = messages[messages.length - 1];
-    if (last?.role === 'assistant') {
-      sessionStore.updateSession(sessionId, {
-        messages: [
-          ...messages.slice(0, -1),
-          {
-            ...last,
-            content: active.assistantContent,
-          },
-        ],
-      });
-    }
-  }
-
   function finalizeAssistantMessage(sessionId: string, aborted: boolean): void {
     const active = sessions.get(sessionId);
     if (!active) {
       return;
     }
 
-    const current = sessionStore.getSession(sessionId);
-    if (current && active.assistantContent.length > 0) {
-      const messages = current.messages;
-      const last = messages[messages.length - 1];
-      if (last?.role === 'assistant') {
-        sessionStore.updateSession(sessionId, {
-          messages: [
-            ...messages.slice(0, -1),
-            {
-              ...last,
-              content: active.assistantContent,
-            },
-          ],
-        });
-      }
+    if (active.assistantContent.length > 0) {
+      updateLastAssistantMessage(sessionId, active.assistantContent);
     }
 
-    sessionStore.updateSession(sessionId, { status: aborted ? 'done' : 'done' });
+    sessionStore.updateSession(sessionId, { status: 'done' });
     emit(sseManager, {
       type: 'done',
       sessionId,
-      messageId: active.assistantMessageId ?? getSessionIdOrCreate(),
+      messageId: active.assistantMessageId ?? config.generateSessionId(),
       aborted,
       timestamp: now(),
     });
+
     active.assistantMessageId = null;
     active.assistantContent = '';
     active.aborted = false;
@@ -210,21 +264,26 @@ export function createSdkBridge(params: {
       case 'turn_start':
         sessionStore.updateSession(active.sessionId, { status: 'answering' });
         break;
-      case 'message_start':
+      case 'message_start': {
+        const text = extractMessageText(event.message as { content?: unknown });
+        appendIfMissing(active.sessionId, event.message.role as Session['messages'][number]['role'], text);
         if (event.message.role === 'assistant') {
-          active.assistantContent = '';
+          active.assistantContent = text;
           if (!active.assistantMessageId) {
-            active.assistantMessageId = getSessionIdOrCreate();
+            active.assistantMessageId = config.generateSessionId();
           }
         }
         break;
+      }
       case 'message_update':
         if (event.assistantMessageEvent.type === 'text_delta') {
-          updateAssistantMessage(active.sessionId, event.assistantMessageEvent.delta);
+          ensureAssistantPlaceholder(active.sessionId);
+          active.assistantContent += event.assistantMessageEvent.delta;
+          updateLastAssistantMessage(active.sessionId, active.assistantContent);
           emit(sseManager, {
             type: 'text_chunk',
             sessionId: active.sessionId,
-            messageId: active.assistantMessageId ?? getSessionIdOrCreate(),
+            messageId: active.assistantMessageId ?? config.generateSessionId(),
             content: event.assistantMessageEvent.delta,
             timestamp: now(),
           });
@@ -232,7 +291,7 @@ export function createSdkBridge(params: {
           emit(sseManager, {
             type: 'thinking',
             sessionId: active.sessionId,
-            messageId: active.assistantMessageId ?? getSessionIdOrCreate(),
+            messageId: active.assistantMessageId ?? config.generateSessionId(),
             content: event.assistantMessageEvent.delta,
             done: false,
             timestamp: now(),
@@ -243,7 +302,7 @@ export function createSdkBridge(params: {
         emit(sseManager, {
           type: 'tool_call',
           sessionId: active.sessionId,
-          messageId: active.assistantMessageId ?? getSessionIdOrCreate(),
+          messageId: active.assistantMessageId ?? config.generateSessionId(),
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           input: typeof event.args === 'object' && event.args !== null ? (event.args as Record<string, unknown>) : { value: event.args },
@@ -254,7 +313,7 @@ export function createSdkBridge(params: {
         emit(sseManager, {
           type: 'tool_result',
           sessionId: active.sessionId,
-          messageId: active.assistantMessageId ?? getSessionIdOrCreate(),
+          messageId: active.assistantMessageId ?? config.generateSessionId(),
           toolCallId: event.toolCallId,
           result: stringifyResult(event.partialResult),
           success: true,
@@ -265,20 +324,23 @@ export function createSdkBridge(params: {
         emit(sseManager, {
           type: 'tool_result',
           sessionId: active.sessionId,
-          messageId: active.assistantMessageId ?? getSessionIdOrCreate(),
+          messageId: active.assistantMessageId ?? config.generateSessionId(),
           toolCallId: event.toolCallId,
           result: stringifyResult(event.result),
           success: !event.isError,
           timestamp: now(),
         });
         break;
-      case 'message_end':
-        if (event.message.role === 'assistant' && event.message.content) {
-          active.assistantContent = typeof event.message.content === 'string'
-            ? event.message.content
-            : JSON.stringify(event.message.content);
+      case 'message_end': {
+        const text = extractMessageText(event.message as { content?: unknown });
+        if (event.message.role === 'assistant') {
+          active.assistantContent = text || active.assistantContent;
+          updateLastAssistantMessage(active.sessionId, active.assistantContent);
+        } else if (event.message.role === 'user') {
+          appendIfMissing(active.sessionId, 'user', text);
         }
         break;
+      }
       case 'agent_end':
         finalizeAssistantMessage(active.sessionId, active.aborted);
         break;
@@ -288,35 +350,70 @@ export function createSdkBridge(params: {
   }
 
   async function prompt(request: PromptRequest): Promise<PromptResult> {
-    const sessionId = request.sessionId ?? getSessionIdOrCreate();
+    const sessionId = request.sessionId ?? config.generateSessionId();
     const cwd = request.cwd ?? config.sdkCwd;
     const resolvedModelId = resolveModelId(request.model, config.model);
-    const session = sessionStore.getSession(sessionId) ?? sessionStore.createSession(cwd, resolvedModelId, sessionId);
+    const session = ensureStoredSession(sessionId, cwd, resolvedModelId);
 
     sessionStore.updateSession(session.id, { status: 'prompting', cwd, model: resolvedModelId });
     sessionStore.addMessage(session.id, { role: 'user', content: request.message });
     sessionStore.addMessage(session.id, { role: 'assistant', content: '' });
 
-    const active = await getOrCreateAgentSession(session.id, cwd, resolvedModelId);
-    active.assistantMessageId = getSessionIdOrCreate();
-    active.assistantContent = '';
-    active.aborted = false;
+    try {
+      const active = await getOrCreateAgentSession(session.id, cwd, resolvedModelId);
+      active.assistantMessageId = config.generateSessionId();
+      active.assistantContent = '';
+      active.aborted = false;
 
-    const modelInfo = findModelById(resolvedModelId);
-    if (modelInfo) {
-      const model = modelRegistry.find(modelInfo.provider, modelInfo.id);
-      if (model) {
-        active.agentSession.setModel(model);
+      const modelInfo = findModelById(resolvedModelId);
+      if (modelInfo) {
+        const model = modelRegistry.find(modelInfo.provider, modelInfo.id);
+        if (model) {
+          active.agentSession.setModel(model);
+        }
       }
+
+      await active.agentSession.prompt(request.message);
+
+      const updated = sessionStore.getSession(session.id);
+      return {
+        sessionId: session.id,
+        assistantMessage: updated?.messages.at(-1)?.content ?? '',
+      };
+    } catch (cause) {
+      emitSdkError(session.id, cause);
+      throw cause;
+    }
+  }
+
+  async function dispatchQueuedMessage(
+    sessionId: string,
+    message: string,
+    mode: 'steer' | 'followUp',
+    cwd?: string,
+    model?: string,
+  ): Promise<void> {
+    const session = ensureStoredSession(sessionId, cwd ?? config.sdkCwd, model ?? config.model);
+    const active = await getOrCreateAgentSession(session.id, session.cwd, session.model ?? model);
+
+    if (!active.agentSession.isStreaming) {
+      const promptRequest: PromptRequest = {
+        sessionId: session.id,
+        cwd: session.cwd,
+        message,
+      };
+      if (session.model) {
+        promptRequest.model = session.model;
+      }
+      await prompt(promptRequest);
+      return;
     }
 
-    await active.agentSession.prompt(request.message);
-
-    const updated = sessionStore.getSession(session.id);
-    return {
-      sessionId: session.id,
-      assistantMessage: updated?.messages.at(-1)?.content ?? '',
-    };
+    if (mode === 'steer') {
+      await active.agentSession.steer(message);
+    } else {
+      await active.agentSession.followUp(message);
+    }
   }
 
   async function abort(sessionId: string): Promise<void> {
@@ -329,7 +426,7 @@ export function createSdkBridge(params: {
       emit(sseManager, {
         type: 'done',
         sessionId,
-        messageId: getSessionIdOrCreate(),
+        messageId: config.generateSessionId(),
         aborted: true,
         timestamp: now(),
       });
@@ -363,5 +460,13 @@ export function createSdkBridge(params: {
     }
   }
 
-  return { prompt, abort, setModel };
+  async function steer(sessionId: string, message: string): Promise<void> {
+    await dispatchQueuedMessage(sessionId, message, 'steer');
+  }
+
+  async function followUp(sessionId: string, message: string): Promise<void> {
+    await dispatchQueuedMessage(sessionId, message, 'followUp');
+  }
+
+  return { prompt, steer, followUp, abort, setModel };
 }
