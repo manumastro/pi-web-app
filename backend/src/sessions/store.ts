@@ -40,6 +40,7 @@ export interface SessionStore {
   updateSession: (id: string, updates: Partial<Session>) => Session | undefined;
   deleteSession: (id: string) => boolean;
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => Session | undefined;
+  seedSessions: (sessions: Session[]) => void;
   clearAll: () => void;
 }
 
@@ -133,6 +134,13 @@ export function createSessionStore(): SessionStore {
 
       sessions.set(sessionId, updated);
       return updated;
+    },
+
+    seedSessions(items: Session[]): void {
+      sessions.clear();
+      for (const session of items) {
+        sessions.set(session.id, session);
+      }
     },
 
     clearAll(): void {
