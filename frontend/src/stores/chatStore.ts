@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import type { ConversationItem, MessageItem, PermissionItem, QuestionItem } from '@/chatState';
 
+// Fallback for crypto.randomUUID when not available
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for older browsers/node
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 interface ChatState {
   // Conversation state
   conversation: ConversationItem[];
@@ -22,7 +31,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Initial state
   conversation: [],
   streaming: 'idle',
-  statusMessage: 'Connessione in corso…',
+  statusMessage: 'Connecting…',
   error: '',
   
   // Actions
@@ -31,7 +40,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   appendPrompt: (prompt, activeModelKey) => {
     const userMessage: ConversationItem = {
       kind: 'message',
-      id: crypto.randomUUID(),
+      id: generateId(),
       timestamp: new Date().toISOString(),
       role: 'user',
       content: prompt,
@@ -39,7 +48,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     const assistantMessage: ConversationItem = {
       kind: 'message',
-      id: crypto.randomUUID(),
+      id: generateId(),
       timestamp: new Date().toISOString(),
       role: 'assistant',
       content: '',
@@ -78,8 +87,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Permission request
         const permissionItem: PermissionItem = {
           kind: 'permission',
-          id: parsed.id || parsed.permissionId || crypto.randomUUID(),
-          permissionId: parsed.permissionId || parsed.id || crypto.randomUUID(),
+          id: parsed.id || parsed.permissionId || generateId(),
+          permissionId: parsed.permissionId || parsed.id || generateId(),
           action: parsed.action || parsed.description || 'permission',
           resource: parsed.resource || '',
           timestamp: new Date().toISOString(),
@@ -91,8 +100,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Question request
         const questionItem: QuestionItem = {
           kind: 'question',
-          id: parsed.id || parsed.questionId || crypto.randomUUID(),
-          questionId: parsed.questionId || parsed.id || crypto.randomUUID(),
+          id: parsed.id || parsed.questionId || generateId(),
+          questionId: parsed.questionId || parsed.id || generateId(),
           question: parsed.question || '',
           options: parsed.options || [],
           timestamp: new Date().toISOString(),
@@ -105,7 +114,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       } else if (parsed.type === 'error') {
         set({ error: parsed.message || 'Unknown error', streaming: 'error' });
       } else if (parsed.type === 'done') {
-        set({ streaming: 'idle', statusMessage: 'Completato' });
+        set({ streaming: 'idle', statusMessage: 'Completed' });
       }
     } catch {
       // If not JSON, treat as text content
