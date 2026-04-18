@@ -69,6 +69,31 @@ textarea {
   background: rgba(5, 10, 20, 0.5);
 }
 
+.session {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.session-select {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: start;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: 0;
+}
+
+.session-delete {
+  border: 0;
+  background: transparent;
+  color: #ffb3b3;
+  padding: 0.25rem 0.4rem;
+}
+
 .panel {
   background: rgba(16, 24, 40, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.08);

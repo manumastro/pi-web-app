@@ -3,6 +3,7 @@ import './styles.css';
 import { apiGet, apiRequest } from './api';
 import ConversationPanel from './components/ConversationPanel';
 import ComposerPanel from './components/ComposerPanel';
+import SidebarPanel from './components/SidebarPanel';
 import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem, type SsePayload } from './chatState';
 import type { ModelInfo, SessionInfo } from './types';
 
@@ -280,63 +281,25 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="panel">
-          <h1>Pi Web</h1>
-          <p className="muted">{statusMessage}</p>
-          {error ? <p className="error">{error}</p> : null}
-        </div>
-
-        <div className="panel">
-          <label>
-            CWD
-            <input value={cwd} onChange={(event) => setCwd(event.target.value)} onBlur={() => setQueryParams({ cwd })} />
-          </label>
-          <button onClick={handleCreateSession}>Nuova sessione</button>
-        </div>
-
-        <div className="panel">
-          <label>
-            Modello
-            <select value={currentSession?.model ?? models[0]?.id ?? ''} onChange={(event) => handleModelChange(event.target.value)}>
-              {models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name} · {model.provider}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="panel">
-          <div className="panel-title">Sessioni</div>
-          <div className="session-list">
-            {sessions.map((session) => (
-              <button
-                key={session.id}
-                className={session.id === sessionId ? 'session active' : 'session'}
-                onClick={() => {
-                  setSessionId(session.id);
-                  setQueryParams({ cwd, sessionId: session.id });
-                  void loadSession(session.id);
-                }}
-              >
-                <span>{session.id}</span>
-                <small>{session.model ?? 'modello predefinito'}</small>
-                <span
-                  className="delete"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    void handleDeleteSession(session.id);
-                  }}
-                >
-                  ✕
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </aside>
+      <SidebarPanel
+        cwd={cwd}
+        setCwd={setCwd}
+        statusMessage={statusMessage}
+        error={error}
+        sessions={sessions}
+        sessionId={sessionId}
+        models={models}
+        currentModelId={currentSession?.model ?? models[0]?.id ?? ''}
+        onCwdCommit={() => setQueryParams({ cwd })}
+        onCreateSession={handleCreateSession}
+        onModelChange={handleModelChange}
+        onSelectSession={async (selectedSessionId) => {
+          setSessionId(selectedSessionId);
+          setQueryParams({ cwd, sessionId: selectedSessionId });
+          await loadSession(selectedSessionId);
+        }}
+        onDeleteSession={handleDeleteSession}
+      />
 
       <main className="content">
         {streaming === 'connecting' ? <div className="connection-banner">Riconnessione in corso...</div> : null}
