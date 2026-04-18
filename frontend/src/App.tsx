@@ -3,6 +3,7 @@ import './styles.css';
 import { apiGet, apiRequest } from './api';
 import ConversationPanel from './components/ConversationPanel';
 import ComposerPanel from './components/ComposerPanel';
+import ConnectionStatusBanner from './components/ConnectionStatusBanner';
 import SidebarPanel from './components/SidebarPanel';
 import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
@@ -276,7 +277,7 @@ export default function App() {
       />
 
       <main className="content">
-        {streaming === 'connecting' ? <div className="connection-banner">Riconnessione in corso...</div> : null}
+        <ConnectionStatusBanner streaming={streaming} statusMessage={statusMessage} error={error} />
         <ConversationPanel conversation={conversation} />
         <ComposerPanel
           prompt={prompt}
