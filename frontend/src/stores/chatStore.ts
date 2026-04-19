@@ -1,15 +1,6 @@
 import { create } from 'zustand';
 import { appendPrompt as buildOptimisticConversation } from '@/chatState';
-import type { ConversationItem, MessageItem, PermissionItem, QuestionItem } from '@/chatState';
-
-// Fallback for crypto.randomUUID when not available
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  // Fallback for older browsers/node
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
-}
+import type { ConversationItem, MessageItem } from '@/chatState';
 
 interface ChatState {
   // Conversation state
@@ -45,8 +36,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   
   applySsePayload: (data) => {
-    const state = get();
-    
     try {
       const parsed = JSON.parse(data);
       
@@ -67,32 +56,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
           
           return { conversation };
         });
-      } else if (parsed.type === 'permission') {
-        // Permission request
-        const permissionItem: PermissionItem = {
-          kind: 'permission',
-          id: parsed.id || parsed.permissionId || generateId(),
-          permissionId: parsed.permissionId || parsed.id || generateId(),
-          action: parsed.action || parsed.description || 'permission',
-          resource: parsed.resource || '',
-          timestamp: new Date().toISOString(),
-        };
-        set((state) => ({
-          conversation: [...state.conversation, permissionItem],
-        }));
-      } else if (parsed.type === 'question') {
-        // Question request
-        const questionItem: QuestionItem = {
-          kind: 'question',
-          id: parsed.id || parsed.questionId || generateId(),
-          questionId: parsed.questionId || parsed.id || generateId(),
-          question: parsed.question || '',
-          options: parsed.options || [],
-          timestamp: new Date().toISOString(),
-        };
-        set((state) => ({
-          conversation: [...state.conversation, questionItem],
-        }));
       } else if (parsed.type === 'status') {
         set({ statusMessage: parsed.message || parsed.text || '' });
       } else if (parsed.type === 'error') {

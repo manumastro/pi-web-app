@@ -2,14 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { apiGet, apiRequest } from './api';
 import { appendPrompt, applySsePayload, messagesToConversation } from './chatState';
 import type { SsePayload } from './chatState';
-import {
-  buildPermissionDecisionMessage,
-  buildPermissionStatusLabel,
-  buildQuestionResponseMessage,
-  buildQuestionStatusLabel,
-} from './interactionMessages';
 import { useSessionStream } from './hooks/useSessionStream';
-import type { PermissionItem, QuestionItem } from './chatState';
 import type { ModelInfo, SessionInfo, StreamingState } from './types';
 
 // Store
@@ -27,8 +20,6 @@ import { ChatView } from './components/views/ChatView';
 import { ChatEmptyState } from './components/chat/ChatEmptyState';
 import { ConversationPanel } from './components/chat/ConversationPanel';
 import { ComposerPanel } from './components/chat/ComposerPanel';
-import { PermissionCard } from './components/chat/PermissionCard';
-import { QuestionCard } from './components/chat/QuestionCard';
 import { StatusRow } from './components/chat/StatusRow';
 import { Toaster } from './components/ui';
 
@@ -118,10 +109,6 @@ export default function App() {
   // ─── Derived State ──────────────────────────────────────────────────────────
   const currentDirectory = currentSession?.cwd ?? selectedDirectory;
   const currentDirectoryLabel = formatDirectoryLabel(currentDirectory);
-  const interactionItems = conversation.filter(
-    (item): item is QuestionItem | PermissionItem =>
-      item.kind === 'question' || item.kind === 'permission',
-  );
 
   // ─── API Functions ──────────────────────────────────────────────────────────
   const refreshModels = useCallback(async (selSessionId?: string): Promise<ModelInfo[]> => {
@@ -272,27 +259,6 @@ export default function App() {
     await submitPrompt(text, 'Sending…');
   }, [prompt, submitPrompt]);
 
-  const handleAnswerQuestion = useCallback(async (question: QuestionItem, answer: string): Promise<void> => {
-    await submitPrompt(
-      buildQuestionResponseMessage(question, answer),
-      buildQuestionStatusLabel(question),
-    );
-  }, [submitPrompt]);
-
-  const handleApprovePermission = useCallback(async (permission: PermissionItem): Promise<void> => {
-    await submitPrompt(
-      buildPermissionDecisionMessage(permission, 'approved'),
-      buildPermissionStatusLabel(permission, 'approved'),
-    );
-  }, [submitPrompt]);
-
-  const handleDenyPermission = useCallback(async (permission: PermissionItem): Promise<void> => {
-    await submitPrompt(
-      buildPermissionDecisionMessage(permission, 'denied'),
-      buildPermissionStatusLabel(permission, 'denied'),
-    );
-  }, [submitPrompt]);
-
   const handleAbort = useCallback(async (): Promise<void> => {
     const sessionId = useSessionStore.getState().selectedSessionId;
     if (!sessionId) return;
@@ -414,28 +380,6 @@ export default function App() {
   const content = selectedSessionId ? (
     <ChatView sessionId={selectedSessionId}>
       <ConversationPanel items={conversation} error={error} />
-
-      {interactionItems
-        .filter((item): item is PermissionItem => item.kind === 'permission')
-        .map((permission) => (
-          <PermissionCard
-            key={permission.id}
-            permission={permission}
-            onApprove={() => handleApprovePermission(permission)}
-            onDeny={() => handleDenyPermission(permission)}
-          />
-        ))}
-
-      {interactionItems
-        .filter((item): item is QuestionItem => item.kind === 'question')
-        .map((question) => (
-          <QuestionCard
-            key={question.id}
-            question={question}
-            onAnswer={(answer) => handleAnswerQuestion(question, answer)}
-          />
-        ))}
-
       <StatusRow state={streaming} statusMessage={statusMessage} onAbort={handleAbort} />
 
       <ComposerPanel

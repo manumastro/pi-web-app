@@ -61,7 +61,7 @@ describe('chatState', () => {
     expect(conversation[1]?.kind).toBe('thinking');
   });
 
-  it('applies sse payloads for streaming text, tools, completion and interactions', () => {
+  it('applies sse payloads for streaming text, tools and completion', () => {
     let conversation: ConversationItem[] = appendPrompt([], 'hello');
     conversation = applySsePayload(conversation, {
       type: 'thinking',
@@ -82,22 +82,6 @@ describe('chatState', () => {
       sessionId: 's1',
       messageId: 'a1',
       content: 'Hi',
-    });
-    conversation = applySsePayload(conversation, {
-      type: 'question',
-      sessionId: 's1',
-      messageId: 'a1',
-      questionId: 'q1',
-      question: 'Proceed?',
-      options: ['yes', 'no'],
-    });
-    conversation = applySsePayload(conversation, {
-      type: 'permission',
-      sessionId: 's1',
-      messageId: 'a1',
-      permissionId: 'p1',
-      action: 'write',
-      resource: '/tmp/file',
     });
     conversation = applySsePayload(conversation, {
       type: 'tool_call',
@@ -122,8 +106,6 @@ describe('chatState', () => {
       aborted: false,
     });
 
-    expect(conversation.some((item) => item.kind === 'question')).toBe(true);
-    expect(conversation.some((item) => item.kind === 'permission')).toBe(true);
     expect(conversation.some((item) => item.kind === 'tool_call')).toBe(true);
     expect(conversation.some((item) => item.kind === 'tool_result')).toBe(true);
     expect(conversation[1]).toEqual(

@@ -1,6 +1,6 @@
-# Pi Web — Rewrite Blueprint
+# Pi Web - Rewrite Blueprint
 
-> **Branch**: `rewrite` | **Date**: 2026-04-18 | **Status**: Feature-complete (polishing)
+> **Branch**: `rewrite` | **Date**: 2026-04-19 | **Status**: Feature-complete (polishing)
 
 ---
 
@@ -35,18 +35,58 @@
 - **OpenChamber-aligned frontend** with Tailwind CSS v4, Radix UI primitives, light theme with warm/beige palette (oklch-based), IBM Plex Sans/Mono fonts, 304px sidebar, and 56px header.
 - Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
 - Model selection picker now lists the full CLI-scoped registry with search/favorites; availability is reflected from live auth state and model changes reuse the shared Pi auth store (`~/.pi/agent/auth.json` + env) without a second login, instead of silently swapping models.
-- Question/permission interaction UI with inline answer cards (all labels in English).
-- Thinking blocks are now shown immediately on send, grouped with their matching assistant turn, and rendered as a collapsible summary + cleaned reasoning text so reasoning stays visually attached to the reply even before backend text arrives. Session history loading now reconstructs assistant reasoning/visible-answer splits and tool rows into the same turn model, so old sessions no longer leak raw thought text into the assistant body. Tool calls/results now carry the originating `messageId` through the chat store and the backend now persists them in session history with stringified inputs (e.g. `pwd`) and final outputs while ignoring legacy duplicate `toolResult` message-end events; the client now also sends a shared turn id with each prompt so optimistic placeholders and backend SSE events stay aligned. Reloads keep the OpenChamber-style call/output blocks intact; the call block now uses a compact header plus an input section and a collapsed-by-default output section, with duplicate section text removed, the turn stack preserves arrival order for interleaved thinking/tool events, and the frontend now uses OpenChamber-style wipe reveal animations on mount for reasoning/tool cards. The optimistic conversation row comes from the shared chat store, and the frontend now re-syncs the active model to the backend on send so refresh state works without manual re-selection, while the tool call layout itself now uses OpenChamber-like command/output surfaces for bash-style tools.
+- Question/permission interaction UI was removed from the frontend; the current renderer focuses on chat turns, thinking, and tool blocks only.
+- Thinking blocks and tool calls/results now render through the new OpenChamber-style conversation panel: assistant turns are built from ordered turn records, reasoning/tool blocks start collapsed, tool output is attached to its call, user/assistant rows animate with fade/wipe reveal, and the legacy ChatMessage/TurnItem/ToolBlock/ThinkingBlock and permission/question interaction components were removed. Session history loading still reconstructs assistant reasoning/visible-answer splits and tool rows into the same turn model, so old sessions no longer leak raw thought text into the assistant body. Tool calls/results carry the originating `messageId` through the chat store and the backend persists them in session history with stringified inputs (e.g. `pwd`) and final outputs while ignoring legacy duplicate `toolResult` message-end events; the client also sends a shared turn id with each prompt so optimistic placeholders and backend SSE events stay aligned. Reloads keep the OpenChamber-style call/output blocks intact; the turn stack preserves arrival order for interleaved thinking/tool events, historical tool input formatting in `chatState.ts` was consolidated into one helper, and the frontend now uses OpenChamber-style wipe reveal animations on mount for reasoning/tool cards. The optimistic conversation row comes from the shared chat store, and the frontend now re-syncs the active model to the backend on send so refresh state works without manual re-selection.
 - Send-only composer (Enter to send, Shift+Enter newline), Stop button, Build chip.
 - SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
-- **Build/test green (25 frontend tests, 74 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
+- **Build/test green (19 frontend tests, 74 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
 - Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` and SDK compaction hooks no-op to prevent `totalTokens` crashes in multi-turn sessions.
 - systemd service launches Bash interactively so `~/.bashrc` exports (including `OPENCODE_API_KEY`) are visible to the backend, matching CLI credentials; the CLI remains the source of truth for auth/model access.
 - Model selection now persisted per-session via `PUT /api/models/session/model`; active model is selected by `isSelected` flag from the API.
 - Sidebar toggle functionality with dynamic icons (PanelLeftClose/PanelLeft).
 - `crypto.randomUUID()` fallback for browser compatibility.
 
-### 0.2 OpenChamber Migration Complete ✅
+### 0.2 OpenChamber UI/UX Components ✅ (2026-04-19)
+
+New chat UI components aligned with OpenChamber architecture:
+
+```
+frontend/src/components/chat/
+├── message/
+│   ├── FadeInOnReveal.tsx      # Wipe/fade animation wrapper
+│   ├── MessageHeader.tsx        # Role + timestamp header
+│   ├── MessageBody.tsx          # Content renderer for all message types
+│   ├── MarkdownRenderer.tsx     # Markdown with syntax highlighting
+│   ├── timeFormat.ts           # Timestamp formatting utilities
+│   └── parts/
+│       ├── AssistantTextPart.tsx  # Assistant message text
+│       ├── ReasoningPart.tsx      # Thinking/reasoning blocks
+│       ├── ToolPart.tsx           # Tool call/output blocks
+│       └── MinDurationShineText.tsx # Streaming text animation
+├── components/
+│   ├── TurnActivity.tsx         # Working indicator
+│   └── ScrollToBottomButton.tsx # Scroll navigation
+└── (legacy turn/message wrappers removed; ConversationPanel now renders turns directly)
+
+frontend/src/lib/
+├── codeTheme.ts                 # Syntax highlighting themes
+└── useTheme.ts                  # Theme hook
+```
+
+**CSS additions:**
+- `.reasoning-block`, `.reasoning-summary`, `.reasoning-body` - Thinking styling
+- `.tool-block`, `.tool-header`, `.tool-section` - Tool styling
+- `.streaming-dot`, `.streaming-bar` - Streaming indicators
+- `.message-streaming-dots` - Assistant streaming animation
+- `.shine-text-container` - Text reveal animation
+- `.scroll-to-bottom-button` - Scroll navigation
+- `.turn-activity`, `.turn-activity-dot` - Turn activity indicators
+- `.markdown-body` - Markdown content styling
+
+**Pending deferred items:**
+- markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, slash commands, todo system, command palette.
+
+### 0.3 OpenChamber Migration Complete ✅
 
 The frontend has been restructured to match OpenChamber's architecture:
 
@@ -64,15 +104,16 @@ frontend/src/
 └── types.ts
 ```
 
-### 0.3 Notes
+### 0.4 Notes
 
-- Implementation is production-shaped and actively serving at `http://161.97.116.63:3210`; systemd now sources `~/.bashrc` so the backend sees the same API keys as the CLI, and the web app defers to the CLI’s auth/config instead of duplicating credentials.
+- Implementation is production-shaped and actively serving at `http://161.97.116.63:3210`; systemd now sources `~/.bashrc` so the backend sees the same API keys as the CLI, and the web app defers to the CLI's auth/config instead of duplicating credentials.
 - Blueprint remains the planning source of truth for deferred items.
-- **OpenChamber migration complete** - frontend now uses same component organization, styling system, and UI primitives; model picker mirrors OpenChamber with search, favorites, provider groups, and the full CLI-scoped model set.
+- **OpenChamber migration complete** - frontend now uses same component organization, styling system, and UI primitives; model picker mirrors OpenChamber with search, favorites, provider groups, and the full CLI-scoped model set, and the chat pane now uses the new turn-aware ConversationPanel renderer instead of the old legacy message wrappers.
 - Zustand stores fully integrated into App.tsx (chatStore, sessionStore, uiStore).
 - UI fully translated to English with light theme (warm/beige palette).
 - Thinking/tool rendering now mirrors OpenChamber more closely: collapsed summary rows, hover/open icon swap for reasoning/tool cards, reasoning/answer splitting for session history, persisted tool call/output rows with string inputs, deduped legacy toolResult message-end events, compact call headers with collapsed outputs, removed duplicate section text, cleaned reasoning body styling, command/output surfaces for bash-style tools, and chronological turn-stack ordering for interleaved tool events.
-- Remaining deferred: markdown rendering, syntax highlighting, virtualization, keyboard shortcuts, slash commands, todo system, command palette.
+- **New chat UI components** (2026-04-19): FadeInOnReveal animations, MessageHeader/MessageBody renderers, MarkdownRenderer with syntax highlighting, ConversationPanel turn grouping, TurnActivity, ScrollToBottomButton, and extensive CSS for reasoning blocks, tool blocks, and streaming indicators.
+- Remaining deferred: full markdown rendering enhancements, syntax highlighting refinement, virtualization, keyboard shortcuts, slash commands, todo system, command palette.
 
 ## 1. Vision & Principles
 
@@ -235,10 +276,10 @@ A **lean, maintainable** web UI for the `@mariozechner/pi-coding-agent` SDK that
 | Language | TypeScript | 5.x | Strict mode |
 | State | Zustand | 5.x | Minimal boilerplate |
 | Build | Vite | 6.x | Fast HMR |
-| Styling | CSS Modules | — | No CSS-in-JS, no Tailwind dependency |
-| Testing | Vitest + Testing Library | — | Component + unit tests |
-| Markdown | marked + DOMPurify | — | Sanitized rendering |
-| Syntax HL | highlight.js | — | Code blocks |
+| Styling | CSS Modules | - | No CSS-in-JS, no Tailwind dependency |
+| Testing | Vitest + Testing Library | - | Component + unit tests |
+| Markdown | marked + DOMPurify | - | Sanitized rendering |
+| Syntax HL | highlight.js | - | Code blocks |
 
 ### 3.3 Infrastructure
 
@@ -358,8 +399,6 @@ No hardcoded paths. Ever.
 | Multi-client broadcasting | **P1** | V2 | Medium | ✅ Proven |
 | Message part gap recovery | **P1** | V2 | High | ⚠️ Partial |
 | Event coalescing | **P1** | V2 | Medium | ⚠️ Partial |
-| Question system (AI asks user) | **P1** | V2 | Medium | ✅ Proven |
-| Permission system (approve/deny) | **P1** | V2 | Medium | ✅ Proven |
 | Image support (paste/pick) | **P2** | V3 | Medium | ❌ Deferred |
 | Steer / Follow-up | **P2** | V3 | Low | ✅ Proven |
 | Session status in sidebar | **P1** | V2 | Low | ✅ Proven |
@@ -520,6 +559,7 @@ GET /api/models → resolve all provider models
 - [ ] App.tsx < 200 lines
 - [ ] No component > 200 lines
 - [ ] No dead code (no unused imports, no commented blocks)
+- [x] Removed legacy permission/question UI and helper files from the frontend
 
 ---
 
@@ -532,8 +572,6 @@ GET /api/models → resolve all provider models
 | **Multi-client broadcasting** | Port existing pool-based broadcast from old code | Medium |
 | **Message part gap recovery** | Detect missing parts after reconnect, fetch from JSONL | High |
 | **Event coalescing** | Merge redundant events (e.g., rapid text_chunks) | Medium |
-| **Question system** | UI for AI questions with answer input | Medium |
-| **Permission system** | Approve/deny file access requests | Medium |
 | **Global session status** | Sidebar shows status of ALL sessions | Low |
 | **PAUSE/RESUME state** | Add to state machine, implement in SDK bridge | Medium |
 
@@ -1320,7 +1358,7 @@ import { useChatStore } from '../stores/useChatStore';
 describe('useChatStore', () => {
   it('should add message to store', async () => {
     const { result } = renderHook(() => useChatStore());
-    
+
     await act(async () => {
       result.current.addMessage({
         id: '1',
@@ -1358,13 +1396,13 @@ describe('ChatView', () => {
   it('should send message on button click', async () => {
     const mockSend = vi.fn();
     vi.stubGlobal('fetch', mockSend);
-    
+
     render(<ChatView />);
     fireEvent.change(screen.getByPlaceholderText(/message/i), {
       target: { value: 'Test message' },
     });
     fireEvent.click(screen.getByRole('button', { name: /send/i }));
-    
+
     expect(mockSend).toHaveBeenCalledWith(
       expect.stringContaining('/api/messages/prompt'),
       expect.objectContaining({ method: 'POST' })
@@ -1573,7 +1611,7 @@ NODE_PATH=/usr/bin/node
 - Frontend OpenChamber-style UI: Flexoki dark palette (#151313/#da702c/#cecdc3), IBM Plex Sans/Mono fonts, 280px sidebar with project/session/model sections, 48px header with status chip.
 - ConversationPanel: border-left colored per role (user=orange, assistant=green, tool=amber), streaming indicator, expandable tool call/result.
 - ComposerPanel: send-only, Enter to send, Shift+Enter newline, Stop button.
-- QuestionPermissionPanel: inline cards with option buttons and free-text answer input.
+- Legacy interaction panels removed from the frontend; no inline question/permission cards are rendered in the current UI.
 - SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
 - Server binds to `0.0.0.0:3210` (accessible from public IP).
 - Build green, 73 backend tests + 21 frontend tests passing, `pi-web.service` active.
@@ -1637,15 +1675,15 @@ NODE_PATH=/usr/bin/node
 
 - [x] CSS styling (dark theme, Flexoki palette)
 - [x] Responsive layout (mobile-friendly)
-- [ ] Loading states (spinners, skeletons) — deferred
-- [ ] Error states (network error, auth error) — partial
-- [ ] Markdown rendering (marked + DOMPurify) — deferred
-- [ ] Syntax highlighting (highlight.js) — deferred
-- [ ] Virtualized message list (for long sessions) — deferred
+- [ ] Loading states (spinners, skeletons) - deferred
+- [ ] Error states (network error, auth error) - partial
+- [ ] Markdown rendering (marked + DOMPurify) - deferred
+- [ ] Syntax highlighting (highlight.js) - deferred
+- [ ] Virtualized message list (for long sessions) - deferred
 - [x] Keyboard shortcuts (Enter to send)
-- [ ] Accessibility (ARIA labels, keyboard nav) — partial
+- [ ] Accessibility (ARIA labels, keyboard nav) - partial
 - [ ] Favicon, meta tags
-- [ ] **Gate**: Full user journey works smoothly — partial
+- [ ] **Gate**: Full user journey works smoothly - partial
 
 ### 15.5 Phase 4: V1 Release
 
@@ -1666,8 +1704,6 @@ NODE_PATH=/usr/bin/node
 - [ ] Multi-client broadcasting (port from old code)
 - [ ] Message part gap recovery
 - [ ] Event coalescing
-- [ ] Question system (UI + backend)
-- [ ] Permission system (UI + backend)
 - [ ] Global session status
 - [ ] PAUSE/RESUME state machine
 - [ ] Image support
@@ -1680,12 +1716,12 @@ NODE_PATH=/usr/bin/node
 
 | Term | Definition |
 |------|-----------|
-| **CWD** | Current Working Directory — the project directory the agent operates in |
+| **CWD** | Current Working Directory - the project directory the agent operates in |
 | **Session** | A conversation thread with the AI agent, persisted as JSONL |
 | **AgentSession** | SDK class that manages a single session |
 | **SdkBridge** | Our wrapper around AgentSession (event forwarding, error handling) |
-| **SSE** | Server-Sent Events — unidirectional streaming over HTTP |
-| **JSONL** | JSON Lines — one JSON object per line in session files |
+| **SSE** | Server-Sent Events - unidirectional streaming over HTTP |
+| **JSONL** | JSON Lines - one JSON object per line in session files |
 | **ContentPart** | A piece of message content (text, thinking, tool_call, etc.) |
 | **V1/V2/V3** | Release phases: MVP → reliability → rich features |
 

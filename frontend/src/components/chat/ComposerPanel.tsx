@@ -102,6 +102,7 @@ export function ComposerPanel({
     <div className="composer-panel">
       <div className="composer-form">
         <textarea
+          id="prompt-textarea"
           className="composer-textarea"
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}

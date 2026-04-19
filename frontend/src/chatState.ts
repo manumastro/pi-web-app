@@ -19,26 +19,6 @@ export interface ThinkingItem {
   timestamp: string;
 }
 
-export interface QuestionItem {
-  kind: 'question';
-  id: string;
-  questionId: string;
-  messageId?: string;
-  question: string;
-  options: string[];
-  timestamp: string;
-}
-
-export interface PermissionItem {
-  kind: 'permission';
-  id: string;
-  permissionId: string;
-  messageId?: string;
-  action: string;
-  resource: string;
-  timestamp: string;
-}
-
 export interface ToolCallItem {
   kind: 'tool_call';
   id: string;
@@ -68,21 +48,15 @@ export interface ErrorItem {
   timestamp: string;
 }
 
-export type ConversationItem = MessageItem | ThinkingItem | QuestionItem | PermissionItem | ToolCallItem | ToolResultItem | ErrorItem;
+export type ConversationItem = MessageItem | ThinkingItem | ToolCallItem | ToolResultItem | ErrorItem;
 
 export interface SsePayload {
-  type: 'text_chunk' | 'thinking' | 'question' | 'permission' | 'tool_call' | 'tool_result' | 'error' | 'done';
+  type: 'text_chunk' | 'thinking' | 'tool_call' | 'tool_result' | 'error' | 'done';
   sessionId: string;
   messageId?: string;
   content?: string;
   aborted?: boolean;
   done?: boolean;
-  questionId?: string;
-  question?: string;
-  options?: string[];
-  permissionId?: string;
-  action?: string;
-  resource?: string;
   toolCallId?: string;
   toolName?: string;
   input?: Record<string, unknown>;
@@ -152,16 +126,21 @@ function normalizeSessionRole(role: SessionMessage['role'] | string | undefined)
   }
 }
 
-function extractToolInputText(input: unknown, toolName?: string): string {
+function formatToolText(input: unknown, toolName?: string): string {
   if (typeof input === 'string') {
     const trimmed = input.trim();
+    if (!trimmed) {
+      return '';
+    }
+
     if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
       try {
-        return extractToolInputText(JSON.parse(trimmed) as unknown, toolName);
+        return formatToolText(JSON.parse(trimmed) as unknown, toolName);
       } catch {
         return input;
       }
     }
+
     return input;
   }
 
@@ -181,19 +160,27 @@ function extractToolInputText(input: unknown, toolName?: string): string {
         return String(value);
       }
     }
+
     return undefined;
   };
 
   if (normalizedToolName === 'bash') {
     const command = getString(['command']);
-    if (command) return command;
+    if (command) {
+      return command;
+    }
   }
 
   if (normalizedToolName === 'task') {
     const prompt = getString(['prompt']);
-    if (prompt) return prompt;
+    if (prompt) {
+      return prompt;
+    }
+
     const description = getString(['description']);
-    if (description) return description;
+    if (description) {
+      return description;
+    }
   }
 
   const preferred = getString(['text', 'content', 'message', 'output', 'stdout', 'result', 'query', 'path', 'filePath', 'file_path', 'command', 'description', 'prompt']);
@@ -204,7 +191,11 @@ function extractToolInputText(input: unknown, toolName?: string): string {
   const entries = Object.entries(record)
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
     .map(([key, value]) => {
-      const label = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toLowerCase().replace(/^./, (first) => first.toUpperCase());
+      const label = key
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .replace(/^./, (first) => first.toUpperCase());
       const rendered = typeof value === 'object' ? JSON.stringify(value) : String(value);
       return `${label}: ${rendered}`;
     });
@@ -364,7 +355,7 @@ export function messagesToConversation(messages: SessionMessage[]): Conversation
         toolCallId: message.toolCallId ?? message.id,
         messageId: turnId,
         toolName: message.toolName ?? 'tool',
-        input: extractToolInputText(message.content, message.toolName),
+        input: formatToolText(message.content, message.toolName),
         timestamp: message.timestamp,
       });
       continue;
@@ -460,56 +451,6 @@ export function appendPrompt(conversation: ConversationItem[], text: string, tur
   ];
 }
 
-function formatInput(input?: Record<string, unknown>, toolName?: string): string {
-  if (!input) {
-    return '';
-  }
-
-  const normalizedToolName = (toolName ?? '').toLowerCase();
-  const getString = (keys: string[]): string | undefined => {
-    for (const key of keys) {
-      const value = input[key];
-      if (typeof value === 'string' && value.trim().length > 0) {
-        return value;
-      }
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        return String(value);
-      }
-    }
-    return undefined;
-  };
-
-  if (normalizedToolName === 'bash') {
-    const command = getString(['command']);
-    if (command) return command;
-  }
-
-  if (normalizedToolName === 'task') {
-    const prompt = getString(['prompt']);
-    if (prompt) return prompt;
-    const description = getString(['description']);
-    if (description) return description;
-  }
-
-  const preferred = getString(['text', 'content', 'message', 'output', 'stdout', 'result', 'query', 'path', 'filePath', 'file_path', 'command', 'description', 'prompt']);
-  if (preferred) {
-    return preferred;
-  }
-
-  const entries = Object.entries(input)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => {
-      const label = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toLowerCase().replace(/^./, (first) => first.toUpperCase());
-      const rendered = typeof value === 'object' ? JSON.stringify(value) : String(value);
-      return `${label}: ${rendered}`;
-    });
-
-  if (entries.length === 1) {
-    return entries[0]?.split(': ').slice(1).join(': ') ?? '';
-  }
-
-  return entries.join('\n');
-}
 
 export function applySsePayload(conversation: ConversationItem[], payload: SsePayload): ConversationItem[] {
   if (payload.type === 'text_chunk') {
@@ -558,32 +499,6 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
     });
   }
 
-  if (payload.type === 'question') {
-    const questionId = payload.questionId ?? randomId('question');
-    return upsertById(conversation, {
-      kind: 'question',
-      id: questionId,
-      questionId,
-      messageId: payload.messageId,
-      question: payload.question ?? payload.content ?? 'Question',
-      options: payload.options ?? [],
-      timestamp: payload.timestamp ?? new Date().toISOString(),
-    });
-  }
-
-  if (payload.type === 'permission') {
-    const permissionId = payload.permissionId ?? randomId('permission');
-    return upsertById(conversation, {
-      kind: 'permission',
-      id: permissionId,
-      permissionId,
-      messageId: payload.messageId,
-      action: payload.action ?? 'unknown',
-      resource: payload.resource ?? payload.content ?? '',
-      timestamp: payload.timestamp ?? new Date().toISOString(),
-    });
-  }
-
   if (payload.type === 'tool_call') {
     const toolCallId = payload.toolCallId ?? randomId('tool-call');
     return upsertById(conversation, {
@@ -592,7 +507,7 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
       toolCallId,
       messageId: payload.messageId,
       toolName: payload.toolName ?? 'tool',
-      input: formatInput(payload.input, payload.toolName),
+      input: formatToolText(payload.input, payload.toolName),
       timestamp: payload.timestamp ?? new Date().toISOString(),
     });
   }
