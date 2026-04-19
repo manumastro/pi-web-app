@@ -126,6 +126,12 @@ beforeEach(() => {
         },
       };
     }
+    if (path === '/api/messages/prompt' && init.method === 'POST') {
+      return {
+        sessionId: 'session-1',
+        assistantMessage: '',
+      };
+    }
 
     throw new Error(`Unexpected apiRequest path: ${path}`);
   });
@@ -211,6 +217,32 @@ describe('App', () => {
         expect.objectContaining({
           method: 'POST',
           body: expect.stringContaining('"model":"openai/gpt-4o"'),
+        }),
+      );
+    });
+  });
+
+  it('syncs the current model before sending a prompt so refresh state works immediately', async () => {
+    render(<App />);
+
+    await screen.findByTitle('New session');
+    const prompt = screen.getByRole('textbox', { name: 'Prompt' });
+    fireEvent.change(prompt, { target: { value: 'hello world' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(apiRequestMock).toHaveBeenCalledWith(
+        '/api/models/session/model',
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.stringContaining('"modelId":"anthropic/claude-3-5-sonnet-20241022"'),
+        }),
+      );
+      expect(apiRequestMock).toHaveBeenCalledWith(
+        '/api/messages/prompt',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"model":"anthropic/claude-3-5-sonnet-20241022"'),
         }),
       );
     });

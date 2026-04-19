@@ -215,16 +215,38 @@ export default function App() {
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
   const submitPrompt = useCallback(async (message: string, statusLabel: string): Promise<void> => {
-    const { selectedSessionId: sessionId } = useSessionStore.getState();
-    const { activeModelKey: model } = useUIStore.getState();
-    const cwd = useSessionStore.getState().currentSession?.cwd ?? useSessionStore.getState().selectedDirectory;
+    const { selectedSessionId: sessionId, currentSession, selectedDirectory } = useSessionStore.getState();
+    const { activeModelKey: activeModel, models: availableModels } = useUIStore.getState();
+    const cwd = currentSession?.cwd ?? selectedDirectory;
+    const model =
+      activeModel ||
+      availableModels.find((entry) => entry.active)?.key ||
+      availableModels.find((entry) => entry.available)?.key ||
+      currentSession?.model ||
+      '';
+
     if (!sessionId) return;
-    setError('');
-    setStreaming('streaming');
-    setStatusMessage(statusLabel);
-    storeAppendPrompt(message, model);
-    setPrompt('');
+    if (!model) {
+      setError('No model selected');
+      setStreaming('error');
+      setStatusMessage('Error');
+      return;
+    }
+
     try {
+      const synced = await apiRequest<{ session: SessionInfo }>('/api/models/session/model', {
+        method: 'PUT',
+        body: JSON.stringify({ sessionId, modelId: model }),
+      });
+      updateSession(synced.session.id, synced.session);
+      setSelectedSessionId(synced.session.id);
+      setSelectedDirectory(synced.session.cwd);
+      setActiveModel(model);
+      setError('');
+      setStreaming('streaming');
+      setStatusMessage(statusLabel);
+      storeAppendPrompt(message, model);
+      setPrompt('');
       await apiRequest('/api/messages/prompt', {
         method: 'POST',
         body: JSON.stringify({ sessionId, cwd, message, model }),
@@ -234,7 +256,7 @@ export default function App() {
       setStatusMessage('Error');
       setError(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [setError, setStreaming, setStatusMessage, storeAppendPrompt, setPrompt]);
+  }, [setError, setStreaming, setStatusMessage, storeAppendPrompt, setPrompt, setSelectedSessionId, setSelectedDirectory, setActiveModel, updateSession]);
 
   const handleSend = useCallback(async (): Promise<void> => {
     const text = prompt.trim();
