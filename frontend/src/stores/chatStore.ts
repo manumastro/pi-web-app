@@ -20,7 +20,7 @@ interface ChatState {
   
   // Actions
   setConversation: (items: ConversationItem[]) => void;
-  appendPrompt: (prompt: string, activeModelKey: string) => void;
+  appendPrompt: (prompt: string, activeModelKey: string, turnId?: string) => void;
   applySsePayload: (data: string) => void;
   setStreaming: (state: 'idle' | 'streaming' | 'connecting' | 'error') => void;
   setStatusMessage: (message: string) => void;
@@ -38,9 +38,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Actions
   setConversation: (items) => set({ conversation: items }),
   
-  appendPrompt: (prompt, _activeModelKey) => {
+  appendPrompt: (prompt, _activeModelKey, turnId) => {
     set((state) => ({
-      conversation: buildOptimisticConversation(state.conversation, prompt),
+      conversation: buildOptimisticConversation(state.conversation, prompt, turnId),
     }));
   },
   

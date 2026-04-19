@@ -426,13 +426,18 @@
   color: var(--foreground);
 }
 
+.message-assistant-body {
+  margin-top: 0.75rem;
+}
+
 .message-user {
   background: var(--surface);
   border: 1px solid var(--border);
   padding: 0.75rem 1rem;
 }
 
-.message-assistant {
+.message-assistant,
+.message-assistant-turn {
   background: transparent;
   padding: 0.75rem 1rem;
 }
@@ -461,32 +466,190 @@
   color: var(--accent);
 }
 
-.message-tool-call {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 0.5rem 0.75rem;
+.message-tool {
+  background: transparent;
+  border: none;
+  padding: 0;
+  overflow: visible;
 }
 
-.message-tool-result {
-  background: var(--surface-2);
-  padding: 0.5rem 0.75rem;
+.message-tool-call {
+  /* Intentionally left open-chamber-like: use tone surfaces inside the body. */
 }
 
 .message-tool-result.success {
-  border-left: 2px solid var(--success);
+  /* Tone is handled by the output surface. */
 }
 
 .message-tool-result.error {
-  border-left: 2px solid var(--destructive);
+  /* Tone is handled by the output surface. */
 }
 
-details.message-thinking > summary {
+.message-turn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: 0.625rem;
+}
+
+.message-turn-stack .message {
+  margin-bottom: 0;
+}
+
+.message-thinking-summary,
+.message-tool-summary {
   cursor: pointer;
   list-style: none;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem 0.45rem 0.0625rem;
+  border-radius: 0.75rem;
+  transition: background-color 0.15s ease;
+}
+
+.message-thinking-summary:hover,
+.message-tool-summary:hover {
+  background: color-mix(in oklab, var(--surface-3) 48%, transparent);
+}
+
+.message-thinking-summary::-webkit-details-marker,
+.message-tool-summary::-webkit-details-marker {
+  display: none;
+}
+
+.message-thinking-toggle,
+.message-tool-toggle {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: color-mix(in oklab, var(--foreground) 52%, transparent);
+}
+
+.message-thinking-toggle-icon,
+.message-tool-toggle-icon {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+
+.message-thinking-toggle-icon-brain,
+.message-tool-toggle-icon-tool {
+  opacity: 1;
+  transform: translateY(0);
+  color: var(--accent);
+}
+
+.message-thinking-toggle-icon-chevron,
+.message-tool-toggle-icon-chevron {
+  opacity: 0;
+  transform: translateY(-0.5px);
+  color: color-mix(in oklab, var(--foreground) 60%, transparent);
+}
+
+.messages-panel .message.message-thinking:hover .message-thinking-toggle-icon-brain,
+.messages-panel .message.message-tool:hover .message-tool-toggle-icon-tool,
+.messages-panel .message.message-thinking[open] .message-thinking-toggle-icon-brain,
+.messages-panel .message.message-tool[open] .message-tool-toggle-icon-tool {
+  opacity: 0;
+}
+
+.messages-panel .message.message-thinking:hover .message-thinking-toggle-icon-chevron,
+.messages-panel .message.message-tool:hover .message-tool-toggle-icon-chevron,
+.messages-panel .message.message-thinking[open] .message-thinking-toggle-icon-chevron,
+.messages-panel .message.message-tool[open] .message-tool-toggle-icon-chevron {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.message-thinking-summary-text,
+.message-tool-summary-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: color-mix(in oklab, var(--foreground) 68%, transparent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+}
+
+.message-thinking-body,
+.message-tool-body {
+  position: relative;
+  margin-top: 0.25rem;
+  padding-left: 1.4375rem;
+}
+
+.message-thinking-body::before,
+.message-tool-body::before {
+  content: '';
+  position: absolute;
+  left: 0.4375rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in oklab, var(--border) 86%, transparent);
+}
+
+.message-tool-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.message-tool-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.message-tool-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.message-tool-surface {
+  border: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
+  background: color-mix(in oklab, var(--surface-2) 82%, var(--background) 18%);
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+
+.message-tool-surface.success {
+  border-color: color-mix(in oklab, var(--success) 30%, var(--border));
+  background: color-mix(in oklab, var(--success) 8%, var(--surface-2) 92%);
+}
+
+.message-tool-surface.error {
+  border-color: color-mix(in oklab, var(--destructive) 30%, var(--border));
+  background: color-mix(in oklab, var(--destructive) 7%, var(--surface-2) 93%);
+}
+
+.message-code-block-json {
+  white-space: pre-wrap;
+}
+
+.message-tool-code {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-tool-shell-prefix {
+  color: color-mix(in oklab, #43a047 80%, transparent);
+  font-weight: 600;
 }
 
 /* =============================================

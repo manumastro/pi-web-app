@@ -18,6 +18,10 @@ interface MessageRecord {
   role: Message['role'];
   content: string;
   timestamp: string;
+  messageId?: string;
+  toolName?: string;
+  toolCallId?: string;
+  success?: boolean;
 }
 
 type SessionRecord = SessionMetaRecord | MessageRecord;
@@ -46,13 +50,20 @@ export function sessionToJsonl(session: Session): string {
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     },
-    ...session.messages.map<MessageRecord>((message) => ({
-      type: 'message',
-      id: message.id,
-      role: message.role,
-      content: message.content,
-      timestamp: message.timestamp,
-    })),
+    ...session.messages.map<MessageRecord>((message) => {
+      const record: MessageRecord = {
+        type: 'message',
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp,
+      };
+      if (message.messageId !== undefined) record.messageId = message.messageId;
+      if (message.toolName !== undefined) record.toolName = message.toolName;
+      if (message.toolCallId !== undefined) record.toolCallId = message.toolCallId;
+      if (message.success !== undefined) record.success = message.success;
+      return record;
+    }),
   ];
 
   return records.map((record) => JSON.stringify(record)).join('\n');
@@ -79,12 +90,17 @@ export function parseSessionJsonl(input: string): Session | undefined {
       } else if (parsed.type === 'message') {
         const message = parsed as MessageRecord;
         if (message.id && message.role && message.content && message.timestamp) {
-          messages.push({
+          const record: Message = {
             id: message.id,
             role: message.role,
             content: message.content,
             timestamp: message.timestamp,
-          });
+          };
+          if (message.messageId !== undefined) record.messageId = message.messageId;
+          if (message.toolName !== undefined) record.toolName = message.toolName;
+          if (message.toolCallId !== undefined) record.toolCallId = message.toolCallId;
+          if (message.success !== undefined) record.success = message.success;
+          messages.push(record);
         }
       }
     } catch {

@@ -18,6 +18,7 @@ export function createMessagesRouter(bridge: SdkBridge): Router {
         cwd: typeof req.body?.cwd === 'string' ? req.body.cwd : undefined,
         message,
         model: typeof req.body?.model === 'string' ? req.body.model : undefined,
+        messageId: typeof req.body?.messageId === 'string' ? req.body.messageId : undefined,
       });
       res.status(202).json(result);
     } catch (cause) {

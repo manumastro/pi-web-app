@@ -25,6 +25,7 @@ export interface PromptRequest {
   cwd?: string;
   message: string;
   model?: string;
+  messageId?: string;
 }
 
 export interface PromptResult {
@@ -70,6 +71,73 @@ function stringifyResult(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function extractStringField(input: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return undefined;
+}
+
+function formatToolInput(input: unknown, toolName?: string): string {
+  if (!input) {
+    return '';
+  }
+
+  if (typeof input === 'string') {
+    return input;
+  }
+
+  if (typeof input !== 'object') {
+    return String(input);
+  }
+
+  const record = input as Record<string, unknown>;
+  const normalizedToolName = (toolName ?? '').toLowerCase();
+
+  if (normalizedToolName === 'bash') {
+    const command = extractStringField(record, ['command']);
+    if (command) return command;
+  }
+
+  if (normalizedToolName === 'task') {
+    const prompt = extractStringField(record, ['prompt']);
+    if (prompt) return prompt;
+    const description = extractStringField(record, ['description']);
+    if (description) return description;
+  }
+
+  const preferredKeys = ['text', 'content', 'message', 'output', 'stdout', 'result', 'query', 'path', 'filePath', 'file_path', 'command', 'description', 'prompt'];
+  const preferredValue = extractStringField(record, preferredKeys);
+  if (preferredValue) {
+    return preferredValue;
+  }
+
+  const entries = Object.entries(record)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => {
+      const label = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').toLowerCase().replace(/^./, (first) => first.toUpperCase());
+      if (typeof value === 'object') {
+        return `${label}: ${JSON.stringify(value)}`;
+      }
+      return `${label}: ${String(value)}`;
+    });
+
+  if (entries.length === 1) {
+    const single = entries[0];
+    if (single) {
+      return single.slice(single.indexOf(':') + 2);
+    }
+  }
+
+  return entries.join('\n');
 }
 
 function extractMessageText(message: { content?: unknown }): string {
@@ -199,21 +267,18 @@ export function createSdkBridge(params: {
     sessionStore.addMessage(sessionId, { role, content });
   }
 
-  function updateLastAssistantMessage(sessionId: string, content: string): void {
-    const current = getSessionMessage(sessionId);
-    if (!current) {
-      return;
-    }
-
-    const last = current.messages.at(-1);
-    if (!last || last.role !== 'assistant') {
-      sessionStore.addMessage(sessionId, { role: 'assistant', content });
-      return;
-    }
-
-    sessionStore.updateSession(sessionId, {
-      messages: [...current.messages.slice(0, -1), { ...last, content }],
-    });
+  function appendTurnMessage(
+    sessionId: string,
+    role: Session['messages'][number]['role'],
+    content: string,
+    extra?: Partial<Pick<Session['messages'][number], 'messageId' | 'toolName' | 'toolCallId' | 'success'>>,
+  ): void {
+    const message: Omit<Session['messages'][number], 'id' | 'timestamp'> = { role, content };
+    if (extra?.messageId !== undefined) message.messageId = extra.messageId;
+    if (extra?.toolName !== undefined) message.toolName = extra.toolName;
+    if (extra?.toolCallId !== undefined) message.toolCallId = extra.toolCallId;
+    if (extra?.success !== undefined) message.success = extra.success;
+    sessionStore.addMessage(sessionId, message);
   }
 
   function emitSdkError(sessionId: string, message: unknown): void {
@@ -286,8 +351,9 @@ export function createSdkBridge(params: {
       return;
     }
 
-    if (active.assistantContent.length > 0) {
-      updateLastAssistantMessage(sessionId, active.assistantContent);
+    if (active.assistantContent.length > 0 || aborted) {
+      const extra = active.assistantMessageId ? { messageId: active.assistantMessageId } : undefined;
+      appendTurnMessage(sessionId, 'assistant', active.assistantContent, extra);
     }
 
     sessionStore.updateSession(sessionId, { status: 'done' });
@@ -312,12 +378,13 @@ export function createSdkBridge(params: {
         break;
       case 'message_start': {
         const text = extractMessageText(event.message as { content?: unknown });
-        appendIfMissing(active.sessionId, event.message.role as Session['messages'][number]['role'], text);
         if (event.message.role === 'assistant') {
           active.assistantContent = text;
           if (!active.assistantMessageId) {
             active.assistantMessageId = config.generateSessionId();
           }
+        } else {
+          appendIfMissing(active.sessionId, event.message.role as Session['messages'][number]['role'], text);
         }
         break;
       }
@@ -325,7 +392,6 @@ export function createSdkBridge(params: {
         if (event.assistantMessageEvent.type === 'text_delta') {
           ensureAssistantPlaceholder(active.sessionId);
           active.assistantContent += event.assistantMessageEvent.delta;
-          updateLastAssistantMessage(active.sessionId, active.assistantContent);
           emit(sseManager, {
             type: 'text_chunk',
             sessionId: active.sessionId,
@@ -344,39 +410,57 @@ export function createSdkBridge(params: {
           });
         }
         break;
-      case 'tool_execution_start':
+      case 'tool_execution_start': {
+        const inputText = formatToolInput(event.args, event.toolName);
+        const turnId = active.assistantMessageId ?? config.generateSessionId();
+        active.assistantMessageId = turnId;
+        appendTurnMessage(active.sessionId, 'tool_call', inputText, {
+          messageId: turnId,
+          toolName: event.toolName,
+          toolCallId: event.toolCallId,
+        });
         emit(sseManager, {
           type: 'tool_call',
           sessionId: active.sessionId,
-          messageId: active.assistantMessageId ?? config.generateSessionId(),
+          messageId: turnId,
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           input: typeof event.args === 'object' && event.args !== null ? (event.args as Record<string, unknown>) : { value: event.args },
           timestamp: now(),
         });
         break;
-      case 'tool_execution_update':
+      }
+      case 'tool_execution_update': {
+        const turnId = active.assistantMessageId ?? config.generateSessionId();
         emit(sseManager, {
           type: 'tool_result',
           sessionId: active.sessionId,
-          messageId: active.assistantMessageId ?? config.generateSessionId(),
+          messageId: turnId,
           toolCallId: event.toolCallId,
           result: stringifyResult(event.partialResult),
           success: true,
           timestamp: now(),
         });
         break;
-      case 'tool_execution_end':
+      }
+      case 'tool_execution_end': {
+        const turnId = active.assistantMessageId ?? config.generateSessionId();
+        appendTurnMessage(active.sessionId, 'tool_result', stringifyResult(event.result), {
+          messageId: turnId,
+          toolCallId: event.toolCallId,
+          success: !event.isError,
+        });
         emit(sseManager, {
           type: 'tool_result',
           sessionId: active.sessionId,
-          messageId: active.assistantMessageId ?? config.generateSessionId(),
+          messageId: turnId,
           toolCallId: event.toolCallId,
           result: stringifyResult(event.result),
           success: !event.isError,
           timestamp: now(),
         });
         break;
+      }
       case 'question':
         emit(sseManager, {
           type: 'question',
@@ -401,11 +485,13 @@ export function createSdkBridge(params: {
         break;
       case 'message_end': {
         const text = extractMessageText(event.message as { content?: unknown });
-        if (event.message.role === 'assistant') {
+        const role = String((event.message as { role?: unknown }).role ?? '');
+        if (role === 'assistant') {
           active.assistantContent = text || active.assistantContent;
-          updateLastAssistantMessage(active.sessionId, active.assistantContent);
-        } else if (event.message.role === 'user') {
+        } else if (role === 'user') {
           appendIfMissing(active.sessionId, 'user', text);
+        } else if (role === 'toolResult' || role === 'tool_result' || role === 'tool_call') {
+          break;
         }
         break;
       }
@@ -422,14 +508,14 @@ export function createSdkBridge(params: {
     const cwd = request.cwd ?? config.sdkCwd;
     const session = ensureStoredSession(sessionId, cwd, request.model);
     const resolvedModelKey = resolveModelKey(refreshModels(), request.model, session.model ?? config.model);
+    const assistantMessageId = request.messageId ?? config.generateSessionId();
 
     sessionStore.updateSession(session.id, { status: 'prompting', cwd, model: resolvedModelKey });
     sessionStore.addMessage(session.id, { role: 'user', content: request.message });
-    sessionStore.addMessage(session.id, { role: 'assistant', content: '' });
 
     try {
       const active = await getOrCreateAgentSession(session.id, cwd, resolvedModelKey);
-      active.assistantMessageId = config.generateSessionId();
+      active.assistantMessageId = assistantMessageId;
       active.assistantContent = '';
       active.aborted = false;
 

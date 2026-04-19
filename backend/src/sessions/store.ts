@@ -17,9 +17,13 @@ export type SessionStatus =
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool_call' | 'tool_result';
   content: string;
   timestamp: string;
+  messageId?: string;
+  toolName?: string;
+  toolCallId?: string;
+  success?: boolean;
 }
 
 export interface Session {

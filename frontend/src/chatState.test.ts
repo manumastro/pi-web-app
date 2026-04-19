@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem } from './chatState';
+import type { SessionMessage } from './types';
 
 describe('chatState', () => {
   afterEach(() => {
@@ -16,6 +17,30 @@ describe('chatState', () => {
       expect.objectContaining({ kind: 'message', role: 'user', content: 'hello' }),
       expect.objectContaining({ kind: 'message', role: 'assistant', content: 'world' }),
     ]);
+  });
+
+  it('splits assistant reasoning from the visible answer and keeps tool calls/results attached to the turn', () => {
+    const conversation = messagesToConversation([
+      { id: 'u1', role: 'user', content: 'hi', timestamp: '2026-04-15T10:00:00.000Z' },
+      { id: 'a1', role: 'assistant', messageId: 'turn-1', content: 'I should answer briefly.\n\n\nHi! How can I help?', timestamp: '2026-04-15T10:00:01.000Z' },
+      { id: 't1', role: 'tool_call', messageId: 'turn-1', toolName: 'bash', toolCallId: 'call-1', content: 'pwd', timestamp: '2026-04-15T10:00:02.000Z' },
+      { id: 't2', role: 'tool_result', messageId: 'turn-1', toolCallId: 'call-1', content: '/home/manu', success: true, timestamp: '2026-04-15T10:00:03.000Z' },
+      { id: 'a3', role: 'assistant', messageId: 'turn-1', content: 'The cwd is known now.\n\n\nSiamo in `/home/manu`.', timestamp: '2026-04-15T10:00:04.000Z' },
+    ] as SessionMessage[]);
+
+    expect(conversation).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'thinking', content: 'I should answer briefly.' }),
+        expect.objectContaining({ kind: 'message', role: 'assistant', content: 'Hi! How can I help?' }),
+        expect.objectContaining({ kind: 'tool_call', toolName: 'bash', input: 'pwd' }),
+        expect.objectContaining({ kind: 'tool_result', toolCallId: 'call-1', result: '/home/manu' }),
+        expect.objectContaining({ kind: 'thinking', content: 'The cwd is known now.' }),
+        expect.objectContaining({ kind: 'message', role: 'assistant', content: 'Siamo in `/home/manu`.' }),
+      ]),
+    );
+
+    expect(conversation.some((item) => item.kind === 'message' && item.id === 'a1')).toBe(true);
+    expect(conversation.some((item) => item.kind === 'message' && item.id === 'a3')).toBe(true);
   });
 
   it('appends a prompt with thinking above the assistant draft', () => {
@@ -61,6 +86,7 @@ describe('chatState', () => {
     conversation = applySsePayload(conversation, {
       type: 'question',
       sessionId: 's1',
+      messageId: 'a1',
       questionId: 'q1',
       question: 'Proceed?',
       options: ['yes', 'no'],
@@ -68,6 +94,7 @@ describe('chatState', () => {
     conversation = applySsePayload(conversation, {
       type: 'permission',
       sessionId: 's1',
+      messageId: 'a1',
       permissionId: 'p1',
       action: 'write',
       resource: '/tmp/file',
@@ -85,7 +112,7 @@ describe('chatState', () => {
       sessionId: 's1',
       messageId: 'a1',
       toolCallId: 't1',
-      result: 'done',
+      result: '{"content":[{"type":"text","text":"done"}]}',
       success: true,
     });
     conversation = applySsePayload(conversation, {
@@ -104,6 +131,12 @@ describe('chatState', () => {
     );
     expect(conversation[1]).toEqual(
       expect.objectContaining({ content: expect.stringContaining('Reasoning part 1') }),
+    );
+    expect(conversation.find((item) => item.kind === 'tool_call')).toEqual(
+      expect.objectContaining({ kind: 'tool_call', messageId: 'a1', input: 'file.txt' }),
+    );
+    expect(conversation.find((item) => item.kind === 'tool_result')).toEqual(
+      expect.objectContaining({ kind: 'tool_result', messageId: 'a1', result: '{"content":[{"type":"text","text":"done"}]}' }),
     );
     expect(conversation[2]).toEqual(
       expect.objectContaining({ kind: 'message', role: 'assistant', messageId: 'a1', status: 'complete', content: 'Hi' }),

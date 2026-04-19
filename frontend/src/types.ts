@@ -1,8 +1,12 @@
 export interface SessionMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool_call' | 'tool_result' | 'toolCall' | 'toolResult';
   content: string;
   timestamp: string;
+  messageId?: string;
+  toolName?: string;
+  toolCallId?: string;
+  success?: boolean;
 }
 
 export interface SessionInfo {

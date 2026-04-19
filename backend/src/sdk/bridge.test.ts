@@ -43,7 +43,18 @@ vi.mock('@mariozechner/pi-coding-agent', () => ({
   createAgentSession: mocks.createAgentSessionMock,
 }));
 
-function createFakeAgentSession() {
+function createFakeAgentSession(
+  events: Array<{ type: string; [key: string]: unknown }> = [
+    { type: 'agent_start' },
+    { type: 'message_start', message: { role: 'assistant', content: '', timestamp: Date.now() } },
+    { type: 'message_update', message: { role: 'assistant', content: '', timestamp: Date.now() }, assistantMessageEvent: { type: 'text_delta', delta: 'Hel' } },
+    { type: 'message_update', message: { role: 'assistant', content: '', timestamp: Date.now() }, assistantMessageEvent: { type: 'text_delta', delta: 'lo' } },
+    { type: 'question', questionId: 'q1', question: 'Continue?', options: ['yes', 'no'] },
+    { type: 'permission', permissionId: 'p1', action: 'write', resource: '/tmp/file' },
+    { type: 'message_end', message: { role: 'assistant', content: 'Hello', timestamp: Date.now() } },
+    { type: 'agent_end', messages: [] },
+  ],
+) {
   const listeners = new Set<(event: { type: string; [key: string]: unknown }) => void>();
   const agent = {
     sessionId: '',
@@ -60,17 +71,7 @@ function createFakeAgentSession() {
       return () => listeners.delete(listener);
     },
     prompt: vi.fn(async (text: string) => {
-      const baseMessage = { role: 'assistant', content: '', timestamp: Date.now() };
-      for (const event of [
-        { type: 'agent_start' },
-        { type: 'message_start', message: baseMessage },
-        { type: 'message_update', message: baseMessage, assistantMessageEvent: { type: 'text_delta', delta: 'Hel' } },
-        { type: 'message_update', message: baseMessage, assistantMessageEvent: { type: 'text_delta', delta: 'lo' } },
-        { type: 'question', questionId: 'q1', question: 'Continue?', options: ['yes', 'no'] },
-        { type: 'permission', permissionId: 'p1', action: 'write', resource: '/tmp/file' },
-        { type: 'message_end', message: { ...baseMessage, content: 'Hello' } },
-        { type: 'agent_end', messages: [] },
-      ]) {
+      for (const event of events) {
         for (const listener of listeners) {
           listener(event);
         }
@@ -145,6 +146,50 @@ describe('sdk bridge', () => {
     expect(events.join('')).toContain('event: question');
     expect(events.join('')).toContain('event: permission');
     expect(events.join('')).toContain('event: done');
+  });
+
+  it('persists tool calls and tool results in the session history order', async () => {
+    const fake = createFakeAgentSession([
+      { type: 'agent_start' },
+      { type: 'message_start', message: { role: 'assistant', content: '', timestamp: Date.now() } },
+      { type: 'tool_execution_start', toolCallId: 'call-1', toolName: 'bash', args: { command: 'pwd' } },
+      { type: 'tool_execution_end', toolCallId: 'call-1', result: '/home/manu', isError: false },
+      { type: 'message_end', message: { role: 'assistant', content: 'Siamo in `/home/manu`.', timestamp: Date.now() } },
+      { type: 'agent_end', messages: [] },
+    ]);
+    mocks.createAgentSessionMock.mockResolvedValue(fake);
+
+    const sessionStore = createSessionStore();
+    const sseManager = createSseManager();
+    const bridge = createSdkBridge({
+      config: {
+        port: 3210,
+        nodeEnv: 'development',
+        sessionsDir: '/tmp/sessions',
+        sdkCwd: '/tmp/project',
+        model: 'anthropic/claude-3-5-sonnet-20241022',
+        corsOrigins: [],
+        logLevel: 'info',
+        sessionIdPrefix: 'session',
+        generateSessionId: () => 'generated-session-id',
+      },
+      sessionStore,
+      sseManager,
+    });
+
+    await bridge.prompt({
+      sessionId: 'session-tools',
+      cwd: '/tmp/project',
+      message: 'In che cwd siamo?',
+      model: 'anthropic/claude-3-5-sonnet-20241022',
+    });
+
+    expect(sessionStore.getSession('session-tools')?.messages).toEqual([
+      expect.objectContaining({ role: 'user', content: 'In che cwd siamo?' }),
+      expect.objectContaining({ role: 'tool_call', content: 'pwd', toolName: 'bash', toolCallId: 'call-1' }),
+      expect.objectContaining({ role: 'tool_result', content: '/home/manu', toolCallId: 'call-1', success: true }),
+      expect.objectContaining({ role: 'assistant', content: 'Siamo in `/home/manu`.' }),
+    ]);
   });
 
   it('updates the model through the sdk registry when auth is configured', async () => {

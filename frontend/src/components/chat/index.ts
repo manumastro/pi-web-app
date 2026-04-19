@@ -7,3 +7,5 @@ export { PermissionCard } from './PermissionCard';
 export { QuestionCard } from './QuestionCard';
 export { StatusRow } from './StatusRow';
 export { StatusChip } from './StatusChip';
+export { ThinkingBlock } from './ThinkingBlock';
+export { ToolBlock } from './ToolBlock';

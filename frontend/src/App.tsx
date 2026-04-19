@@ -54,6 +54,13 @@ function formatDirectoryLabel(cwd: string): string {
   return parts.at(-1) ?? (cwd === '/' ? 'root' : cwd);
 }
 
+function generateTurnId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `assistant-turn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // ─── Connection Banner ───────────────────────────────────────────────────────
 
 function ConnectionBanner({ state, message }: { state: StreamingState; message: string }) {
@@ -245,11 +252,12 @@ export default function App() {
       setError('');
       setStreaming('streaming');
       setStatusMessage(statusLabel);
-      storeAppendPrompt(message, model);
+      const turnId = generateTurnId();
+      storeAppendPrompt(message, model, turnId);
       setPrompt('');
       await apiRequest('/api/messages/prompt', {
         method: 'POST',
-        body: JSON.stringify({ sessionId, cwd, message, model }),
+        body: JSON.stringify({ sessionId, cwd, message, model, messageId: turnId }),
       });
     } catch (cause) {
       setStreaming('error');
