@@ -36,7 +36,7 @@
 - Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
 - Model selection picker now lists the full CLI-scoped registry with search/favorites; availability is reflected from live auth state and model changes reuse the shared Pi auth store (`~/.pi/agent/auth.json` + env) without a second login, instead of silently swapping models.
 - Question/permission interaction UI with inline answer cards (all labels in English).
-- Thinking blocks are now grouped with their matching assistant turn and rendered above the assistant message, so reasoning stays visually attached to the reply.
+- Thinking blocks are now shown immediately on send, grouped with their matching assistant turn, and rendered above the assistant message, so reasoning stays visually attached to the reply even before backend text arrives.
 - Send-only composer (Enter to send, Shift+Enter newline), Stop button, Build chip.
 - SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
 - **Build/test green (19 frontend tests, 73 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.

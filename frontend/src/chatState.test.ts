@@ -18,12 +18,13 @@ describe('chatState', () => {
     ]);
   });
 
-  it('appends a prompt with an assistant draft', () => {
+  it('appends a prompt with thinking above the assistant draft', () => {
     const conversation = appendPrompt([], 'write tests');
 
-    expect(conversation).toHaveLength(2);
+    expect(conversation).toHaveLength(3);
     expect(conversation[0]).toEqual(expect.objectContaining({ role: 'user', content: 'write tests' }));
-    expect(conversation[1]).toEqual(expect.objectContaining({ role: 'assistant', status: 'streaming' }));
+    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'thinking', content: 'thinking…', done: false }));
+    expect(conversation[2]).toEqual(expect.objectContaining({ role: 'assistant', status: 'streaming' }));
   });
 
   it('falls back when crypto.randomUUID is unavailable', () => {
@@ -32,7 +33,7 @@ describe('chatState', () => {
     const conversation = appendPrompt([], 'fallback ids');
 
     expect(conversation[0]?.id).toMatch(/^user-/);
-    expect(conversation[1]?.id).toMatch(/^assistant-/);
+    expect(conversation[1]?.kind).toBe('thinking');
   });
 
   it('applies sse payloads for streaming text, tools, completion and interactions', () => {
@@ -99,7 +100,10 @@ describe('chatState', () => {
     expect(conversation.some((item) => item.kind === 'tool_call')).toBe(true);
     expect(conversation.some((item) => item.kind === 'tool_result')).toBe(true);
     expect(conversation[1]).toEqual(
-      expect.objectContaining({ kind: 'thinking', messageId: 'a1', content: 'Reasoning part 1 + part 2', done: true }),
+      expect.objectContaining({ kind: 'thinking', messageId: 'a1', done: true }),
+    );
+    expect(conversation[1]).toEqual(
+      expect.objectContaining({ content: expect.stringContaining('Reasoning part 1') }),
     );
     expect(conversation[2]).toEqual(
       expect.objectContaining({ kind: 'message', role: 'assistant', messageId: 'a1', status: 'complete', content: 'Hi' }),

@@ -144,17 +144,52 @@ function updateLastAssistant(
     return items;
   }
   const next = [...items];
-  next[index] = updater(item);
+  next[index] = updater({
+    ...item,
+    messageId: messageId ?? item.messageId,
+  });
   return next;
 }
 
+function lastThinkingIndex(items: ConversationItem[], messageId?: string): number {
+  let fallbackIndex = -1;
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (!item || item.kind !== 'thinking') {
+      continue;
+    }
+    fallbackIndex = index;
+    if (!messageId || item.messageId === messageId) {
+      return index;
+    }
+  }
+  return fallbackIndex;
+}
+
 function upsertThinkingBeforeAssistant(items: ConversationItem[], item: ThinkingItem): ConversationItem[] {
-  const existingIndex = items.findIndex((entry) => entry.kind === 'thinking' && entry.id === item.id);
+  const existingIndex = items.findIndex(
+    (entry) => entry.kind === 'thinking' && (entry.id === item.id || entry.messageId === item.messageId),
+  );
   if (existingIndex >= 0) {
     const next = [...items];
     const existing = next[existingIndex] as ThinkingItem;
     next[existingIndex] = {
       ...existing,
+      messageId: item.messageId ?? existing.messageId,
+      content: `${existing.content}${item.content}`,
+      done: item.done || existing.done,
+      timestamp: item.timestamp,
+    };
+    return next;
+  }
+
+  const fallbackThinkingIndex = lastThinkingIndex(items);
+  if (fallbackThinkingIndex >= 0) {
+    const next = [...items];
+    const existing = next[fallbackThinkingIndex] as ThinkingItem;
+    next[fallbackThinkingIndex] = {
+      ...existing,
+      messageId: item.messageId ?? existing.messageId,
       content: `${existing.content}${item.content}`,
       done: item.done || existing.done,
       timestamp: item.timestamp,
@@ -168,15 +203,12 @@ function upsertThinkingBeforeAssistant(items: ConversationItem[], item: Thinking
     next.splice(assistantIndex, 0, item);
     return next;
   }
+
   return [...items, item];
 }
 
 function markThinkingDone(items: ConversationItem[], messageId?: string): ConversationItem[] {
-  if (!messageId) {
-    return items;
-  }
-
-  const index = items.findIndex((entry) => entry.kind === 'thinking' && entry.messageId === messageId);
+  const index = lastThinkingIndex(items, messageId);
   if (index < 0) {
     return items;
   }
@@ -185,6 +217,7 @@ function markThinkingDone(items: ConversationItem[], messageId?: string): Conver
   const thinking = next[index] as ThinkingItem;
   next[index] = {
     ...thinking,
+    messageId: messageId ?? thinking.messageId,
     done: true,
   };
   return next;
@@ -205,6 +238,7 @@ export function messagesToConversation(messages: SessionMessage[]): Conversation
 }
 
 export function appendPrompt(conversation: ConversationItem[], text: string): ConversationItem[] {
+  const turnId = randomId('assistant-turn');
   return [
     ...conversation,
     {
@@ -216,13 +250,21 @@ export function appendPrompt(conversation: ConversationItem[], text: string): Co
       status: 'complete',
     },
     {
+      kind: 'thinking',
+      id: randomId('thinking'),
+      messageId: turnId,
+      content: 'thinking…',
+      done: false,
+      timestamp: new Date().toISOString(),
+    },
+    {
       kind: 'message',
       id: randomId('assistant'),
       role: 'assistant',
       content: '',
       timestamp: 'streaming',
       status: 'streaming',
-      messageId: undefined,
+      messageId: turnId,
     },
   ];
 }
