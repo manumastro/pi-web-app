@@ -7,6 +7,7 @@ export interface MessageItem {
   content: string;
   timestamp: string;
   status?: 'streaming' | 'complete' | 'aborted';
+  messageId?: string;
 }
 
 export interface ThinkingItem {
@@ -109,18 +110,32 @@ function toMessageItem(message: SessionMessage): MessageItem {
   };
 }
 
-function lastMessageIndex(items: ConversationItem[], role: MessageItem['role']): number {
+function lastMessageIndex(
+  items: ConversationItem[],
+  role: MessageItem['role'],
+  messageId?: string,
+): number {
+  let fallbackIndex = -1;
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
-    if (item && item.kind === 'message' && item.role === role) {
+    if (!item || item.kind !== 'message' || item.role !== role) {
+      continue;
+    }
+
+    fallbackIndex = index;
+    if (!messageId || item.messageId === messageId) {
       return index;
     }
   }
-  return -1;
+  return fallbackIndex;
 }
 
-function updateLastAssistant(items: ConversationItem[], updater: (item: MessageItem) => MessageItem): ConversationItem[] {
-  const index = lastMessageIndex(items, 'assistant');
+function updateLastAssistant(
+  items: ConversationItem[],
+  updater: (item: MessageItem) => MessageItem,
+  messageId?: string,
+): ConversationItem[] {
+  const index = lastMessageIndex(items, 'assistant', messageId);
   if (index < 0) {
     return items;
   }
@@ -130,6 +145,48 @@ function updateLastAssistant(items: ConversationItem[], updater: (item: MessageI
   }
   const next = [...items];
   next[index] = updater(item);
+  return next;
+}
+
+function upsertThinkingBeforeAssistant(items: ConversationItem[], item: ThinkingItem): ConversationItem[] {
+  const existingIndex = items.findIndex((entry) => entry.kind === 'thinking' && entry.id === item.id);
+  if (existingIndex >= 0) {
+    const next = [...items];
+    const existing = next[existingIndex] as ThinkingItem;
+    next[existingIndex] = {
+      ...existing,
+      content: `${existing.content}${item.content}`,
+      done: item.done || existing.done,
+      timestamp: item.timestamp,
+    };
+    return next;
+  }
+
+  const assistantIndex = lastMessageIndex(items, 'assistant', item.messageId);
+  const next = [...items];
+  if (assistantIndex >= 0) {
+    next.splice(assistantIndex, 0, item);
+    return next;
+  }
+  return [...items, item];
+}
+
+function markThinkingDone(items: ConversationItem[], messageId?: string): ConversationItem[] {
+  if (!messageId) {
+    return items;
+  }
+
+  const index = items.findIndex((entry) => entry.kind === 'thinking' && entry.messageId === messageId);
+  if (index < 0) {
+    return items;
+  }
+
+  const next = [...items];
+  const thinking = next[index] as ThinkingItem;
+  next[index] = {
+    ...thinking,
+    done: true,
+  };
   return next;
 }
 
@@ -165,6 +222,7 @@ export function appendPrompt(conversation: ConversationItem[], text: string): Co
       content: '',
       timestamp: 'streaming',
       status: 'streaming',
+      messageId: undefined,
     },
   ];
 }
@@ -183,7 +241,7 @@ function formatInput(input?: Record<string, unknown>): string {
 export function applySsePayload(conversation: ConversationItem[], payload: SsePayload): ConversationItem[] {
   if (payload.type === 'text_chunk') {
     const chunk = payload.content ?? '';
-    const index = lastMessageIndex(conversation, 'assistant');
+    const index = lastMessageIndex(conversation, 'assistant', payload.messageId);
     if (index < 0) {
       return [
         ...conversation,
@@ -194,6 +252,7 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
           content: chunk,
           timestamp: 'streaming',
           status: 'streaming',
+          messageId: payload.messageId,
         },
       ];
     }
@@ -206,6 +265,7 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
     const next = [...conversation];
     next[index] = {
       ...item,
+      messageId: payload.messageId ?? item.messageId,
       content: `${item.content}${chunk}`,
       status: 'streaming',
       timestamp: 'streaming',
@@ -215,7 +275,7 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
 
   if (payload.type === 'thinking') {
     const messageId = payload.messageId ?? randomId('thinking');
-    return upsertById(conversation, {
+    return upsertThinkingBeforeAssistant(conversation, {
       kind: 'thinking',
       id: messageId,
       messageId,
@@ -288,11 +348,14 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
   }
 
   if (payload.type === 'done') {
-    return updateLastAssistant(conversation, (item) => ({
-      ...item,
-      status: payload.aborted ? 'aborted' : 'complete',
-      timestamp: new Date().toISOString(),
-    }));
+    return markThinkingDone(
+      updateLastAssistant(conversation, (item) => ({
+        ...item,
+        status: payload.aborted ? 'aborted' : 'complete',
+        timestamp: new Date().toISOString(),
+      }), payload.messageId),
+      payload.messageId,
+    );
   }
 
   return conversation;

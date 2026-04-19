@@ -38,6 +38,20 @@ describe('chatState', () => {
   it('applies sse payloads for streaming text, tools, completion and interactions', () => {
     let conversation: ConversationItem[] = appendPrompt([], 'hello');
     conversation = applySsePayload(conversation, {
+      type: 'thinking',
+      sessionId: 's1',
+      messageId: 'a1',
+      content: 'Reasoning part 1',
+      done: false,
+    });
+    conversation = applySsePayload(conversation, {
+      type: 'thinking',
+      sessionId: 's1',
+      messageId: 'a1',
+      content: ' + part 2',
+      done: false,
+    });
+    conversation = applySsePayload(conversation, {
       type: 'text_chunk',
       sessionId: 's1',
       messageId: 'a1',
@@ -84,8 +98,11 @@ describe('chatState', () => {
     expect(conversation.some((item) => item.kind === 'permission')).toBe(true);
     expect(conversation.some((item) => item.kind === 'tool_call')).toBe(true);
     expect(conversation.some((item) => item.kind === 'tool_result')).toBe(true);
-    expect(conversation.find((item) => item.kind === 'message' && item.role === 'assistant')).toEqual(
-      expect.objectContaining({ status: 'complete', content: 'Hi' }),
+    expect(conversation[1]).toEqual(
+      expect.objectContaining({ kind: 'thinking', messageId: 'a1', content: 'Reasoning part 1 + part 2', done: true }),
+    );
+    expect(conversation[2]).toEqual(
+      expect.objectContaining({ kind: 'message', role: 'assistant', messageId: 'a1', status: 'complete', content: 'Hi' }),
     );
   });
 });

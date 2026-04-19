@@ -79,7 +79,7 @@ export function ConversationPanel({ items, error: errorMsg }: ConversationPanelP
 
         if (item.kind === 'thinking') {
           return (
-            <details key={item.id} className="message message-thinking" open={item.done}>
+            <details key={item.id} className="message message-thinking" open>
               <summary>
                 <span className="message-badge thinking">
                   {item.done ? 'thinking complete' : 'thinking'}

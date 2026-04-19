@@ -73,7 +73,7 @@ export default function ConversationPanel({ items, error: errorMsg }: Conversati
 
         if (item.kind === 'thinking') {
           return (
-            <details key={item.id} className="message message-thinking" open={item.done}>
+            <details key={item.id} className="message message-thinking" open>
               <summary>
                 <span className={badgeClass(item.kind)}>
                   {item.done ? '⏹ thinking · completato' : '◉ thinking · in corso'}
