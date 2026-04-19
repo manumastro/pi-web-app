@@ -34,12 +34,13 @@
 - REST + SSE backend wiring for sessions, messages, models, and live event streaming.
 - **OpenChamber-aligned frontend** with Tailwind CSS v4, Radix UI primitives, light theme with warm/beige palette (oklch-based), IBM Plex Sans/Mono fonts, 304px sidebar, and 56px header.
 - Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
-- Model selection picker now lists the full CLI-scoped registry with search/favorites; availability is reflected from live auth state and model changes are guarded so missing keys no longer crash the backend.
+- Model selection picker now lists the full CLI-scoped registry with search/favorites; availability is reflected from live auth state and model changes reuse the shared Pi auth store (`~/.pi/agent/auth.json` + env) without a second login, instead of silently swapping models.
 - Question/permission interaction UI with inline answer cards (all labels in English).
 - Send-only composer (Enter to send, Shift+Enter newline), Stop button, Build chip.
 - SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
-- **Build/test green (18 frontend tests, 71 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
-- Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` to prevent `totalTokens` crashes in multi-turn sessions.
+- **Build/test green (18 frontend tests, 73 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
+- Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` and SDK compaction hooks no-op to prevent `totalTokens` crashes in multi-turn sessions.
+- systemd service launches Bash interactively so `~/.bashrc` exports (including `OPENCODE_API_KEY`) are visible to the backend, matching CLI credentials; the CLI remains the source of truth for auth/model access.
 - Model selection now persisted per-session via `PUT /api/models/session/model`; active model is selected by `isSelected` flag from the API.
 - Sidebar toggle functionality with dynamic icons (PanelLeftClose/PanelLeft).
 - `crypto.randomUUID()` fallback for browser compatibility.
@@ -64,7 +65,7 @@ frontend/src/
 
 ### 0.3 Notes
 
-- Implementation is production-shaped and actively serving at `http://161.97.116.63:3210`; systemd now sources `~/.bashrc` so the backend sees the same API keys as the CLI.
+- Implementation is production-shaped and actively serving at `http://161.97.116.63:3210`; systemd now sources `~/.bashrc` so the backend sees the same API keys as the CLI, and the web app defers to the CLI’s auth/config instead of duplicating credentials.
 - Blueprint remains the planning source of truth for deferred items.
 - **OpenChamber migration complete** - frontend now uses same component organization, styling system, and UI primitives; model picker mirrors OpenChamber with search, favorites, provider groups, and the full CLI-scoped model set.
 - Zustand stores fully integrated into App.tsx (chatStore, sessionStore, uiStore).
@@ -1573,7 +1574,7 @@ NODE_PATH=/usr/bin/node
 - QuestionPermissionPanel: inline cards with option buttons and free-text answer input.
 - SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
 - Server binds to `0.0.0.0:3210` (accessible from public IP).
-- Build green, 71 backend tests + 18 frontend tests passing, `pi-web.service` active.
+- Build green, 73 backend tests + 18 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
 - Final polish: markdown rendering in messages, syntax highlighting for code blocks, keyboard shortcuts.

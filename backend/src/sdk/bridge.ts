@@ -1,10 +1,10 @@
 import {
+  AgentSession,
   AuthStorage,
   ModelRegistry,
   SessionManager,
   SettingsManager,
   createAgentSession,
-  type AgentSession,
   type AgentSessionEvent,
 } from '@mariozechner/pi-coding-agent';
 import type { Config } from '../config/index.js';
@@ -129,6 +129,19 @@ function emit(manager: SseManager, event: SseEvent): void {
   manager.broadcast(event);
 }
 
+function disableSdkAutoCompaction(): void {
+  const prototype = AgentSession.prototype as unknown as {
+    _checkCompaction?: (...args: unknown[]) => Promise<void>;
+    _runAutoCompaction?: (...args: unknown[]) => Promise<void>;
+  };
+
+  const noopCompactionHook = async (): Promise<void> => undefined;
+  prototype._checkCompaction = noopCompactionHook;
+  prototype._runAutoCompaction = noopCompactionHook;
+}
+
+disableSdkAutoCompaction();
+
 export function createSdkBridge(params: {
   config: Config;
   sessionStore: SessionStore;
@@ -237,11 +250,12 @@ export function createSdkBridge(params: {
     session.agent.sessionId = stored.id;
 
     const modelKeyRef = resolveModelKey(refreshModels(), stored.model ?? modelId ?? config.model, config.model);
-    const parsed = parseModelKey(modelKeyRef);
-    if (parsed) {
-      const model = modelRegistry.find(parsed.provider, parsed.modelId);
+    sessionStore.updateSession(stored.id, { model: modelKeyRef });
+    const parsedModel = parseModelKey(modelKeyRef);
+    if (parsedModel) {
+      const model = modelRegistry.find(parsedModel.provider, parsedModel.modelId);
       if (model) {
-        session.setModel(model);
+        session.setModel(model as never);
       }
     }
 
@@ -406,8 +420,8 @@ export function createSdkBridge(params: {
   async function prompt(request: PromptRequest): Promise<PromptResult> {
     const sessionId = request.sessionId ?? config.generateSessionId();
     const cwd = request.cwd ?? config.sdkCwd;
-    const resolvedModelKey = resolveModelKey(refreshModels(), request.model, config.model);
-    const session = ensureStoredSession(sessionId, cwd, resolvedModelKey);
+    const session = ensureStoredSession(sessionId, cwd, request.model);
+    const resolvedModelKey = resolveModelKey(refreshModels(), request.model, session.model ?? config.model);
 
     sessionStore.updateSession(session.id, { status: 'prompting', cwd, model: resolvedModelKey });
     sessionStore.addMessage(session.id, { role: 'user', content: request.message });
@@ -423,7 +437,7 @@ export function createSdkBridge(params: {
       if (parsed) {
         const model = modelRegistry.find(parsed.provider, parsed.modelId);
         if (model) {
-          active.agentSession.setModel(model);
+          active.agentSession.setModel(model as never);
         }
       }
 
@@ -483,13 +497,11 @@ export function createSdkBridge(params: {
 
     const active = await getOrCreateAgentSession(sessionId, session.cwd, resolvedModelKey);
     const parsed = parseModelKey(resolvedModelKey);
-    if (!parsed) {
-      return;
-    }
-
-    const model = modelRegistry.find(parsed.provider, parsed.modelId);
-    if (model) {
-      active.agentSession.setModel(model);
+    if (parsed) {
+      const model = modelRegistry.find(parsed.provider, parsed.modelId);
+      if (model) {
+        active.agentSession.setModel(model as never);
+      }
     }
   }
 

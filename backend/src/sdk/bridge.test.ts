@@ -6,19 +6,27 @@ import { createSdkBridge } from './bridge.js';
 const mocks = vi.hoisted(() => ({
   createAgentSessionMock: vi.fn(),
   authStorageCreateMock: vi.fn(() => ({})),
-  modelRegistryCreateMock: vi.fn(() => ({
-    refresh: vi.fn(),
-    getAll: vi.fn(() => [
-      { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', reasoning: true, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
-      { provider: 'openai', id: 'gpt-4.1', name: 'GPT-4.1', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
-      { provider: 'ollama', id: 'llama-3.1-70b', name: 'Llama 3.1 70B', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
-    ]),
-    getAvailable: vi.fn(() => [
-      { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', reasoning: true, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
-      { provider: 'ollama', id: 'llama-3.1-70b', name: 'Llama 3.1 70B', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
-    ]),
-    find: vi.fn((provider: string, id: string) => ({ provider, id, name: `${provider}/${id}`, reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 })),
-  })),
+  modelRegistryCreateMock: vi.fn(() => {
+    const availableKeys = new Set([
+      'anthropic/claude-3-5-sonnet-20241022',
+      'ollama/llama-3.1-70b',
+    ]);
+
+    return {
+      refresh: vi.fn(),
+      getAll: vi.fn(() => [
+        { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', reasoning: true, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+        { provider: 'openai', id: 'gpt-4.1', name: 'GPT-4.1', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+        { provider: 'ollama', id: 'llama-3.1-70b', name: 'Llama 3.1 70B', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+      ]),
+      getAvailable: vi.fn(() => [
+        { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', reasoning: true, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+        { provider: 'ollama', id: 'llama-3.1-70b', name: 'Llama 3.1 70B', reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 },
+      ]),
+      hasConfiguredAuth: vi.fn((model: { provider: string; id: string }) => availableKeys.has(`${model.provider}/${model.id}`)),
+      find: vi.fn((provider: string, id: string) => ({ provider, id, name: `${provider}/${id}`, reasoning: false, input: ['text'], contextWindow: 128000, maxTokens: 16384 })),
+    };
+  }),
   sessionManagerInMemoryMock: vi.fn(() => ({})),
   settingsManagerApplyOverridesMock: vi.fn(),
   settingsManagerCreateMock: vi.fn(() => ({
@@ -27,6 +35,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@mariozechner/pi-coding-agent', () => ({
+  AgentSession: class AgentSession {},
   AuthStorage: { create: mocks.authStorageCreateMock },
   ModelRegistry: { create: mocks.modelRegistryCreateMock },
   SessionManager: { inMemory: mocks.sessionManagerInMemoryMock },
@@ -138,7 +147,7 @@ describe('sdk bridge', () => {
     expect(events.join('')).toContain('event: done');
   });
 
-  it('updates the model through the sdk registry', async () => {
+  it('updates the model through the sdk registry when auth is configured', async () => {
     const fake = createFakeAgentSession();
     mocks.createAgentSessionMock.mockResolvedValue(fake);
 
@@ -161,10 +170,73 @@ describe('sdk bridge', () => {
       sseManager,
     });
 
-    await bridge.setModel('session-2', 'openai/gpt-4.1');
+    await bridge.setModel('session-2', 'ollama/llama-3.1-70b');
 
     expect(fake.session.setModel).toHaveBeenCalled();
-    expect(sessionStore.getSession('session-2')?.model).toBe('openai/gpt-4.1');
+    expect(sessionStore.getSession('session-2')?.model).toBe('ollama/llama-3.1-70b');
+  });
+
+  it('keeps the requested model selection intact when updating the model', async () => {
+    const fake = createFakeAgentSession();
+    mocks.createAgentSessionMock.mockResolvedValue(fake);
+
+    const sessionStore = createSessionStore();
+    sessionStore.createSession('/tmp/project', 'anthropic/claude-3-5-sonnet-20241022', 'session-3');
+    const sseManager = createSseManager();
+    const bridge = createSdkBridge({
+      config: {
+        port: 3210,
+        nodeEnv: 'development',
+        sessionsDir: '/tmp/sessions',
+        sdkCwd: '/tmp/project',
+        model: 'anthropic/claude-3-5-sonnet-20241022',
+        corsOrigins: [],
+        logLevel: 'info',
+        sessionIdPrefix: 'session',
+        generateSessionId: () => 'generated-session-id',
+      },
+      sessionStore,
+      sseManager,
+    });
+
+    await bridge.setModel('session-3', 'openai/gpt-4.1');
+
+    expect(fake.session.setModel).toHaveBeenCalled();
+    expect(sessionStore.getSession('session-3')?.model).toBe('openai/gpt-4.1');
+  });
+
+  it('keeps the requested model selection intact during prompting', async () => {
+    const fake = createFakeAgentSession();
+    mocks.createAgentSessionMock.mockResolvedValue(fake);
+
+    const sessionStore = createSessionStore();
+    const sseManager = createSseManager();
+    const bridge = createSdkBridge({
+      config: {
+        port: 3210,
+        nodeEnv: 'development',
+        sessionsDir: '/tmp/sessions',
+        sdkCwd: '/tmp/project',
+        model: 'anthropic/claude-3-5-sonnet-20241022',
+        corsOrigins: [],
+        logLevel: 'info',
+        sessionIdPrefix: 'session',
+        generateSessionId: () => 'generated-session-id',
+      },
+      sessionStore,
+      sseManager,
+    });
+
+    const result = await bridge.prompt({
+      sessionId: 'session-4',
+      cwd: '/tmp/project',
+      message: 'Hello big-pickle',
+      model: 'openai/gpt-4.1',
+    });
+
+    expect(result.sessionId).toBe('session-4');
+    expect(fake.session.setModel).toHaveBeenCalled();
+    expect(sessionStore.getSession('session-4')?.model).toBe('openai/gpt-4.1');
   });
 
   it('lists all models (available and unavailable) from the sdk registry', async () => {
