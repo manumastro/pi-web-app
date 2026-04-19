@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { appendPrompt as buildOptimisticConversation } from '@/chatState';
 import type { ConversationItem, MessageItem, PermissionItem, QuestionItem } from '@/chatState';
 
 // Fallback for crypto.randomUUID when not available
@@ -37,26 +38,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Actions
   setConversation: (items) => set({ conversation: items }),
   
-  appendPrompt: (prompt, activeModelKey) => {
-    const userMessage: ConversationItem = {
-      kind: 'message',
-      id: generateId(),
-      timestamp: new Date().toISOString(),
-      role: 'user',
-      content: prompt,
-    };
-    
-    const assistantMessage: ConversationItem = {
-      kind: 'message',
-      id: generateId(),
-      timestamp: new Date().toISOString(),
-      role: 'assistant',
-      content: '',
-      status: 'streaming',
-    };
-    
+  appendPrompt: (prompt, _activeModelKey) => {
     set((state) => ({
-      conversation: [...state.conversation, userMessage, assistantMessage],
+      conversation: buildOptimisticConversation(state.conversation, prompt),
     }));
   },
   

@@ -36,10 +36,10 @@
 - Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
 - Model selection picker now lists the full CLI-scoped registry with search/favorites; availability is reflected from live auth state and model changes reuse the shared Pi auth store (`~/.pi/agent/auth.json` + env) without a second login, instead of silently swapping models.
 - Question/permission interaction UI with inline answer cards (all labels in English).
-- Thinking blocks are now shown immediately on send, grouped with their matching assistant turn, and rendered above the assistant message, so reasoning stays visually attached to the reply even before backend text arrives.
+- Thinking blocks are now shown immediately on send, grouped with their matching assistant turn, and rendered above the assistant message, so reasoning stays visually attached to the reply even before backend text arrives. The optimistic conversation row comes from the shared chat store, so it works right after refresh without re-selecting the model.
 - Send-only composer (Enter to send, Shift+Enter newline), Stop button, Build chip.
 - SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
-- **Build/test green (19 frontend tests, 73 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
+- **Build/test green (20 frontend tests, 73 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
 - Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` and SDK compaction hooks no-op to prevent `totalTokens` crashes in multi-turn sessions.
 - systemd service launches Bash interactively so `~/.bashrc` exports (including `OPENCODE_API_KEY`) are visible to the backend, matching CLI credentials; the CLI remains the source of truth for auth/model access.
 - Model selection now persisted per-session via `PUT /api/models/session/model`; active model is selected by `isSelected` flag from the API.
@@ -1575,7 +1575,7 @@ NODE_PATH=/usr/bin/node
 - QuestionPermissionPanel: inline cards with option buttons and free-text answer input.
 - SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
 - Server binds to `0.0.0.0:3210` (accessible from public IP).
-- Build green, 73 backend tests + 19 frontend tests passing, `pi-web.service` active.
+- Build green, 73 backend tests + 20 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
 - Final polish: markdown rendering in messages, syntax highlighting for code blocks, keyboard shortcuts.
