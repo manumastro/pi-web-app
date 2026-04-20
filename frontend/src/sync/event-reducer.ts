@@ -1,5 +1,6 @@
 import type { SessionInfo, StreamingState } from '@/types';
 import { applySsePayload, type ConversationItem, type SsePayload } from '@/chatState';
+import { appendNotification } from './notification-store';
 import { getSessionStatusType, isRunningSessionStatus } from './sessionActivity';
 import { getDirectoryState, getSyncChildStores } from './sync-refs';
 import type { SyncSessionStatus } from './types';
@@ -86,10 +87,27 @@ export function reduceSessionLifecyclePayload(
     deps.updateSession(payload.sessionId, { status: 'idle' });
     deps.setStreaming('idle');
     deps.setStatusMessage(payload.aborted ? 'Stopped' : 'Connected');
+    appendNotification({
+      type: 'turn-complete',
+      session: payload.sessionId,
+      directory: deps.directory,
+      time: Date.now(),
+      viewed: false,
+    });
   } else if (payload.type === 'error') {
     deps.updateSession(payload.sessionId, { status: 'error' });
     deps.setStreaming('error');
     deps.setStatusMessage('Error');
+    appendNotification({
+      type: 'error',
+      session: payload.sessionId,
+      directory: deps.directory,
+      time: Date.now(),
+      viewed: false,
+      error: {
+        message: payload.message,
+      },
+    });
   } else if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
     deps.setStreaming('streaming');
   }

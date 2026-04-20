@@ -4,7 +4,9 @@ import { useChatStore } from '@/stores/chatStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { reconcileSessionDirectories, upsertDirectorySession } from './bootstrap';
+import { useInputStore } from './input-store';
 import { clearSessionPrefetchDirectory } from './session-prefetch-cache';
+import { useSelectionStore } from './selection-store';
 import { setSyncDirectory } from './sync-context';
 
 export interface CreateSessionInput {
@@ -22,9 +24,16 @@ export interface SendPromptInput {
   turnId?: string;
 }
 
-function resolveModelKey(explicit?: string): string {
+function resolveModelKey(explicit?: string, sessionId?: string): string {
   if (explicit && explicit.trim().length > 0) {
     return explicit;
+  }
+
+  if (sessionId) {
+    const selection = useSelectionStore.getState().getSessionModelSelection(sessionId);
+    if (selection) {
+      return `${selection.providerId}/${selection.modelId}`;
+    }
   }
 
   const ui = useUIStore.getState();
@@ -37,10 +46,18 @@ function resolveModelKey(explicit?: string): string {
   );
 }
 
-function syncActiveModel(modelKey: string): void {
+function syncActiveModel(modelKey: string, sessionId?: string): void {
   const ui = useUIStore.getState();
   if (!modelKey) {
     return;
+  }
+
+  if (sessionId) {
+    const [providerId, ...rest] = modelKey.split('/');
+    const modelId = rest.join('/');
+    if (providerId && modelId) {
+      useSelectionStore.getState().saveSessionModelSelection(sessionId, providerId, modelId);
+    }
   }
 
   useUIStore.setState({
@@ -87,9 +104,9 @@ export async function createSession(input: CreateSessionInput): Promise<SessionI
 
     applySessionSnapshot(result.session);
     if (result.session.model) {
-      syncActiveModel(result.session.model);
+      syncActiveModel(result.session.model, result.session.id);
     } else if (resolvedModel) {
-      syncActiveModel(resolvedModel);
+      syncActiveModel(resolvedModel, result.session.id);
     }
 
     reconcileSessionDirectories(useSessionStore.getState().sessions);
@@ -147,7 +164,7 @@ export async function updateSessionModel(sessionId: string, modelKey: string): P
     }
 
     applySessionSnapshot(result.session);
-    syncActiveModel(modelKey);
+    syncActiveModel(modelKey, result.session.id);
     return result.session;
   } catch (error) {
     console.error('[session-actions] updateSessionModel failed', error);
@@ -175,7 +192,7 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
 
   const currentSession = sessionStore.sessions.find((entry) => entry.id === sessionId) ?? sessionStore.currentSession;
   const cwd = input.cwd ?? currentSession?.cwd ?? sessionStore.selectedDirectory;
-  const resolvedModel = resolveModelKey(input.model || currentSession?.model);
+  const resolvedModel = resolveModelKey(input.model || currentSession?.model, sessionId);
 
   if (!resolvedModel) {
     const chat = useChatStore.getState();
@@ -202,6 +219,7 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
   chat.setStatusMessage('Working');
   chat.appendPrompt(input.message, resolvedModel, input.turnId);
   useUIStore.getState().setPrompt('');
+  useInputStore.getState().setPendingInputText(null);
 
   try {
     await apiRequest('/api/messages/prompt', {

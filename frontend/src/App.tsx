@@ -6,6 +6,7 @@ import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation, r
 import { setSyncDirectory } from './sync/sync-context';
 import { reduceSessionLifecyclePayload } from './sync/event-reducer';
 import { useCurrentSessionActivity } from './sync/sync-context';
+import { markSessionViewed } from './sync/notification-store';
 import { isRunningSessionStatus } from './sync/sessionActivity';
 import { useSync } from './sync';
 import { getProjectLabel, normalizeProjectPath } from './lib/path';
@@ -211,6 +212,7 @@ export default function App() {
     }
 
     setQueryParams({ cwd: payload.session.cwd, sessionId: payload.session.id });
+    markSessionViewed(payload.session.id);
     await refreshModels(payload.session.id);
   }, [addProject, selectProject, setConversation, setSelectedSessionId, setSelectedDirectory, refreshModels]);
 
