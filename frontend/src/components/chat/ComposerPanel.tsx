@@ -14,7 +14,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { ModelInfo, StreamingState } from '@/types';
@@ -668,7 +667,7 @@ export function ComposerPanel({
                     </div>
                   </div>
 
-                  <ScrollArea className="max-h-[min(400px,calc(100dvh-12rem))]">
+                  <div className="max-h-[min(400px,calc(100dvh-12rem))] overflow-y-auto overscroll-contain">
                     <div className="p-1">
                       {!hasResults ? (
                         <div className="px-2 py-4 text-center text-sm text-muted-foreground">
@@ -792,7 +791,7 @@ export function ComposerPanel({
                         })}
                       </div>
                     </div>
-                  </ScrollArea>
+                  </div>
                 </div>
               ) : null}
             </div>
