@@ -51,11 +51,11 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 | `packages/ui/src/sync/session-actions.ts` | `frontend/src/sync/session-actions.ts` | implemented | session CRUD/model/prompt actions now live in the sync layer |
 | `packages/ui/src/sync/sync-refs.ts` | `frontend/src/sync/sync-refs.ts` | implemented | selector helpers and stable access patterns are now split out |
 | `packages/ui/src/sync/child-store.ts` | `frontend/src/sync/child-store.ts` | implemented | per-directory store topology is now represented explicitly |
-| `packages/ui/src/sync/session-cache.ts` | none | missing | needed for the sync-layer cache semantics |
-| `packages/ui/src/sync/session-prefetch-cache.ts` | none | missing | needed for OpenChamber-like session warmup behavior |
+| `packages/ui/src/sync/session-cache.ts` | `frontend/src/sync/session-cache.ts` | implemented | sync-layer cache eviction helpers are now available |
+| `packages/ui/src/sync/session-prefetch-cache.ts` | `frontend/src/sync/session-prefetch-cache.ts` | implemented | prefetch TTL/inflight cache helpers are now available |
 | `packages/ui/src/sync/streaming.ts` | none / partial `frontend/src/sync/sessionActivity.ts` | partial | activity/streaming derivation exists, but not as a dedicated streaming module yet |
-| `packages/ui/src/sync/optimistic.ts` | none | missing | optimistic mutation layer not yet ported |
-| `packages/ui/src/sync/persist-cache.ts` | none | missing | cache persistence layer not yet ported |
+| `packages/ui/src/sync/optimistic.ts` | `frontend/src/sync/optimistic.ts` | implemented | optimistic page/message merge helpers now exist in the sync layer |
+| `packages/ui/src/sync/persist-cache.ts` | `frontend/src/sync/persist-cache.ts` | implemented | directory metadata persistence helpers now exist in the sync layer |
 | `packages/ui/src/sync/notification-store.ts` | none | missing | notification state not yet ported |
 | `packages/ui/src/sync/input-store.ts` | none | missing | draft input state still lives in current app stores |
 | `packages/ui/src/sync/selection-store.ts` | none | missing | selection state still lives in current app stores |
@@ -82,12 +82,13 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 ### Phase 2 — Align file structure with OpenChamber-style separation
 - [ ] split the remaining session lifecycle orchestration from `App.tsx`
 - [ ] split `sessionStore.ts` into sync-like session/session-ui responsibilities
-- [ ] port the remaining sync primitives (cache/persist/optimistic/session-prefetch modules) or add exact equivalents
+- [ ] port the remaining sync primitives (notification/input/selection/viewport/voice modules or exact equivalents) or add exact equivalents
 - [x] keep activity derivation in a dedicated hook/helper pair
 - [x] keep status mapping reusable for chat/status row/composer
 - [x] add unit tests for the new helper/hook behavior
 - [x] introduce explicit sync child-store / refs / global-store scaffolding
 - [x] port `use-sync.ts` and `session-actions.ts` into the sync layer
+- [x] port the cache/persist/optimistic/session-prefetch modules into the sync layer
 
 ### Phase 3 — Verify and document
 - [x] run backend/frontend tests
@@ -103,8 +104,9 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 - [x] Frontend session activity rehydration implementation completed.
 - [x] App-level visual state now rehydrates from authoritative session activity.
 - [x] Tests cover the resumed-running-session case.
-- [ ] Full OpenChamber sync topology is still incomplete: `sessionStore.ts` and `App.tsx` are temporary convergence points pending the final module split, and the cache-optimistic-session-action modules are still to be ported.
+- [ ] Full OpenChamber sync topology is still incomplete: `sessionStore.ts` and `App.tsx` are temporary convergence points pending the final module split, and the notification/input/selection/viewport/voice modules are still to be ported.
 - [x] Sync-layer action facade added: `use-sync.ts` now binds `session-actions.ts` for create/delete/rename/model/prompt/abort flows.
+- [x] Cache/prefetch/optimistic persistence helpers now exist in the sync layer, with coverage for cache eviction, prefetch TTLs, optimistic merges, and local metadata persistence.
 
 ## Notes
 
@@ -117,6 +119,10 @@ OpenChamber parity target file map:
 - `frontend/src/sync/global-sync-store.ts` — global sync state scaffold
 - `frontend/src/sync/live-aggregate.ts` — live session/status aggregation helpers in sync form
 - `frontend/src/sync/session-actions.ts` — session CRUD/model/prompt actions now delegated out of `App.tsx`
+- `frontend/src/sync/session-cache.ts` — session cache eviction helpers
+- `frontend/src/sync/session-prefetch-cache.ts` — prefetch TTL/inflight cache helpers
+- `frontend/src/sync/optimistic.ts` — optimistic merge helpers for session/message flows
+- `frontend/src/sync/persist-cache.ts` — directory metadata persistence helpers
 - `frontend/src/sync/sync-refs.ts` — imperative selector/refs surface for the sync system
 - `frontend/src/sync/use-sync.ts` — hook-level action facade for sync-layer session operations
 - `frontend/src/sync/index.ts` — aggregate export surface mirroring the OpenChamber sync entrypoint

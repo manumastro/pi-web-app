@@ -4,6 +4,7 @@ import { useChatStore } from '@/stores/chatStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import { reconcileSessionDirectories, upsertDirectorySession } from './bootstrap';
+import { clearSessionPrefetchDirectory } from './session-prefetch-cache';
 import { setSyncDirectory } from './sync-context';
 
 export interface CreateSessionInput {
@@ -102,7 +103,11 @@ export async function createSession(input: CreateSessionInput): Promise<SessionI
 export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
     await apiRequest(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+    const session = useSessionStore.getState().sessions.find((entry) => entry.id === sessionId);
     useSessionStore.getState().deleteSession(sessionId);
+    if (session?.cwd) {
+      clearSessionPrefetchDirectory(session.cwd);
+    }
     reconcileSessionDirectories(useSessionStore.getState().sessions);
     return true;
   } catch (error) {
