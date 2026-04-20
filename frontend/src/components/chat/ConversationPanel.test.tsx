@@ -99,7 +99,7 @@ describe('ConversationPanel', () => {
     const { getByText, container } = render(<ConversationPanel items={streamingItems} isWorking workingLabel="Working..." />);
 
     expect(getByText('Working...')).toBeInTheDocument();
-    expect(container.querySelector('.working-placeholder-message')).not.toBeNull();
+    expect(container.querySelector('.message-assistant-turn .working-placeholder')).not.toBeNull();
   });
 
   it('hides reasoning traces when disabled', () => {

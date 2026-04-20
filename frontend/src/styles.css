@@ -1697,10 +1697,6 @@
   padding: 0.65rem 0.8rem;
 }
 
-.working-placeholder-message {
-  max-width: 34rem;
-}
-
 .working-placeholder {
   display: flex;
   align-items: center;

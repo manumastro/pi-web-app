@@ -293,12 +293,16 @@ function AssistantTurn({
   entries,
   firstTimestamp,
   showReasoningTraces,
+  showWorkingPlaceholder,
+  workingLabel,
 }: {
   turnId: string;
   userMessage?: UserMessageItem;
   entries: ToolTurnEntry[];
   firstTimestamp: string;
   showReasoningTraces: boolean;
+  showWorkingPlaceholder: boolean;
+  workingLabel: string;
 }) {
   const assistantTimestamp = entries.find((entry): entry is Extract<ToolTurnEntry, { kind: 'assistant' }> => entry.kind === 'assistant')?.item.timestamp ?? firstTimestamp;
   const hasStreamingEntry = entries.some((entry) => {
@@ -331,6 +335,10 @@ function AssistantTurn({
             data-turn-id={turnId}
           >
             <MessageHeader role="assistant" timestamp={formatTimestamp(assistantTimestamp)} />
+
+            {showWorkingPlaceholder ? (
+              <WorkingPlaceholder label={workingLabel} className="mt-1" />
+            ) : null}
 
             {entries.length > 0 ? (
               <div className="message-turn-stack">
@@ -398,20 +406,6 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     scrollToBottom(false);
   }, [scrollToBottom]);
 
-  const hasEmptyStreamingAssistant = records.some((record) => {
-    if (record.kind === 'standalone') {
-      return record.item.role === 'assistant' && record.item.status === 'streaming' && record.item.content.trim().length === 0;
-    }
-
-    if (record.kind === 'turn') {
-      return record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming' && entry.item.content.trim().length === 0);
-    }
-
-    return false;
-  });
-
-  const showWorkingPlaceholder = isWorking && hasEmptyStreamingAssistant;
-
   const renderedRecords = records.flatMap((record) => {
     if (record.kind === 'user') {
       if (record.consumed) {
@@ -437,6 +431,8 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
           entries={record.entries}
           firstTimestamp={record.firstTimestamp}
           showReasoningTraces={showReasoningTraces}
+          showWorkingPlaceholder={isWorking && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming' && entry.item.content.trim().length === 0)}
+          workingLabel={workingLabel}
         />,
       ];
     }
@@ -499,15 +495,6 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
       {items.length === 0 && !errorMsg ? <SkeletonConversation /> : null}
 
       {renderedRecords}
-
-      {showWorkingPlaceholder ? (
-        <FadeInOnReveal animate>
-          <article className={cn('message', 'message-assistant', 'working-placeholder-message')}>
-            <MessageHeader role="assistant" />
-            <WorkingPlaceholder label={workingLabel} className="mt-2" />
-          </article>
-        </FadeInOnReveal>
-      ) : null}
 
       <ScrollToBottomButton visible={showScrollButton} onClick={handleScrollToBottom} />
     </div>
