@@ -166,4 +166,29 @@ describe('App', () => {
       );
     });
   });
+
+  it('reloads the active session when prompt submission fails', async () => {
+    apiRequestMock.mockImplementation(async (path: string, init: RequestInit) => {
+      if (path === '/api/models/session/model' && init.method === 'PUT') {
+        return { session };
+      }
+      if (path === '/api/messages/prompt' && init.method === 'POST') {
+        throw new Error('Failed to fetch');
+      }
+      throw new Error(`Unexpected apiRequest path: ${path}`);
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Prompt' }), { target: { value: 'second message' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() => {
+      expect(apiGetMock).toHaveBeenCalledWith('/api/sessions/session-1');
+    });
+  });
 });

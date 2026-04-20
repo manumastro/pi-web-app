@@ -297,8 +297,20 @@ export function useAppController(): AppController {
   const handleSend = useCallback(async (): Promise<void> => {
     const text = prompt.trim();
     if (!text) return;
-    await sendPrompt({ message: text });
-  }, [prompt, sendPrompt]);
+
+    const sent = await sendPrompt({ message: text });
+    if (!sent) {
+      const sessionId = useSessionUiStore.getState().selectedSessionId;
+      if (sessionId) {
+        try {
+          await loadSession(sessionId);
+          setError('');
+        } catch {
+          // keep the error state from the failed send if the reload also fails
+        }
+      }
+    }
+  }, [loadSession, prompt, sendPrompt, setError]);
 
   const handleAbort = useCallback(async (): Promise<void> => {
     const sessionId = useSessionUiStore.getState().selectedSessionId;
