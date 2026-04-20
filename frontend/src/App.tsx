@@ -8,6 +8,7 @@ import { reduceSessionLifecyclePayload } from './sync/event-reducer';
 import { useCurrentSessionActivity } from './sync/sync-context';
 import { markSessionViewed } from './sync/notification-store';
 import { isRunningSessionStatus } from './sync/sessionActivity';
+import { useInputStore } from './sync/input-store';
 import { useSync } from './sync';
 import { getProjectLabel, normalizeProjectPath } from './lib/path';
 import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from './types';
@@ -114,10 +115,11 @@ export default function App() {
     models,
     setModels,
     activeModelKey,
-    prompt,
-    setPrompt,
     showReasoningTraces,
   } = useUIStore();
+
+  const { pendingInputText, setPendingInputText } = useInputStore();
+  const prompt = pendingInputText ?? '';
 
   // ─── Derived State ──────────────────────────────────────────────────────────
   const projectDirectories = useMemo<DirectoryInfo[]>(() => {
@@ -502,7 +504,7 @@ export default function App() {
         streaming={interactionStreaming}
         models={models}
         activeModelKey={activeModelKey}
-        onPromptChange={setPrompt}
+        onPromptChange={(value) => setPendingInputText(value)}
         onSend={handleSend}
         onAbort={handleAbort}
         onModelSelect={handleModelSelect}

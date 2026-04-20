@@ -6,6 +6,7 @@ import { useChatStore } from './stores/chatStore';
 import { useProjectStore } from './stores/projectStore';
 import { useSessionStore } from './stores/sessionStore';
 import { useUIStore } from './stores/uiStore';
+import { useInputStore } from './sync/input-store';
 import { createProjectIdFromPath } from './lib/path';
 
 const useSessionStreamMock = vi.fn();
@@ -78,6 +79,13 @@ beforeEach(() => {
     models: [],
     activeModelKey: '',
     prompt: '',
+  });
+
+  useInputStore.setState({
+    pendingInputText: null,
+    pendingInputMode: 'replace',
+    pendingSyntheticParts: null,
+    attachedFiles: [],
   });
 
   // Default mock implementations for first test
