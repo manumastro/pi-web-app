@@ -9,7 +9,7 @@ const baseSession: Session = {
   id: 'session_test-1',
   cwd: '/tmp/project',
   model: 'claude-3-5-sonnet-20241022',
-  status: 'done',
+  status: 'idle',
   messages: [
     { id: 'm1', role: 'user', content: 'hello', timestamp: '2026-04-15T10:00:00.000Z' },
     { id: 'm2', role: 'assistant', content: 'hi there', timestamp: '2026-04-15T10:00:01.000Z' },
@@ -33,6 +33,20 @@ describe('persistence', () => {
   it('returns undefined for invalid or empty input', () => {
     expect(parseSessionJsonl('')).toBeUndefined();
     expect(parseSessionJsonl('not-json')).toBeUndefined();
+  });
+
+  it('normalizes legacy in-progress statuses to the canonical busy state', () => {
+    const legacy = parseSessionJsonl(JSON.stringify({
+      type: 'session',
+      id: baseSession.id,
+      cwd: baseSession.cwd,
+      model: baseSession.model,
+      status: 'prompting',
+      createdAt: baseSession.createdAt,
+      updatedAt: baseSession.updatedAt,
+    }));
+
+    expect(legacy?.status).toBe('busy');
   });
 
   it('builds a stable file path', () => {

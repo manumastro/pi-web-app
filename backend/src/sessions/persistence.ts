@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Session, Message, SessionStatus } from './store.js';
+import { normalizeSessionStatus, type Session, type Message, type SessionStatus } from './store.js';
 
 interface SessionMetaRecord {
   type: 'session';
@@ -48,7 +48,7 @@ export function sessionToJsonl(session: Session): string {
       cwd: session.cwd,
       ...(session.title !== undefined ? { title: session.title } : {}),
       model: session.model,
-      status: session.status,
+      status: normalizeSessionStatus(session.status),
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     },
@@ -119,7 +119,7 @@ export function parseSessionJsonl(input: string): Session | undefined {
     cwd: meta.cwd,
     ...(meta.title !== undefined ? { title: meta.title } : {}),
     model: meta.model,
-    status: meta.status,
+    status: normalizeSessionStatus(meta.status),
     messages,
     createdAt: meta.createdAt,
     updatedAt: meta.updatedAt,

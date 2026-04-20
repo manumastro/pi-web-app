@@ -141,7 +141,7 @@ describe('sdk bridge', () => {
       expect.objectContaining({ role: 'user', content: 'Hello SDK' }),
       expect.objectContaining({ role: 'assistant', content: 'Hello' }),
     ]);
-    expect(sessionStore.getSession('session-1')?.status).toBe('done');
+    expect(sessionStore.getSession('session-1')?.status).toBe('idle');
     expect(events.join('')).toContain('event: text_chunk');
     expect(events.join('')).toContain('event: question');
     expect(events.join('')).toContain('event: permission');

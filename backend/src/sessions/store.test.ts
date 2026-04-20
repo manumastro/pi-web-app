@@ -97,10 +97,10 @@ describe('session store', () => {
   describe('updateSession', () => {
     it('should update session fields', () => {
       const session = store.createSession('/home/user');
-      const updated = store.updateSession(session.id, { status: 'prompting', title: 'Renamed session' });
+      const updated = store.updateSession(session.id, { status: 'busy', title: 'Renamed session' });
 
       expect(updated).toBeDefined();
-      expect(updated?.status).toBe('prompting');
+      expect(updated?.status).toBe('busy');
       expect(updated?.title).toBe('Renamed session');
     });
 
@@ -111,14 +111,14 @@ describe('session store', () => {
       // Small delay to ensure timestamp difference
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      store.updateSession(session.id, { status: 'prompting' });
+      store.updateSession(session.id, { status: 'busy' });
       const updated = store.getSession(session.id);
 
       expect(updated?.updatedAt).not.toBe(originalUpdatedAt);
     });
 
     it('should return undefined for non-existent session', () => {
-      expect(store.updateSession('non-existent', { status: 'prompting' })).toBeUndefined();
+      expect(store.updateSession('non-existent', { status: 'busy' })).toBeUndefined();
     });
   });
 
@@ -169,25 +169,32 @@ describe('session store', () => {
       expect(session.status).toBe('idle');
     });
 
-    it('should update to prompting status', () => {
+    it('should update to busy status', () => {
+      const session = store.createSession('/home/user');
+      const updated = store.updateSession(session.id, { status: 'busy' });
+
+      expect(updated?.status).toBe('busy');
+    });
+
+    it('should normalize legacy prompting status to busy', () => {
       const session = store.createSession('/home/user');
       const updated = store.updateSession(session.id, { status: 'prompting' });
 
-      expect(updated?.status).toBe('prompting');
+      expect(updated?.status).toBe('busy');
     });
 
-    it('should update to waiting_question status', () => {
+    it('should normalize retry status', () => {
       const session = store.createSession('/home/user');
-      const updated = store.updateSession(session.id, { status: 'waiting_question' });
+      const updated = store.updateSession(session.id, { status: 'retry' });
 
-      expect(updated?.status).toBe('waiting_question');
+      expect(updated?.status).toBe('retry');
     });
 
-    it('should update to done status', () => {
+    it('should normalize done status to idle', () => {
       const session = store.createSession('/home/user');
       const updated = store.updateSession(session.id, { status: 'done' });
 
-      expect(updated?.status).toBe('done');
+      expect(updated?.status).toBe('idle');
     });
 
     it('should update to error status', () => {

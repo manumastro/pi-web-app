@@ -7,12 +7,14 @@ import { randomUUID } from 'crypto';
 
 export type SessionStatus =
   | 'idle'
+  | 'busy'
+  | 'retry'
+  | 'error'
   | 'prompting'
   | 'answering'
   | 'waiting_question'
   | 'waiting_permission'
   | 'paused'
-  | 'error'
   | 'done';
 
 export interface Message {
@@ -46,6 +48,26 @@ export interface SessionStore {
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => Session | undefined;
   seedSessions: (sessions: Session[]) => void;
   clearAll: () => void;
+}
+
+export function normalizeSessionStatus(status: SessionStatus): SessionStatus {
+  switch (status) {
+    case 'idle':
+    case 'busy':
+    case 'retry':
+    case 'error':
+      return status;
+    case 'done':
+    case 'paused':
+      return 'idle';
+    case 'prompting':
+    case 'answering':
+    case 'waiting_question':
+    case 'waiting_permission':
+      return 'busy';
+    default:
+      return 'busy';
+  }
 }
 
 function createMessage(partial: Omit<Message, 'id' | 'timestamp'>): Message {
@@ -110,6 +132,7 @@ export function createSessionStore(): SessionStore {
       const updated: Session = {
         ...session,
         ...updates,
+        ...(updates.status !== undefined ? { status: normalizeSessionStatus(updates.status) } : {}),
         id: session.id, // Prevent ID mutation
         updatedAt: new Date().toISOString(),
       };
@@ -145,7 +168,10 @@ export function createSessionStore(): SessionStore {
     seedSessions(items: Session[]): void {
       sessions.clear();
       for (const session of items) {
-        sessions.set(session.id, session);
+        sessions.set(session.id, {
+          ...session,
+          status: normalizeSessionStatus(session.status),
+        });
       }
     },
 

@@ -356,7 +356,7 @@ export function createSdkBridge(params: {
       appendTurnMessage(sessionId, 'assistant', active.assistantContent, extra);
     }
 
-    sessionStore.updateSession(sessionId, { status: 'done' });
+    sessionStore.updateSession(sessionId, { status: 'idle' });
     emit(sseManager, {
       type: 'done',
       sessionId,
@@ -374,7 +374,7 @@ export function createSdkBridge(params: {
     switch (event.type) {
       case 'agent_start':
       case 'turn_start':
-        sessionStore.updateSession(active.sessionId, { status: 'answering' });
+        sessionStore.updateSession(active.sessionId, { status: 'busy' });
         break;
       case 'message_start': {
         const text = extractMessageText(event.message as { content?: unknown });
@@ -510,7 +510,7 @@ export function createSdkBridge(params: {
     const resolvedModelKey = resolveModelKey(refreshModels(), request.model, session.model ?? config.model);
     const assistantMessageId = request.messageId ?? config.generateSessionId();
 
-    sessionStore.updateSession(session.id, { status: 'prompting', cwd, model: resolvedModelKey });
+    sessionStore.updateSession(session.id, { status: 'busy', cwd, model: resolvedModelKey });
     sessionStore.addMessage(session.id, { role: 'user', content: request.message });
 
     try {
@@ -545,7 +545,7 @@ export function createSdkBridge(params: {
     if (!active) {
       const current = sessionStore.getSession(sessionId);
       if (current) {
-        sessionStore.updateSession(sessionId, { status: 'done' });
+        sessionStore.updateSession(sessionId, { status: 'idle' });
       }
       emit(sseManager, {
         type: 'done',

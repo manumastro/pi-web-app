@@ -10,7 +10,7 @@ const session: Session = {
   id: 'session-persist-1',
   cwd: '/tmp/project',
   model: 'claude-3-5-sonnet-20241022',
-  status: 'prompting',
+  status: 'busy',
   messages: [
     { id: 'm1', role: 'user', content: 'hello', timestamp: '2026-04-15T10:00:00.000Z' },
   ],
