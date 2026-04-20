@@ -77,9 +77,13 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 
 Implemented file map:
 - `frontend/src/sync/sessionActivity.ts` — OpenChamber-style status helpers, now the canonical frontend activity utility
-- `frontend/src/hooks/useSessionActivity.ts` — hook wrapper for the selected session status
+- `frontend/src/sync/sync-context.tsx` — OpenChamber-style hook surface for session status/activity backed by the session store
+- `frontend/src/sync/bootstrap.ts` — session snapshot hydration on load/re-entry
+- `frontend/src/sync/event-reducer.ts` — SSE lifecycle reducer for done/error state transitions
+- `frontend/src/sync/live-aggregate.ts` — canonical re-export point for activity helpers
+- `frontend/src/hooks/useSessionActivity.ts` — compatibility hook wrapper for existing imports
 - `frontend/src/chatState.ts` — conversation rehydration helper that injects a running assistant placeholder for resumed busy sessions
-- `frontend/src/App.tsx` — session load/selection now uses status-aware conversation rehydration
+- `frontend/src/App.tsx` — session load/selection now uses sync-layer hydration/reducer helpers and authoritative activity state
 - `frontend/src/lib/sessionActivity.ts` — compatibility re-export while the codebase transitions to the sync-style layout
 
 Remaining gap for exact 1:1 parity: the app still orchestrates session loading in `App.tsx` instead of a full `sync/bootstrap.ts` + `sync-context.tsx` split like OpenChamber, but the live-running visual state now behaves the same.

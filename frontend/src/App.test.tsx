@@ -48,6 +48,7 @@ beforeEach(() => {
   
   useSessionStore.setState({
     sessions: [],
+    sessionStatuses: {},
     selectedDirectory: '/tmp',
     selectedSessionId: '',
     sortedSessions: [],

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { apiGet, apiRequest } from './api';
-import { appendPrompt, applySsePayload, rehydrateConversationForSession } from './chatState';
+import { appendPrompt } from './chatState';
 import type { SsePayload } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
-import { getVisualStreamingState, isRunningSessionStatus } from './sync/sessionActivity';
+import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation } from './sync/bootstrap';
+import { reduceSessionLifecyclePayload } from './sync/event-reducer';
+import { useCurrentSessionActivity } from './sync/sync-context';
 import { getProjectLabel, normalizeProjectPath } from './lib/path';
 import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from './types';
 
@@ -156,7 +158,8 @@ export default function App() {
 
   const currentDirectory = currentSession?.cwd ?? selectedDirectory;
   const currentDirectoryLabel = formatDirectoryLabel(currentDirectory, homeDirectory);
-  const interactionStreaming = getVisualStreamingState(currentSession?.status, streaming);
+  const currentSessionActivity = useCurrentSessionActivity();
+  const interactionStreaming = currentSessionActivity.isWorking ? 'streaming' : streaming;
 
   // ─── API Functions ──────────────────────────────────────────────────────────
   const refreshModels = useCallback(async (selSessionId?: string): Promise<ModelInfo[]> => {
@@ -183,12 +186,14 @@ export default function App() {
     const payload = await apiGet<{ session: SessionInfo }>(
       `/api/sessions/${encodeURIComponent(targetSessionId)}`,
     );
-    updateSession(payload.session.id, payload.session);
-    setConversation(rehydrateConversationForSession(payload.session.messages, payload.session.status));
-    setSelectedSessionId(payload.session.id);
-    setSelectedDirectory(payload.session.cwd);
-    setStreaming(isRunningSessionStatus(payload.session.status) ? 'streaming' : 'idle');
-    setStatusMessage(isRunningSessionStatus(payload.session.status) ? 'Working' : 'Connected');
+    hydrateSelectedSessionSnapshot(payload.session, {
+      updateSession,
+      setConversation,
+      setSelectedSessionId,
+      setSelectedDirectory,
+      setStreaming,
+      setStatusMessage,
+    });
 
     const projectState = useProjectStore.getState();
     const matchingProject = projectState.projects.find((project) => project.path === payload.session.cwd);
@@ -261,21 +266,16 @@ export default function App() {
     sessionId: selectedSessionId || undefined,
     onPayload: (payload: SsePayload) => {
       const currentConversation = useChatStore.getState().conversation;
-      const updated = applySsePayload(currentConversation, payload);
-      setConversation(updated);
-      if (payload.type === 'done') {
-        updateSession(payload.sessionId, { status: 'idle' });
-        setStreaming('idle');
-        setStatusMessage(payload.aborted ? 'Stopped' : 'Connected');
-      } else if (payload.type === 'error') {
-        updateSession(payload.sessionId, { status: 'error' });
-        setStreaming('error');
-        setStatusMessage('Error');
-      }
+      reduceSessionLifecyclePayload(currentConversation, payload, {
+        setConversation,
+        updateSession,
+        setStreaming,
+        setStatusMessage,
+      });
     },
     onConnected: () => {
       const currentState = useChatStore.getState().streaming;
-      const sessionRunning = isRunningSessionStatus(useSessionStore.getState().currentSession?.status);
+      const sessionRunning = currentSessionActivity.isWorking;
       setStreaming(sessionRunning ? 'streaming' : (currentState === 'error' ? 'error' : 'idle'));
       setStatusMessage(sessionRunning ? 'Working' : 'Connected');
     },
@@ -464,7 +464,7 @@ export default function App() {
     });
     updateSession(payload.session.id, { title: payload.session.title });
     if (selectedSessionId === sessionId) {
-      setConversation(rehydrateConversationForSession(payload.session.messages, payload.session.status));
+      setConversation(normalizeSelectedSessionConversation(payload.session));
     }
   }, [selectedSessionId, setConversation, updateSession]);
 

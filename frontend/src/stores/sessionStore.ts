@@ -4,6 +4,7 @@ import type { SessionInfo, DirectoryInfo } from '@/types';
 interface SessionState {
   // Session state
   sessions: SessionInfo[];
+  sessionStatuses: Record<string, SessionInfo['status']>;
   selectedDirectory: string;
   selectedSessionId: string;
   
@@ -75,6 +76,7 @@ function pickInitialSelection(
 export const useSessionStore = create<SessionState>((set, get) => ({
   // Initial state
   sessions: [],
+  sessionStatuses: {},
   selectedDirectory: '/',
   selectedSessionId: '',
   sortedSessions: [],
@@ -93,9 +95,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       state.selectedSessionId,
     );
     const visible = sorted.filter((s) => s.cwd === cwd);
+    const statuses = Object.fromEntries(sorted.map((session) => [session.id, session.status]));
     
     set({
       sessions: sorted,
+      sessionStatuses: statuses,
       sortedSessions: sorted,
       projectDirectories: directories,
       selectedDirectory: cwd,
@@ -113,6 +117,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const directories = summarizeDirectories(newSessions);
     set({
       sessions: newSessions,
+      sessionStatuses: { ...state.sessionStatuses, [session.id]: session.status },
       sortedSessions: newSessions,
       projectDirectories: directories,
     });
@@ -127,9 +132,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const directories = summarizeDirectories(sorted);
       const currentSession = sessions.find((s) => s.id === id);
       const visible = sorted.filter((s) => s.cwd === state.selectedDirectory);
+      const sessionStatuses = updates.status !== undefined
+        ? { ...state.sessionStatuses, [id]: updates.status }
+        : state.sessionStatuses;
       
       return {
         sessions,
+        sessionStatuses,
         sortedSessions: sorted,
         projectDirectories: directories,
         currentSession: currentSession ? { ...currentSession, ...updates } : state.currentSession,
@@ -143,6 +152,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const sessions = state.sessions.filter((s) => s.id !== id);
       const sorted = [...sessions].sort((l, r) => r.updatedAt.localeCompare(l.updatedAt));
       const directories = summarizeDirectories(sorted);
+      const { [id]: _removed, ...sessionStatuses } = state.sessionStatuses;
       
       // If deleted session was selected, clear selection
       let { selectedSessionId, selectedDirectory } = state;
@@ -158,6 +168,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       
       return {
         sessions,
+        sessionStatuses,
         sortedSessions: sorted,
         projectDirectories: directories,
         selectedSessionId,
