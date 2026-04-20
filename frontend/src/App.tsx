@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { apiGet, apiRequest } from './api';
-import { appendPrompt, applySsePayload, messagesToConversation } from './chatState';
+import { appendPrompt, applySsePayload, rehydrateConversationForSession } from './chatState';
 import type { SsePayload } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
-import { getVisualStreamingState, isRunningSessionStatus } from './lib/sessionActivity';
+import { getVisualStreamingState, isRunningSessionStatus } from './sync/sessionActivity';
 import { getProjectLabel, normalizeProjectPath } from './lib/path';
 import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from './types';
 
@@ -184,7 +184,7 @@ export default function App() {
       `/api/sessions/${encodeURIComponent(targetSessionId)}`,
     );
     updateSession(payload.session.id, payload.session);
-    setConversation(messagesToConversation(payload.session.messages));
+    setConversation(rehydrateConversationForSession(payload.session.messages, payload.session.status));
     setSelectedSessionId(payload.session.id);
     setSelectedDirectory(payload.session.cwd);
     setStreaming(isRunningSessionStatus(payload.session.status) ? 'streaming' : 'idle');
@@ -464,7 +464,7 @@ export default function App() {
     });
     updateSession(payload.session.id, { title: payload.session.title });
     if (selectedSessionId === sessionId) {
-      setConversation(messagesToConversation(payload.session.messages));
+      setConversation(rehydrateConversationForSession(payload.session.messages, payload.session.status));
     }
   }, [selectedSessionId, setConversation, updateSession]);
 

@@ -222,6 +222,7 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+      expect(screen.getByText('Working...')).toBeInTheDocument();
     });
   });
 

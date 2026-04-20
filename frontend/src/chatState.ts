@@ -1,4 +1,5 @@
 import type { SessionMessage } from './types';
+import { isRunningSessionStatus } from './sync/sessionActivity';
 
 export interface MessageItem {
   kind: 'message';
@@ -417,6 +418,37 @@ export function messagesToConversation(messages: SessionMessage[]): Conversation
   }
 
   return conversation;
+}
+
+export function rehydrateConversationForSession(
+  messages: SessionMessage[],
+  sessionStatus?: string | null,
+): ConversationItem[] {
+  const conversation = messagesToConversation(messages);
+  if (!isRunningSessionStatus(sessionStatus)) {
+    return conversation;
+  }
+
+  const hasStreamingAssistant = conversation.some(
+    (item) => item.kind === 'message' && item.role === 'assistant' && item.status === 'streaming',
+  );
+  if (hasStreamingAssistant) {
+    return conversation;
+  }
+
+  const assistantTurnId = randomId('assistant-turn');
+  return [
+    ...conversation,
+    {
+      kind: 'message',
+      id: randomId('assistant'),
+      role: 'assistant',
+      content: '',
+      timestamp: 'streaming',
+      status: 'streaming',
+      messageId: assistantTurnId,
+    },
+  ];
 }
 
 export function appendPrompt(conversation: ConversationItem[], text: string, turnId?: string): ConversationItem[] {

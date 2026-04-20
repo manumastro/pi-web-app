@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appendPrompt, applySsePayload, messagesToConversation, type ConversationItem } from './chatState';
+import { appendPrompt, applySsePayload, messagesToConversation, rehydrateConversationForSession, type ConversationItem } from './chatState';
 import type { SessionMessage } from './types';
 
 describe('chatState', () => {
@@ -17,6 +17,16 @@ describe('chatState', () => {
       expect.objectContaining({ kind: 'message', role: 'user', content: 'hello' }),
       expect.objectContaining({ kind: 'message', role: 'assistant', content: 'world' }),
     ]);
+  });
+
+  it('rehydrates a running session with a streaming assistant placeholder', () => {
+    const conversation = rehydrateConversationForSession(
+      [{ id: 'm1', role: 'user', content: 'hello', timestamp: '2026-04-15T10:00:00.000Z' }],
+      'busy',
+    );
+
+    expect(conversation).toHaveLength(2);
+    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'message', role: 'assistant', status: 'streaming', content: '' }));
   });
 
   it('splits assistant reasoning from the visible answer and keeps tool calls/results attached to the turn', () => {
