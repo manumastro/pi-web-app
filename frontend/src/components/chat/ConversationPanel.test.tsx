@@ -96,9 +96,10 @@ describe('ConversationPanel', () => {
 
   it('renders a working placeholder at message level for an empty streaming assistant response', () => {
     const streamingItems = appendPrompt([], 'hello');
-    const { getByText } = render(<ConversationPanel items={streamingItems} isWorking workingLabel="Working..." />);
+    const { getByText, container } = render(<ConversationPanel items={streamingItems} isWorking workingLabel="Working..." />);
 
     expect(getByText('Working...')).toBeInTheDocument();
+    expect(container.querySelector('.working-placeholder-message')).not.toBeNull();
   });
 
   it('hides reasoning traces when disabled', () => {

@@ -502,7 +502,10 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
 
       {showWorkingPlaceholder ? (
         <FadeInOnReveal animate>
-          <WorkingPlaceholder label={workingLabel} className="mt-2 ml-0.5" />
+          <article className={cn('message', 'message-assistant', 'working-placeholder-message')}>
+            <MessageHeader role="assistant" />
+            <WorkingPlaceholder label={workingLabel} className="mt-2" />
+          </article>
         </FadeInOnReveal>
       ) : null}
 
