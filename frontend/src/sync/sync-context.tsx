@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { ChildStoreManager } from './child-store';
 import { getSessionStatusType } from './sessionActivity';
 import type { SessionActivityResult } from './sessionActivity';
@@ -233,6 +233,6 @@ export function useSessionActivity(sessionId: string | null | undefined, directo
 }
 
 export function useCurrentSessionActivity(): SessionActivityResult {
-  const currentSession = useSessionStore((state) => state.currentSession);
+  const currentSession = useSessionUiStore((state) => state.currentSession);
   return useSessionActivity(currentSession?.id, currentSession?.cwd);
 }

@@ -12,6 +12,7 @@ import { useSync } from './use-sync';
 import { useChatStore } from '@/stores/chatStore';
 import { useProjectStore } from '@/stores/projectStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getProjectLabel, normalizeProjectPath } from '@/lib/path';
 import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from '@/types';
@@ -80,15 +81,18 @@ export function useAppController(): AppController {
 
   const {
     sessions,
+    setSessions,
+    updateSession,
+  } = useSessionStore();
+
+  const {
     currentSession,
     visibleSessions,
     selectedDirectory,
     selectedSessionId,
-    setSessions,
-    updateSession,
     setSelectedDirectory,
     setSelectedSessionId,
-  } = useSessionStore();
+  } = useSessionUiStore();
 
   const {
     createSession,
@@ -297,14 +301,14 @@ export function useAppController(): AppController {
   }, [prompt, sendPrompt]);
 
   const handleAbort = useCallback(async (): Promise<void> => {
-    const sessionId = useSessionStore.getState().selectedSessionId;
+    const sessionId = useSessionUiStore.getState().selectedSessionId;
     if (!sessionId) return;
     await abortCurrentOperation(sessionId);
   }, [abortCurrentOperation]);
 
   const handleCreateSession = useCallback(async (): Promise<void> => {
     const currentModels = useUIStore.getState().models;
-    const currentDirectory = useSessionStore.getState().selectedDirectory;
+    const currentDirectory = useSessionUiStore.getState().selectedDirectory;
     const defaultModel = currentModels.find((m) => m.active)?.key ?? currentModels.find((m) => m.available)?.key ?? currentModels[0]?.key ?? '';
     const created = await createSession({ cwd: currentDirectory, model: defaultModel });
     if (!created) {
@@ -330,14 +334,14 @@ export function useAppController(): AppController {
   }, [addProject, createSession, selectProject, setConversation, setStatusMessage, refreshModels]);
 
   const handleDeleteSession = useCallback(async (targetId: string): Promise<void> => {
-    const { selectedSessionId, selectedDirectory } = useSessionStore.getState();
+    const { selectedSessionId, selectedDirectory } = useSessionUiStore.getState();
     const deleted = await removeSession(targetId);
     if (!deleted) {
       return;
     }
 
     if (selectedSessionId === targetId) {
-      const nextVisibleSession = useSessionStore.getState().visibleSessions.find((session) => session.id !== targetId);
+      const nextVisibleSession = useSessionStore.getState().sessions.find((session) => session.cwd === selectedDirectory && session.id !== targetId);
       if (nextVisibleSession) {
         await loadSession(nextVisibleSession.id);
       } else {
@@ -361,10 +365,9 @@ export function useAppController(): AppController {
       }
     }
 
-    const { sortedSessions } = useSessionStore.getState();
+    const next = useSessionStore.getState().sessions.find((s) => s.cwd === nextDir);
     setSyncDirectory(nextDir);
     setSelectedDirectory(nextDir);
-    const next = sortedSessions.find((s) => s.cwd === nextDir);
     if (next) {
       await loadSession(next.id);
     } else {
@@ -429,7 +432,7 @@ export function useAppController(): AppController {
   }, [loadSession, setStatusMessage]);
 
   const handleModelSelect = useCallback(async (modelKey: string): Promise<void> => {
-    const currentSessionId = useSessionStore.getState().selectedSessionId;
+    const currentSessionId = useSessionUiStore.getState().selectedSessionId;
     const currentModels = useUIStore.getState().models;
 
     if (!currentSessionId) {

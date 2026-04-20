@@ -2,6 +2,7 @@ import type { SessionInfo } from '@/types';
 import { apiRequest } from '@/api';
 import { useChatStore } from '@/stores/chatStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { reconcileSessionDirectories, upsertDirectorySession } from './bootstrap';
 import { useInputStore } from './input-store';
@@ -79,8 +80,7 @@ function applySessionSnapshot(session: SessionInfo): void {
     sessionStore.addSession(session);
   }
 
-  sessionStore.setSelectedSessionId(session.id);
-  sessionStore.setSelectedDirectory(session.cwd);
+  useSessionUiStore.getState().syncSessionSelection(session.cwd, session.id);
   setSyncDirectory(session.cwd);
   upsertDirectorySession(session);
 }
@@ -120,11 +120,13 @@ export async function createSession(input: CreateSessionInput): Promise<SessionI
 export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
     await apiRequest(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+    const sessionUi = useSessionUiStore.getState();
     const session = useSessionStore.getState().sessions.find((entry) => entry.id === sessionId);
     useSessionStore.getState().deleteSession(sessionId);
     if (session?.cwd) {
       clearSessionPrefetchDirectory(session.cwd);
     }
+    sessionUi.syncSessionSelection(sessionUi.selectedDirectory, sessionUi.selectedSessionId);
     reconcileSessionDirectories(useSessionStore.getState().sessions);
     return true;
   } catch (error) {
@@ -184,14 +186,14 @@ export async function abortCurrentOperation(sessionId: string): Promise<void> {
 }
 
 export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
-  const sessionStore = useSessionStore.getState();
-  const sessionId = input.sessionId || sessionStore.selectedSessionId;
+  const sessionUiStore = useSessionUiStore.getState();
+  const sessionId = input.sessionId || sessionUiStore.selectedSessionId;
   if (!sessionId) {
     return false;
   }
 
-  const currentSession = sessionStore.sessions.find((entry) => entry.id === sessionId) ?? sessionStore.currentSession;
-  const cwd = input.cwd ?? currentSession?.cwd ?? sessionStore.selectedDirectory;
+  const currentSession = sessionUiStore.currentSession ?? useSessionStore.getState().sessions.find((entry) => entry.id === sessionId);
+  const cwd = input.cwd ?? currentSession?.cwd ?? sessionUiStore.selectedDirectory;
   const resolvedModel = resolveModelKey(input.model || currentSession?.model, sessionId);
 
   if (!resolvedModel) {

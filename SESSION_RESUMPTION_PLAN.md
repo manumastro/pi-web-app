@@ -61,13 +61,13 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 | `packages/ui/src/sync/selection-store.ts` | `frontend/src/sync/selection-store.ts` | implemented | session/model selection maps now exist in the sync layer |
 | `packages/ui/src/sync/viewport-store.ts` | `frontend/src/sync/viewport-store.ts` | implemented | viewport/session memory state now exists in the sync layer |
 | `packages/ui/src/sync/voice-store.ts` | `frontend/src/sync/voice-store.ts` | implemented | voice connection/mode state now exists in the sync layer |
-| `packages/ui/src/hooks/useSessionActivity.ts` | `frontend/src/hooks/useSessionActivity.ts` | compatibility wrapper | kept for current imports; should eventually become a thin proxy to the sync layer or be removed |
+| `packages/ui/src/hooks/useSessionActivity.ts` | removed | removed | the compatibility wrapper was deleted once all imports moved to the sync layer |
 
 ### Frontend current candidates that still need decomposition
 - `frontend/src/App.tsx` — now a thin composition shell; lifecycle/bootstrap/selection orchestration has been moved into `frontend/src/sync/use-app-controller.ts`
 - `frontend/src/sync/use-app-controller.ts` — orchestration surface for loading, selection, and event wiring
-- `frontend/src/stores/sessionStore.ts` — currently conflates session list, status, and selection; OpenChamber splits these responsibilities across sync/UI stores
-- `frontend/src/lib/sessionActivity.ts` — compatibility re-export pending removal once imports are fully migrated
+- `frontend/src/stores/sessionStore.ts` — session list and status store
+- `frontend/src/stores/sessionUiStore.ts` — session selection and current-visible-session store
 - `frontend/src/chatState.ts` — conversation rehydration is correct for the current behavior, but long-term OpenChamber parity requires the sync-layer to own the equivalent lifecycle wiring
 - `frontend/src/components/chat/*` / `frontend/src/components/session/*` — UI consumers will need to bind to the final sync-layer selectors once the full decomposition lands
 
@@ -82,7 +82,7 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 
 ### Phase 2 — Align file structure with OpenChamber-style separation
 - [x] split the remaining session lifecycle orchestration from `App.tsx`
-- [ ] split `sessionStore.ts` into sync-like session/session-ui responsibilities
+- [x] split `sessionStore.ts` into sync-like session/session-ui responsibilities
 - [x] port the remaining sync primitives (notification/input/selection/viewport/voice modules or exact equivalents)
 - [x] keep activity derivation in a dedicated hook/helper pair
 - [x] keep status mapping reusable for chat/status row/composer
@@ -105,7 +105,7 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 - [x] Frontend session activity rehydration implementation completed.
 - [x] App-level visual state now rehydrates from authoritative session activity.
 - [x] Tests cover the resumed-running-session case.
-- [ ] Full OpenChamber sync topology is still incomplete: `sessionStore.ts` is still a temporary convergence point pending the final module split.
+- [ ] Full OpenChamber sync topology is still incomplete: `frontend/src/chatState.ts` is the remaining non-sync conversation helper surface pending final absorption.
 - [x] Sync-layer action facade added: `use-sync.ts` now binds `session-actions.ts` for create/delete/rename/model/prompt/abort flows.
 - [x] Cache/prefetch/optimistic persistence helpers now exist in the sync layer, with coverage for cache eviction, prefetch TTLs, optimistic merges, and local metadata persistence.
 - [x] Auxiliary sync stores now exist for notification, input, selection, viewport, and voice state.
@@ -128,15 +128,15 @@ OpenChamber parity target file map:
 - `frontend/src/sync/notification-store.ts` — notification counters/viewed state
 - `frontend/src/sync/input-store.ts` — pending input and attachment state
 - `frontend/src/sync/selection-store.ts` — session/model selection maps
+- `frontend/src/stores/sessionUiStore.ts` — session selection / current-visible-session store
 - `frontend/src/sync/viewport-store.ts` — viewport/session memory state
 - `frontend/src/sync/voice-store.ts` — voice connection/mode state
 - `frontend/src/sync/sync-refs.ts` — imperative selector/refs surface for the sync system
 - `frontend/src/sync/use-sync.ts` — hook-level action facade for sync-layer session operations
 - `frontend/src/sync/index.ts` — aggregate export surface mirroring the OpenChamber sync entrypoint
-- `frontend/src/hooks/useSessionActivity.ts` — compatibility hook wrapper for existing imports
+- `frontend/src/stores/sessionUiStore.ts` — session selection / current-visible-session store
 - `frontend/src/chatState.ts` — conversation rehydration helper that injects a running assistant placeholder for resumed busy sessions
 - `frontend/src/App.tsx` — composition shell over `frontend/src/sync/use-app-controller.ts`
 - `frontend/src/sync/use-app-controller.ts` — app lifecycle/bootstrap/selection orchestration and view-model aggregation
-- `frontend/src/lib/sessionActivity.ts` — compatibility re-export while the codebase transitions to the sync-style layout
 
-Remaining work for exact 1:1 parity: keep splitting `sessionStore.ts` into dedicated session vs session-UI responsibilities. The acceptance criterion is **100% technical architecture parity** with OpenChamber.
+Remaining work for exact 1:1 parity: decide whether `chatState.ts` should also be absorbed into the sync-layer conversation helpers. The acceptance criterion is **100% technical architecture parity** with OpenChamber.

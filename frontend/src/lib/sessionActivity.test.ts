@@ -4,7 +4,7 @@ import {
   getSessionActivityResult,
   getVisualStreamingState,
   isRunningSessionStatus,
-} from './sessionActivity';
+} from '@/sync/sessionActivity';
 
 describe('sessionActivity', () => {
   it('treats busy-style statuses as running', () => {

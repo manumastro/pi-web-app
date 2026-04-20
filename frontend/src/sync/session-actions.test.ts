@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSession, sendPrompt, updateSessionModel } from './session-actions';
 import { useChatStore } from '@/stores/chatStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { useUIStore } from '@/stores/uiStore';
 
 const sessionFixture = {
@@ -19,10 +20,12 @@ function resetStores(): void {
   useSessionStore.setState({
     sessions: [],
     sessionStatuses: {},
+    sortedSessions: [],
+  });
+
+  useSessionUiStore.setState({
     selectedDirectory: '/',
     selectedSessionId: '',
-    sortedSessions: [],
-    projectDirectories: [],
     currentSession: undefined,
     visibleSessions: [],
   });
@@ -75,8 +78,8 @@ describe('session actions', () => {
     const created = await createSession({ cwd: '/workspace/demo', model: 'provider/demo-model' });
 
     expect(created).toEqual(sessionFixture);
-    expect(useSessionStore.getState().selectedSessionId).toBe('session-1');
-    expect(useSessionStore.getState().selectedDirectory).toBe('/workspace/demo');
+    expect(useSessionUiStore.getState().selectedSessionId).toBe('session-1');
+    expect(useSessionUiStore.getState().selectedDirectory).toBe('/workspace/demo');
     expect(useUIStore.getState().activeModelKey).toBe('provider/demo-model');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -100,10 +103,12 @@ describe('session actions', () => {
     useSessionStore.setState({
       sessions: [sessionFixture],
       sessionStatuses: { 'session-1': 'idle' },
+      sortedSessions: [sessionFixture],
+    });
+
+    useSessionUiStore.setState({
       selectedDirectory: '/workspace/demo',
       selectedSessionId: 'session-1',
-      sortedSessions: [sessionFixture],
-      projectDirectories: [],
       currentSession: sessionFixture,
       visibleSessions: [sessionFixture],
     });
@@ -140,7 +145,7 @@ describe('session actions', () => {
     const result = await updateSessionModel('session-1', 'provider/alternate-model');
 
     expect(result).toEqual(updatedSession);
-    expect(useSessionStore.getState().selectedSessionId).toBe('session-1');
+    expect(useSessionUiStore.getState().selectedSessionId).toBe('session-1');
     expect(useUIStore.getState().activeModelKey).toBe('provider/alternate-model');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

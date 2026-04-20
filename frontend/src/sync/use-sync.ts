@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { useUIStore } from '@/stores/uiStore';
 import {
   abortCurrentOperation,
@@ -23,8 +23,8 @@ export interface SyncActions {
 }
 
 export function useSync(): SyncActions {
-  const currentSessionId = useSessionStore((state) => state.selectedSessionId);
-  const currentDirectory = useSessionStore((state) => state.selectedDirectory);
+  const currentSessionId = useSessionUiStore((state) => state.selectedSessionId);
+  const currentDirectory = useSessionUiStore((state) => state.selectedDirectory);
   const activeModelKey = useUIStore((state) => state.activeModelKey);
 
   const create = useCallback(createSession, []);

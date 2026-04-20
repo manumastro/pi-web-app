@@ -5,6 +5,7 @@ import type { SessionInfo } from './types';
 import { useChatStore } from './stores/chatStore';
 import { useProjectStore } from './stores/projectStore';
 import { useSessionStore } from './stores/sessionStore';
+import { useSessionUiStore } from './stores/sessionUiStore';
 import { useUIStore } from './stores/uiStore';
 import { useInputStore } from './sync/input-store';
 import { createProjectIdFromPath } from './lib/path';
@@ -47,10 +48,12 @@ beforeEach(() => {
   useSessionStore.setState({
     sessions: [],
     sessionStatuses: {},
+    sortedSessions: [],
+  });
+
+  useSessionUiStore.setState({
     selectedDirectory: '/tmp',
     selectedSessionId: '',
-    sortedSessions: [],
-    projectDirectories: [],
     currentSession: undefined,
     visibleSessions: [],
   });
