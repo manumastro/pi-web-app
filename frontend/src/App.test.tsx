@@ -185,6 +185,46 @@ describe('App', () => {
     expect(screen.getAllByRole('button', { name: 'New session' }).length).toBeGreaterThan(0);
   });;;
 
+  it('restores the working visual state when the selected session is already busy', async () => {
+    const busySession: SessionInfo = {
+      ...session,
+      status: 'busy',
+    };
+
+    apiGetMock.mockImplementation(async (path: string) => {
+      if (path === '/api/config') {
+        return { homeDir: '/tmp', sdkCwd: '/tmp', sessionsDir: '/tmp/.pi/agent/sessions' };
+      }
+      if (path === '/api/sessions') {
+        return { sessions: [busySession] };
+      }
+      if (path === '/api/sessions/session-1') {
+        return { session: busySession };
+      }
+      if (path === '/api/models?sessionId=session-1' || path === '/api/models') {
+        return {
+          models: [
+            {
+              key: 'anthropic/claude-3-5-sonnet-20241022',
+              id: 'claude-3-5-sonnet-20241022',
+              name: 'Claude 3.5 Sonnet',
+              available: true,
+              isSelected: true,
+              provider: 'anthropic',
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected apiGet path: ${path}`);
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
+    });
+  });
+
   it('uses the selected active model when creating a session', async () => {
     apiGetMock.mockImplementation(async (path: string) => {
       if (path === '/api/config') {

@@ -3,6 +3,7 @@ import { apiGet, apiRequest } from './api';
 import { appendPrompt, applySsePayload, messagesToConversation } from './chatState';
 import type { SsePayload } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
+import { getVisualStreamingState, isRunningSessionStatus } from './lib/sessionActivity';
 import { getProjectLabel, normalizeProjectPath } from './lib/path';
 import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from './types';
 
@@ -56,10 +57,10 @@ function generateTurnId(): string {
 // ─── Connection Banner ───────────────────────────────────────────────────────
 
 function ConnectionBanner({ state, message, error }: { state: StreamingState; message: string; error?: string }) {
-  if (state === 'idle') return null;
+  if (state !== 'error') return null;
   return (
-    <div className={`connection-banner ${state === 'error' ? 'error' : ''}`}>
-      {state === 'error' ? '✗' : state === 'connecting' ? '⟳' : '◉'} {error ?? message}
+    <div className="connection-banner error">
+      ✗ {error ?? message}
     </div>
   );
 }
@@ -155,6 +156,7 @@ export default function App() {
 
   const currentDirectory = currentSession?.cwd ?? selectedDirectory;
   const currentDirectoryLabel = formatDirectoryLabel(currentDirectory, homeDirectory);
+  const interactionStreaming = getVisualStreamingState(currentSession?.status, streaming);
 
   // ─── API Functions ──────────────────────────────────────────────────────────
   const refreshModels = useCallback(async (selSessionId?: string): Promise<ModelInfo[]> => {
@@ -181,9 +183,12 @@ export default function App() {
     const payload = await apiGet<{ session: SessionInfo }>(
       `/api/sessions/${encodeURIComponent(targetSessionId)}`,
     );
+    updateSession(payload.session.id, payload.session);
     setConversation(messagesToConversation(payload.session.messages));
     setSelectedSessionId(payload.session.id);
     setSelectedDirectory(payload.session.cwd);
+    setStreaming(isRunningSessionStatus(payload.session.status) ? 'streaming' : 'idle');
+    setStatusMessage(isRunningSessionStatus(payload.session.status) ? 'Working' : 'Connected');
 
     const projectState = useProjectStore.getState();
     const matchingProject = projectState.projects.find((project) => project.path === payload.session.cwd);
@@ -229,7 +234,6 @@ export default function App() {
 
       if (targetSessionId) {
         await loadSession(targetSessionId);
-        setStatusMessage('Connected');
       } else {
         setSelectedDirectory(targetDirectory);
         setSelectedSessionId('');
@@ -260,17 +264,20 @@ export default function App() {
       const updated = applySsePayload(currentConversation, payload);
       setConversation(updated);
       if (payload.type === 'done') {
+        updateSession(payload.sessionId, { status: 'idle' });
         setStreaming('idle');
         setStatusMessage(payload.aborted ? 'Stopped' : 'Connected');
       } else if (payload.type === 'error') {
+        updateSession(payload.sessionId, { status: 'error' });
         setStreaming('error');
         setStatusMessage('Error');
       }
     },
     onConnected: () => {
       const currentState = useChatStore.getState().streaming;
-      setStreaming(currentState === 'error' ? 'error' : 'idle');
-      setStatusMessage('Connected');
+      const sessionRunning = isRunningSessionStatus(useSessionStore.getState().currentSession?.status);
+      setStreaming(sessionRunning ? 'streaming' : (currentState === 'error' ? 'error' : 'idle'));
+      setStatusMessage(sessionRunning ? 'Working' : 'Connected');
     },
     onConnectionLost: () => {
       setStreaming('connecting');
@@ -531,14 +538,14 @@ export default function App() {
         items={conversation}
         error={error}
         showReasoningTraces={showReasoningTraces}
-        isWorking={streaming === 'streaming' || streaming === 'connecting'}
-        workingLabel={streaming === 'connecting' ? 'Connecting...' : 'Working...'}
+        isWorking={interactionStreaming === 'streaming' || interactionStreaming === 'connecting'}
+        workingLabel={interactionStreaming === 'connecting' ? 'Connecting...' : 'Working...'}
       />
-      <StatusRow state={streaming} statusMessage={statusMessage} onAbort={handleAbort} />
+      <StatusRow state={interactionStreaming} statusMessage={statusMessage} onAbort={handleAbort} />
 
       <ComposerPanel
         prompt={prompt}
-        streaming={streaming}
+        streaming={interactionStreaming}
         models={models}
         activeModelKey={activeModelKey}
         onPromptChange={setPrompt}
