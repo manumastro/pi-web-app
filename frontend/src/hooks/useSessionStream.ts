@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { SsePayload } from '../chatState';
+import type { SsePayload } from '../sync/conversation';
 
 interface UseSessionStreamOptions {
   sessionId: string | undefined;

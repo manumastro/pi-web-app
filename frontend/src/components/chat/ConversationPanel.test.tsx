@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
-import { appendPrompt, type ConversationItem } from '@/chatState';
+import { appendPrompt, type ConversationItem } from '@/sync/conversation';
 import { ConversationPanel } from './ConversationPanel';
 
 const items: ConversationItem[] = [

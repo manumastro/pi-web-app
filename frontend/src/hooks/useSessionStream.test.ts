@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { useSessionStream } from './useSessionStream';
-import type { SsePayload } from '../chatState';
+import type { SsePayload } from '../sync/conversation';
 
 class MockEventSource {
   static instances: MockEventSource[] = [];

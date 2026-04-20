@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { apiGet } from '@/api';
-import type { SsePayload } from '@/chatState';
+import type { SsePayload } from '@/sync/conversation';
 import { useSessionStream } from '@/hooks/useSessionStream';
 import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation, reconcileSessionDirectories, upsertDirectorySession } from './bootstrap';
 import { reduceSessionLifecyclePayload } from './event-reducer';

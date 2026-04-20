@@ -1,5 +1,5 @@
 import type { SessionInfo, StreamingState } from '@/types';
-import { applySsePayload, type ConversationItem, type SsePayload } from '@/chatState';
+import { applySsePayload, type ConversationItem, type SsePayload } from '@/sync/conversation';
 import { appendNotification } from './notification-store';
 import { getSessionStatusType, isRunningSessionStatus } from './sessionActivity';
 import { getDirectoryState, getSyncChildStores } from './sync-refs';

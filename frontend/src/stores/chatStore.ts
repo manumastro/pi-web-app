@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { appendPrompt as buildOptimisticConversation } from '@/chatState';
-import type { ConversationItem, MessageItem } from '@/chatState';
+import { appendPrompt as buildOptimisticConversation } from '@/sync/conversation';
+import type { ConversationItem, MessageItem } from '@/sync/conversation';
 
 interface ChatState {
   // Conversation state

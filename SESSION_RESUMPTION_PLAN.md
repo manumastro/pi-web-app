@@ -68,7 +68,7 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 - `frontend/src/sync/use-app-controller.ts` — orchestration surface for loading, selection, and event wiring
 - `frontend/src/stores/sessionStore.ts` — session list and status store
 - `frontend/src/stores/sessionUiStore.ts` — session selection and current-visible-session store
-- `frontend/src/chatState.ts` — conversation rehydration is correct for the current behavior, but long-term OpenChamber parity requires the sync-layer to own the equivalent lifecycle wiring
+- `frontend/src/chatState.ts` — compatibility re-export only; the real conversation logic lives in `frontend/src/sync/conversation.ts`
 - `frontend/src/components/chat/*` / `frontend/src/components/session/*` — UI consumers will need to bind to the final sync-layer selectors once the full decomposition lands
 
 ## Implementation phases
@@ -105,7 +105,7 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 - [x] Frontend session activity rehydration implementation completed.
 - [x] App-level visual state now rehydrates from authoritative session activity.
 - [x] Tests cover the resumed-running-session case.
-- [ ] Full OpenChamber sync topology is still incomplete: `frontend/src/chatState.ts` is the remaining non-sync conversation helper surface pending final absorption.
+- [x] Full OpenChamber sync topology now includes the conversation helper surface in `frontend/src/sync/conversation.ts`; `frontend/src/chatState.ts` remains only as a compatibility re-export.
 - [x] Sync-layer action facade added: `use-sync.ts` now binds `session-actions.ts` for create/delete/rename/model/prompt/abort flows.
 - [x] Cache/prefetch/optimistic persistence helpers now exist in the sync layer, with coverage for cache eviction, prefetch TTLs, optimistic merges, and local metadata persistence.
 - [x] Auxiliary sync stores now exist for notification, input, selection, viewport, and voice state.
@@ -135,8 +135,9 @@ OpenChamber parity target file map:
 - `frontend/src/sync/use-sync.ts` — hook-level action facade for sync-layer session operations
 - `frontend/src/sync/index.ts` — aggregate export surface mirroring the OpenChamber sync entrypoint
 - `frontend/src/stores/sessionUiStore.ts` — session selection / current-visible-session store
-- `frontend/src/chatState.ts` — conversation rehydration helper that injects a running assistant placeholder for resumed busy sessions
+- `frontend/src/sync/conversation.ts` — conversation rehydration helper that injects a running assistant placeholder for resumed busy sessions
+- `frontend/src/chatState.ts` — compatibility re-export of the sync conversation helper
 - `frontend/src/App.tsx` — composition shell over `frontend/src/sync/use-app-controller.ts`
 - `frontend/src/sync/use-app-controller.ts` — app lifecycle/bootstrap/selection orchestration and view-model aggregation
 
-Remaining work for exact 1:1 parity: decide whether `chatState.ts` should also be absorbed into the sync-layer conversation helpers. The acceptance criterion is **100% technical architecture parity** with OpenChamber.
+Remaining work for exact 1:1 parity: none. `chatState.ts` remains only as a compatibility alias, and all functional conversation logic lives in `frontend/src/sync/conversation.ts`. The acceptance criterion is **100% technical architecture parity** with OpenChamber.

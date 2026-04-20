@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appendPrompt, applySsePayload, messagesToConversation, rehydrateConversationForSession, type ConversationItem } from './chatState';
+import { appendPrompt, applySsePayload, messagesToConversation, rehydrateConversationForSession, type ConversationItem } from './sync/conversation';
 import type { SessionMessage } from './types';
 
-describe('chatState', () => {
+describe('conversation', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });

@@ -1,4 +1,5 @@
 export * from './bootstrap';
+export * from './conversation';
 export * from './child-store';
 export * from './event-reducer';
 export * from './global-sync-store';

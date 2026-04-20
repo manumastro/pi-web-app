@@ -6,7 +6,7 @@ import type {
   ThinkingItem,
   ToolCallItem,
   ToolResultItem,
-} from '@/chatState';
+} from '@/sync/conversation';
 import { FadeInOnReveal } from './message/FadeInOnReveal';
 import { MessageHeader } from './message/MessageHeader';
 import { MessageBody } from './message/MessageBody';

@@ -121,13 +121,26 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
     await apiRequest(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
     const sessionUi = useSessionUiStore.getState();
-    const session = useSessionStore.getState().sessions.find((entry) => entry.id === sessionId);
+    const sessionState = useSessionStore.getState();
+    const session = sessionState.sessions.find((entry) => entry.id === sessionId);
     useSessionStore.getState().deleteSession(sessionId);
     if (session?.cwd) {
       clearSessionPrefetchDirectory(session.cwd);
     }
-    sessionUi.syncSessionSelection(sessionUi.selectedDirectory, sessionUi.selectedSessionId);
-    reconcileSessionDirectories(useSessionStore.getState().sessions);
+
+    const nextSessions = useSessionStore.getState().sessions;
+    const nextVisibleSession = sessionUi.selectedDirectory
+      ? nextSessions.find((entry) => entry.cwd === sessionUi.selectedDirectory && entry.id !== sessionId)
+      : undefined;
+    const selectedSessionId = sessionUi.selectedSessionId === sessionId
+      ? nextVisibleSession?.id ?? ''
+      : sessionUi.selectedSessionId;
+    const selectedDirectory = selectedSessionId
+      ? nextSessions.find((entry) => entry.id === selectedSessionId)?.cwd ?? sessionUi.selectedDirectory
+      : sessionUi.selectedDirectory;
+    sessionUi.syncSessionSelection(selectedDirectory, selectedSessionId);
+
+    reconcileSessionDirectories(nextSessions);
     return true;
   } catch (error) {
     console.error('[session-actions] deleteSession failed', error);

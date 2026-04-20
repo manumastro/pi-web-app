@@ -1,5 +1,5 @@
 import type { SessionInfo } from '@/types';
-import { messagesToConversation, rehydrateConversationForSession } from '@/chatState';
+import { messagesToConversation, rehydrateConversationForSession } from '@/sync/conversation';
 import { getSessionStatusType, isRunningSessionStatus } from './sessionActivity';
 import { getSyncChildStores } from './sync-refs';
 import type { SyncDirectoryState, SyncSessionStatus } from './types';

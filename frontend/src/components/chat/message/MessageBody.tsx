@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ConversationItem, ThinkingItem, ToolCallItem, ToolResultItem } from '@/chatState';
+import type { ConversationItem, ThinkingItem, ToolCallItem, ToolResultItem } from '@/sync/conversation';
 import { cn } from '@/lib/utils';
 import { ReasoningPart } from './parts/ReasoningPart';
 import { ToolPart } from './parts/ToolPart';
