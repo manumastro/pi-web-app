@@ -94,11 +94,11 @@ describe('ConversationPanel', () => {
     expect(container.querySelector('.reasoning-content-markdown')).toHaveTextContent('checking cwd');
   });
 
-  it('does not render a literal ellipsis for empty streaming assistant content', () => {
+  it('renders a working placeholder at message level for an empty streaming assistant response', () => {
     const streamingItems = appendPrompt([], 'hello');
-    const { queryByText } = render(<ConversationPanel items={streamingItems} />);
+    const { getByText } = render(<ConversationPanel items={streamingItems} isWorking workingLabel="Working..." />);
 
-    expect(queryByText('…')).toBeNull();
+    expect(getByText('Working...')).toBeInTheDocument();
   });
 
   it('hides reasoning traces when disabled', () => {

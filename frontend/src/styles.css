@@ -1697,6 +1697,24 @@
   padding: 0.65rem 0.8rem;
 }
 
+.working-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.5rem;
+  color: color-mix(in oklab, var(--foreground) 62%, transparent);
+}
+
+.working-placeholder-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.working-placeholder-label {
+  color: color-mix(in oklab, var(--foreground) 68%, transparent);
+}
+
 /* =============================================
    TOOL BLOCK - OpenChamber style
    ============================================= */

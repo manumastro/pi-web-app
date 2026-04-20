@@ -13,11 +13,14 @@ import { MessageBody } from './message/MessageBody';
 import { ReasoningPart } from './message/parts/ReasoningPart';
 import { ToolPart } from './message/parts/ToolPart';
 import { ScrollToBottomButton } from './components/ScrollToBottomButton';
+import { WorkingPlaceholder } from './components/WorkingPlaceholder';
 
 interface ConversationPanelProps {
   items: ConversationItem[];
   error?: string;
   showReasoningTraces?: boolean;
+  isWorking?: boolean;
+  workingLabel?: string;
 }
 
 type AssistantMessageItem = MessageItem & { role: 'assistant' };
@@ -342,7 +345,7 @@ function AssistantTurn({
   );
 }
 
-export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true }: ConversationPanelProps) {
+export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...' }: ConversationPanelProps) {
   const records = React.useMemo(() => buildRenderRecords(items), [items]);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = React.useRef(true);
@@ -394,6 +397,20 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     setShowScrollButton(false);
     scrollToBottom(false);
   }, [scrollToBottom]);
+
+  const hasEmptyStreamingAssistant = records.some((record) => {
+    if (record.kind === 'standalone') {
+      return record.item.role === 'assistant' && record.item.status === 'streaming' && record.item.content.trim().length === 0;
+    }
+
+    if (record.kind === 'turn') {
+      return record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming' && entry.item.content.trim().length === 0);
+    }
+
+    return false;
+  });
+
+  const showWorkingPlaceholder = isWorking && hasEmptyStreamingAssistant;
 
   const renderedRecords = records.flatMap((record) => {
     if (record.kind === 'user') {
@@ -482,6 +499,12 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
       {items.length === 0 && !errorMsg ? <SkeletonConversation /> : null}
 
       {renderedRecords}
+
+      {showWorkingPlaceholder ? (
+        <FadeInOnReveal animate>
+          <WorkingPlaceholder label={workingLabel} className="mt-2 ml-0.5" />
+        </FadeInOnReveal>
+      ) : null}
 
       <ScrollToBottomButton visible={showScrollButton} onClick={handleScrollToBottom} />
     </div>

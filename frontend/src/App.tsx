@@ -527,7 +527,13 @@ export default function App() {
 
   const content = selectedSessionId ? (
     <ChatView sessionId={selectedSessionId}>
-      <ConversationPanel items={conversation} error={error} showReasoningTraces={showReasoningTraces} />
+      <ConversationPanel
+        items={conversation}
+        error={error}
+        showReasoningTraces={showReasoningTraces}
+        isWorking={streaming === 'streaming' || streaming === 'connecting'}
+        workingLabel={streaming === 'connecting' ? 'Connecting...' : 'Working...'}
+      />
       <StatusRow state={streaming} statusMessage={statusMessage} onAbort={handleAbort} />
 
       <ComposerPanel
