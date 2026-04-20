@@ -435,7 +435,7 @@ export function appendPrompt(conversation: ConversationItem[], text: string, tur
       kind: 'thinking',
       id: randomId('thinking'),
       messageId: assistantTurnId,
-      content: 'thinking…',
+      content: '',
       done: false,
       timestamp: new Date().toISOString(),
     },

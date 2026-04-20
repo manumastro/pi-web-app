@@ -29,6 +29,7 @@ export interface Message {
 export interface Session {
   id: string;
   cwd: string;
+  title?: string;
   model: string | undefined;
   status: SessionStatus;
   messages: Message[];
@@ -59,11 +60,13 @@ function createSessionObject(
   id: string,
   cwd: string,
   model?: string,
+  title?: string,
 ): Session {
   const now = new Date().toISOString();
   return {
     id,
     cwd,
+    ...(title !== undefined ? { title } : {}),
     model,
     status: 'idle',
     messages: [],

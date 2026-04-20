@@ -6,6 +6,7 @@ interface SessionMetaRecord {
   type: 'session';
   id: string;
   cwd: string;
+  title?: string;
   model: string | undefined;
   status: SessionStatus;
   createdAt: string;
@@ -45,6 +46,7 @@ export function sessionToJsonl(session: Session): string {
       type: 'session',
       id: session.id,
       cwd: session.cwd,
+      ...(session.title !== undefined ? { title: session.title } : {}),
       model: session.model,
       status: session.status,
       createdAt: session.createdAt,
@@ -115,6 +117,7 @@ export function parseSessionJsonl(input: string): Session | undefined {
   return {
     id: meta.id,
     cwd: meta.cwd,
+    ...(meta.title !== undefined ? { title: meta.title } : {}),
     model: meta.model,
     status: meta.status,
     messages,

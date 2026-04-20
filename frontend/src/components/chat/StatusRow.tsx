@@ -1,5 +1,6 @@
 import React from 'react';
 import type { StreamingState } from '@/types';
+import { GenericStatusSpinner } from './components/GenericStatusSpinner';
 
 interface StatusRowProps {
   state: StreamingState;
@@ -16,14 +17,21 @@ function StopIcon() {
   );
 }
 
-function ThinkingDots() {
-  return (
-    <span className="thinking-dots" aria-hidden>
-      <span />
-      <span />
-      <span />
-    </span>
-  );
+function normalizeStatusLabel(statusMessage: string): string {
+  const trimmed = statusMessage.trim();
+  if (!trimmed) {
+    return 'Working';
+  }
+
+  if (trimmed.endsWith('...')) {
+    return trimmed;
+  }
+
+  if (trimmed === 'connecting' || trimmed === 'streaming') {
+    return 'Working...';
+  }
+
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}${trimmed.endsWith('.') ? '' : '...'}`;
 }
 
 export function StatusRow({ state, statusMessage, onAbort, showAbort = true }: StatusRowProps) {
@@ -31,11 +39,13 @@ export function StatusRow({ state, statusMessage, onAbort, showAbort = true }: S
     return null;
   }
 
+  const label = state === 'streaming' || state === 'connecting' ? normalizeStatusLabel(statusMessage) : statusMessage;
+
   return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2 bg-surface border-t border-border">
-      <div className="flex items-center gap-2">
-        {(state === 'streaming' || state === 'connecting') && <ThinkingDots />}
-        <span className="text-xs text-muted-foreground">{statusMessage}</span>
+    <div className="flex items-center justify-between gap-3 px-3 py-2 bg-surface border-t border-border" role="status" aria-live="polite">
+      <div className="flex items-center gap-2 text-muted-foreground pl-0.5">
+        {(state === 'streaming' || state === 'connecting') ? <GenericStatusSpinner className="size-[15px] shrink-0 text-muted-foreground" /> : null}
+        <span className="typography-ui-header text-muted-foreground">{label}</span>
       </div>
 
       {showAbort && (state === 'streaming' || state === 'error') && onAbort && (

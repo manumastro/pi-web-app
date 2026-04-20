@@ -30,7 +30,15 @@ export function createApp() {
     res.json({ ok: true, clients: sseManager.clientCount() });
   });
 
-  registerApiRoutes(app, { bridge, sessionStore });
+  app.get('/api/config', (_req, res) => {
+    res.json({
+      homeDir: config.homeDir,
+      sdkCwd: config.sdkCwd,
+      sessionsDir: config.sessionsDir,
+    });
+  });
+
+  registerApiRoutes(app, { bridge, sessionStore, config });
   app.use('/api/events', createSseRouter(sseManager, sessionStore));
 
   const publicDir = path.resolve(process.cwd(), 'dist/public');

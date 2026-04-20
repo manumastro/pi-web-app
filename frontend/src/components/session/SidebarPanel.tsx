@@ -1,7 +1,35 @@
-import { useState, type ReactNode } from 'react';
-import { CircleHelp, Folder, Info, PanelLeftClose, PanelLeft, Plus, Search, Settings2, MessageSquareText, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  CircleHelp,
+  Folder,
+  Info,
+  PanelLeftClose,
+  PanelLeft,
+  Plus,
+  Search,
+  Settings2,
+  MessageSquareText,
+  SlidersHorizontal,
+  Trash2,
+  MoreHorizontal,
+  ChevronDown,
+  Check,
+  X,
+  Pencil,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { DirectoryInfo, SessionInfo } from '@/types';
+import { AddProjectDialog } from './AddProjectDialog';
+import { SettingsDialog } from './SettingsDialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 function formatSessionTime(iso: string): string {
   const date = new Date(iso);
@@ -20,14 +48,18 @@ function formatSessionTime(iso: string): string {
 }
 
 interface SidebarPanelProps {
-  directories: DirectoryInfo[];
+  projects: DirectoryInfo[];
   sessions: SessionInfo[];
   selectedDirectory: string;
   selectedSessionId: string;
+  homeDirectory: string;
   sidebarOpen?: boolean;
   onDirectorySelect: (cwd: string) => void;
+  onProjectAdd: (path: string) => boolean;
+  onProjectRemove: (cwd: string) => void;
   onSessionSelect: (id: string) => void;
   onSessionDelete: (id: string) => void;
+  onSessionRename: (id: string, title: string) => void;
   onNewSession: () => void;
   onToggleSidebar: () => void;
 }
@@ -56,187 +88,396 @@ function SidebarIconButton({
   );
 }
 
+function formatProjectLabel(project: DirectoryInfo, homeDirectory: string): string {
+  return project.cwd === homeDirectory ? '~' : project.label;
+}
+
+function ProjectMenu({
+  project,
+  isHomeProject,
+  onNewSession,
+  onCloseProject,
+}: {
+  project: DirectoryInfo;
+  isHomeProject: boolean;
+  onNewSession: () => void;
+  onCloseProject: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 opacity-0 group-hover:opacity-100"
+          aria-label="Project menu"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        <DropdownMenuItem onClick={onNewSession}>
+          <MessageSquareText className="mr-1.5 h-4 w-4" />
+          New session
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onCloseProject} disabled={isHomeProject} className="text-destructive focus:text-destructive">
+          <X className="mr-1.5 h-4 w-4" />
+          Close project
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function SidebarPanel({
-  directories,
+  projects,
   sessions,
   selectedDirectory,
   selectedSessionId,
+  homeDirectory,
   sidebarOpen = true,
   onDirectorySelect,
+  onProjectAdd,
+  onProjectRemove,
   onSessionSelect,
   onSessionDelete,
+  onSessionRename,
   onNewSession,
   onToggleSidebar,
 }: SidebarPanelProps) {
   const [sessionsExpanded, setSessionsExpanded] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSessionSearchOpen, setIsSessionSearchOpen] = useState(false);
+  const [compactSessions, setCompactSessions] = useState(false);
+  const [addProjectOpen, setAddProjectOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingSessionTitle, setEditingSessionTitle] = useState('');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const editInputRef = useRef<HTMLInputElement | null>(null);
 
-  const activeDirectory = directories.find((dir) => dir.cwd === selectedDirectory) ?? directories[0] ?? null;
-  const projectLabel = activeDirectory?.label ?? 'Workspace';
-  const projectCount = activeDirectory?.sessionCount ?? sessions.length;
+  const activeProject = projects.find((project) => project.cwd === selectedDirectory) ?? projects[0] ?? null;
+  const projectLabel = activeProject ? formatProjectLabel(activeProject, homeDirectory) : 'Home';
+  const projectCount = activeProject?.sessionCount ?? sessions.length;
+
+  const filteredSessions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return sessions;
+    }
+
+    return sessions.filter((session) => {
+      const title = (session.title || 'Untitled Session').toLowerCase();
+      return title.includes(query) || session.cwd.toLowerCase().includes(query);
+    });
+  }, [searchQuery, sessions]);
+
+  useEffect(() => {
+    if (isSessionSearchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [isSessionSearchOpen]);
+
+  useEffect(() => {
+    if (editingSessionId) {
+      editInputRef.current?.focus();
+      editInputRef.current?.select();
+    }
+  }, [editingSessionId]);
+
+  const startRenameSession = (session: SessionInfo) => {
+    setEditingSessionId(session.id);
+    setEditingSessionTitle(session.title || 'Untitled Session');
+  };
+
+  const finishRenameSession = (session: SessionInfo) => {
+    const nextTitle = editingSessionTitle.trim();
+    onSessionRename(session.id, nextTitle.length > 0 ? nextTitle : 'Untitled Session');
+    setEditingSessionId(null);
+    setEditingSessionTitle('');
+  };
 
   return (
-    <div className="sidebar-shell">
-      <div className="sidebar-toolbar">
-        <SidebarIconButton
-          label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-          title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-          onClick={onToggleSidebar}
-        >
-          {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
-        </SidebarIconButton>
+    <>
+      <AddProjectDialog
+        open={addProjectOpen}
+        homeDirectory={homeDirectory}
+        onOpenChange={setAddProjectOpen}
+        onAddProject={onProjectAdd}
+      />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
-        <div className="sidebar-toolbar-group">
+      <div className="sidebar-shell">
+        <div className="sidebar-toolbar">
           <SidebarIconButton
-            label="Add project"
-            title="Add project"
-            onClick={() => {
-              const dirPath = prompt('Enter project path:');
-              if (dirPath) {
-                // Placeholder: would need backend API to add project
-                alert(`Adding project: ${dirPath}`);
-              }
-            }}
+            label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+            title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+            onClick={onToggleSidebar}
           >
-            <Plus size={16} />
+            {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
           </SidebarIconButton>
-          <SidebarIconButton label="New session" title="New session" onClick={onNewSession}>
-            <MessageSquareText size={16} />
-          </SidebarIconButton>
-          <SidebarIconButton
-            label="Search sessions"
-            title="Search sessions"
-            onClick={() => {
-              const query = prompt('Search sessions:');
-              if (query) {
-                // Placeholder: would need to filter sessions by query
-                alert(`Searching sessions: ${query}`);
-              }
-            }}
-          >
-            <Search size={16} />
-          </SidebarIconButton>
-          <SidebarIconButton
-            label="Session display mode"
-            title="Session display mode"
-            onClick={() => {
-              // Placeholder: toggle between list/grid view
-              alert('Display mode toggle');
-            }}
-          >
-            <SlidersHorizontal size={16} />
-          </SidebarIconButton>
+
+          <div className="sidebar-toolbar-group">
+            <SidebarIconButton label="Add project" title="Add project" onClick={() => setAddProjectOpen(true)}>
+              <Plus size={16} />
+            </SidebarIconButton>
+            <SidebarIconButton label="New session" title="New session" onClick={onNewSession}>
+              <MessageSquareText size={16} />
+            </SidebarIconButton>
+            <SidebarIconButton
+              label="Search sessions"
+              title="Search sessions"
+              onClick={() => setIsSessionSearchOpen((value) => !value)}
+            >
+              <Search size={16} />
+            </SidebarIconButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-icon btn-sm"
+                  aria-label="Session display mode"
+                  title="Session display mode"
+                >
+                  <SlidersHorizontal size={16} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[160px]">
+                <DropdownMenuItem onClick={() => setCompactSessions(false)} className="flex items-center justify-between">
+                  <span>Default</span>
+                  {!compactSessions ? <Check className="h-4 w-4 text-primary" /> : null}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setCompactSessions(true)} className="flex items-center justify-between">
+                  <span>Minimal</span>
+                  {compactSessions ? <Check className="h-4 w-4 text-primary" /> : null}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-      </div>
 
-      <button
-        type="button"
-        className={cn('directory-item sidebar-project-item', 'active')}
-        onClick={() => onDirectorySelect(activeDirectory?.cwd ?? selectedDirectory)}
-        title={activeDirectory?.cwd ?? selectedDirectory}
-      >
-        <Folder size={14} className="flex-shrink-0" />
-        <span className="truncate sidebar-project-label">{projectLabel}</span>
-        <span className="sidebar-project-count">{projectCount}</span>
-      </button>
+        {isSessionSearchOpen ? (
+          <div className="px-1 pb-2">
+            <div className="mb-1 flex items-center justify-between px-0.5 typography-micro text-muted-foreground/80">
+              {searchQuery.trim().length > 0 ? (
+                <span>{filteredSessions.length} {filteredSessions.length === 1 ? 'match' : 'matches'}</span>
+              ) : (
+                <span />
+              )}
+              <span>Esc to clear</span>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search sessions..."
+                className="h-8 w-full rounded-md border border-border bg-transparent pl-8 pr-8 typography-ui-label text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.stopPropagation();
+                    if (searchQuery.length > 0) {
+                      setSearchQuery('');
+                    } else {
+                      setIsSessionSearchOpen(false);
+                    }
+                  }
+                }}
+              />
+              {searchQuery.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-1 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-interactive-hover/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
-      {directories.length > 1 && (
+        <button
+          type="button"
+          className={cn('directory-item sidebar-project-item', 'active')}
+          onClick={() => onDirectorySelect(activeProject?.cwd ?? homeDirectory)}
+          title={activeProject?.cwd ?? homeDirectory}
+        >
+          <Folder size={14} className="flex-shrink-0" />
+          <span className="truncate sidebar-project-label">{projectLabel}</span>
+          <span className="sidebar-project-count">{projectCount}</span>
+        </button>
+
         <div className="sidebar-section">
           <p className="sidebar-section-title">Projects</p>
           <div className="space-y-0.5">
-            {directories.map((dir) => (
-              <button
-                key={dir.cwd}
-                type="button"
-                className={cn('directory-item', dir.cwd === selectedDirectory && 'active')}
-                onClick={() => onDirectorySelect(dir.cwd)}
-                title={dir.cwd}
-              >
-                <Folder size={14} className="flex-shrink-0" />
-                <span className="truncate">{dir.label}</span>
-                <span className="ml-auto text-[11px] opacity-60">{dir.sessionCount}</span>
-              </button>
-            ))}
+            {projects.map((project) => {
+              const isHomeProject = project.cwd === homeDirectory;
+              return (
+                <div key={project.cwd} className="group relative">
+                  <button
+                    type="button"
+                    className={cn('directory-item w-full pr-8', project.cwd === selectedDirectory && 'active')}
+                    onClick={() => onDirectorySelect(project.cwd)}
+                    title={project.cwd}
+                  >
+                    <Folder size={14} className="flex-shrink-0" />
+                    <span className="truncate">{formatProjectLabel(project, homeDirectory)}</span>
+                    <span className="ml-auto text-[11px] opacity-60">{project.sessionCount}</span>
+                  </button>
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                    <ProjectMenu
+                      project={project}
+                      isHomeProject={isHomeProject}
+                      onNewSession={onNewSession}
+                      onCloseProject={() => onProjectRemove(project.cwd)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
-      )}
 
-      <div className="sidebar-section">
-        <button
-          type="button"
-          className="sidebar-section-title sidebar-section-toggle"
-          onClick={() => setSessionsExpanded((value) => !value)}
-        >
-          <span>{sessionsExpanded ? '▼' : '▶'}</span>
-          <span>Sessions</span>
-        </button>
+        <div className="sidebar-section">
+          <button
+            type="button"
+            className="sidebar-section-title sidebar-section-toggle"
+            onClick={() => setSessionsExpanded((value) => !value)}
+          >
+            <span>{sessionsExpanded ? '▼' : '▶'}</span>
+            <span>Sessions</span>
+          </button>
 
-        {sessions.length === 0 ? (
-          <p className="sidebar-note">No sessions in this workspace yet.</p>
-        ) : sessionsExpanded ? (
-          <div className="space-y-0.5">
-            {sessions.map((session) => (
-              <div key={session.id} className="group relative">
-                <button
-                  type="button"
-                  className={cn('session-item w-full pr-8', session.id === selectedSessionId && 'active')}
-                  onClick={() => onSessionSelect(session.id)}
-                  title={session.title || 'Untitled Session'}
-                >
-                  <MessageSquareText size={14} className="flex-shrink-0" />
-                  <span className="truncate flex-1 text-left">
-                    {session.title || 'Untitled Session'}
-                  </span>
-                  <span className="session-item-time">{formatSessionTime(session.updatedAt)}</span>
-                </button>
+          {filteredSessions.length === 0 ? (
+            <p className="sidebar-note">No sessions match this project.</p>
+          ) : sessionsExpanded ? (
+            <div className="space-y-0.5">
+              {filteredSessions.map((session) => {
+                const isEditing = editingSessionId === session.id;
+                return (
+                  <div key={session.id} className="group relative">
+                    {isEditing ? (
+                      <div className="session-item active w-full pr-8">
+                        <Input
+                          ref={editInputRef}
+                          value={editingSessionTitle}
+                          onChange={(event) => setEditingSessionTitle(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Escape') {
+                              event.stopPropagation();
+                              setEditingSessionId(null);
+                              setEditingSessionTitle('');
+                              return;
+                            }
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              finishRenameSession(session);
+                            }
+                          }}
+                          className="h-6 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
+                        />
+                        <button
+                          type="button"
+                          className="ml-1 rounded p-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => finishRenameSession(session)}
+                          aria-label="Save session title"
+                          title="Save"
+                        >
+                          <Check size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded p-1 text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            setEditingSessionId(null);
+                            setEditingSessionTitle('');
+                          }}
+                          aria-label="Cancel rename"
+                          title="Cancel"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className={cn('session-item w-full pr-8', compactSessions && 'compact', session.id === selectedSessionId && 'active')}
+                        onClick={() => onSessionSelect(session.id)}
+                        title={session.title || 'Untitled Session'}
+                      >
+                        <MessageSquareText size={14} className="flex-shrink-0" />
+                        <span className="truncate flex-1 text-left">
+                          {session.title || 'Untitled Session'}
+                        </span>
+                        {!compactSessions ? <span className="session-item-time">{formatSessionTime(session.updatedAt)}</span> : null}
+                      </button>
+                    )}
 
-                <button
-                  type="button"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive hover:text-destructive-foreground"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSessionDelete(session.id);
-                  }}
-                  aria-label="Delete session"
-                  title="Delete session"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
+                    {!isEditing ? (
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-opacity opacity-0 group-hover:opacity-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                              aria-label="Session menu"
+                            >
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-[180px]">
+                            <DropdownMenuItem onClick={() => startRenameSession(session)}>
+                              <Pencil className="mr-1.5 h-4 w-4" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => onSessionDelete(session.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-1.5 h-4 w-4" />
+                              Delete session
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="sidebar-footer">
+          <SidebarIconButton label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>
+            <Settings2 size={16} />
+          </SidebarIconButton>
+          <SidebarIconButton
+            label="Help"
+            title="Help"
+            onClick={() => {
+              alert('Help panel coming soon');
+            }}
+          >
+            <CircleHelp size={16} />
+          </SidebarIconButton>
+          <SidebarIconButton
+            label="About"
+            title="About"
+            onClick={() => {
+              alert('About Pi Web App - OpenChamber-style AI coding assistant');
+            }}
+          >
+            <Info size={16} />
+          </SidebarIconButton>
+        </div>
       </div>
-
-      <div className="sidebar-footer">
-        <SidebarIconButton
-          label="Settings"
-          title="Settings"
-          onClick={() => {
-            alert('Settings panel coming soon');
-          }}
-        >
-          <Settings2 size={16} />
-        </SidebarIconButton>
-        <SidebarIconButton
-          label="Help"
-          title="Help"
-          onClick={() => {
-            alert('Help panel coming soon');
-          }}
-        >
-          <CircleHelp size={16} />
-        </SidebarIconButton>
-        <SidebarIconButton
-          label="About"
-          title="About"
-          onClick={() => {
-            alert('About Pi Web App - OpenChamber-style AI coding assistant');
-          }}
-        >
-          <Info size={16} />
-        </SidebarIconButton>
-      </div>
-    </div>
+    </>
   );
 }
 

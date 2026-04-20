@@ -48,7 +48,7 @@ describe('chatState', () => {
 
     expect(conversation).toHaveLength(3);
     expect(conversation[0]).toEqual(expect.objectContaining({ role: 'user', content: 'write tests' }));
-    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'thinking', content: 'thinking…', done: false }));
+    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'thinking', content: '', done: false }));
     expect(conversation[2]).toEqual(expect.objectContaining({ role: 'assistant', status: 'streaming' }));
   });
 

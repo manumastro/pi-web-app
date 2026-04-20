@@ -9,6 +9,7 @@ import * as crypto from 'crypto';
 export interface Config {
   port: number;
   nodeEnv: 'development' | 'production' | 'test';
+  homeDir: string;
   sessionsDir: string;
   sdkCwd: string;
   model: string;
@@ -90,6 +91,7 @@ function generateSessionId(): string {
 export function loadConfig(): Config {
   const port = parsePort(process.env.PORT);
   const nodeEnv = parseNodeEnv(process.env.NODE_ENV);
+  const homeDir = getHomeDir();
   const sessionsDir = process.env.SESSIONS_DIR ?? getDefaultSessionsDir();
   const sdkCwd = process.env.SDK_CWD ?? getDefaultSdkCwd();
   const model = process.env.SDK_MODEL ?? 'claude-3-5-sonnet-20241022';
@@ -99,6 +101,7 @@ export function loadConfig(): Config {
   return {
     port,
     nodeEnv,
+    homeDir,
     sessionsDir,
     sdkCwd,
     model,

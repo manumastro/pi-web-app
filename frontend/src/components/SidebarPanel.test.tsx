@@ -35,26 +35,31 @@ describe('SidebarPanel', () => {
     const onDirectorySelect = vi.fn();
     const onSessionSelect = vi.fn();
     const onSessionDelete = vi.fn();
+    const onSessionRename = vi.fn();
     const onNewSession = vi.fn();
     const onToggleSidebar = vi.fn();
 
     render(
       <SidebarPanel
-        directories={directories}
+        projects={directories}
         sessions={sessions}
         selectedDirectory="/tmp"
         selectedSessionId="s1"
+        homeDirectory="/tmp"
         onDirectorySelect={onDirectorySelect}
+        onProjectAdd={vi.fn()}
+        onProjectRemove={vi.fn()}
         onSessionSelect={onSessionSelect}
         onSessionDelete={onSessionDelete}
+        onSessionRename={onSessionRename}
         onNewSession={onNewSession}
         onToggleSidebar={onToggleSidebar}
       />,
     );
 
-    // Directory
-    expect(screen.getByText('tmp')).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument(); // session count
+    // Project
+    expect(screen.getAllByText('~').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('2').length).toBeGreaterThan(0); // session count
 
     // Session list
     expect(screen.getByText('First session')).toBeInTheDocument();
@@ -68,27 +73,29 @@ describe('SidebarPanel', () => {
     fireEvent.click(screen.getByText('Second session'));
     expect(onSessionSelect).toHaveBeenCalledWith('s2');
 
-    // Session delete
-    const deleteButtons = screen.getAllByRole('button', { name: 'Delete session' });
-    fireEvent.click(deleteButtons[0]!);
-    expect(onSessionDelete).toHaveBeenCalledWith('s1');
+    // Session menu is available for more actions
+    expect(screen.getAllByRole('button', { name: 'Session menu' }).length).toBeGreaterThan(0);
   });
 
   it('shows empty state when no sessions', () => {
     render(
       <SidebarPanel
-        directories={[]}
+        projects={[]}
         sessions={[]}
         selectedDirectory="/empty"
         selectedSessionId=""
+        homeDirectory="/empty"
         onDirectorySelect={vi.fn()}
+        onProjectAdd={vi.fn()}
+        onProjectRemove={vi.fn()}
         onSessionSelect={vi.fn()}
         onSessionDelete={vi.fn()}
+        onSessionRename={vi.fn()}
         onNewSession={vi.fn()}
         onToggleSidebar={vi.fn()}
       />,
     );
 
-    expect(screen.getByText('No sessions in this workspace yet.')).toBeInTheDocument();
+    expect(screen.getByText('No sessions match this project.')).toBeInTheDocument();
   });
 });

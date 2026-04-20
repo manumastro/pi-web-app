@@ -13,11 +13,11 @@ import { MessageBody } from './message/MessageBody';
 import { ReasoningPart } from './message/parts/ReasoningPart';
 import { ToolPart } from './message/parts/ToolPart';
 import { ScrollToBottomButton } from './components/ScrollToBottomButton';
-import { TurnActivity } from './components/TurnActivity';
 
 interface ConversationPanelProps {
   items: ConversationItem[];
   error?: string;
+  showReasoningTraces?: boolean;
 }
 
 type AssistantMessageItem = MessageItem & { role: 'assistant' };
@@ -221,7 +221,7 @@ function SkeletonConversation() {
   );
 }
 
-function renderStandaloneMessage(item: SystemMessageItem | AssistantMessageItem): React.ReactElement {
+function renderStandaloneMessage(item: SystemMessageItem | AssistantMessageItem, showReasoningTraces: boolean): React.ReactElement {
   return (
     <FadeInOnReveal key={item.id} animate>
       <article
@@ -232,14 +232,7 @@ function renderStandaloneMessage(item: SystemMessageItem | AssistantMessageItem)
         )}
       >
         <MessageHeader role={item.role} timestamp={formatTimestamp(item.timestamp)} />
-        <MessageBody item={item} />
-        {item.role === 'assistant' && item.status === 'streaming' ? (
-          <span className="message-streaming-indicator" aria-hidden="true">
-            <span className="streaming-dot" />
-            <span className="streaming-dot" />
-            <span className="streaming-dot" />
-          </span>
-        ) : null}
+        <MessageBody item={item} showReasoningTraces={showReasoningTraces} />
       </article>
     </FadeInOnReveal>
   );
@@ -262,23 +255,20 @@ function renderToolEntry(entry: Extract<ToolTurnEntry, { kind: 'tool' }>): React
   );
 }
 
-function renderTurnEntry(entry: ToolTurnEntry): React.ReactElement {
+function renderTurnEntry(entry: ToolTurnEntry, showReasoningTraces: boolean): React.ReactElement | null {
   if (entry.kind === 'assistant') {
     return (
       <div key={entry.item.id} className="message-assistant-entry">
-        <MessageBody item={entry.item} />
-        {entry.item.status === 'streaming' ? (
-          <span className="message-streaming-indicator" aria-hidden="true">
-            <span className="streaming-dot" />
-            <span className="streaming-dot" />
-            <span className="streaming-dot" />
-          </span>
-        ) : null}
+        <MessageBody item={entry.item} showReasoningTraces={showReasoningTraces} />
       </div>
     );
   }
 
   if (entry.kind === 'thinking') {
+    if (!showReasoningTraces) {
+      return null;
+    }
+
     return (
       <ReasoningPart
         key={entry.item.id}
@@ -299,11 +289,13 @@ function AssistantTurn({
   userMessage,
   entries,
   firstTimestamp,
+  showReasoningTraces,
 }: {
   turnId: string;
   userMessage?: UserMessageItem;
   entries: ToolTurnEntry[];
   firstTimestamp: string;
+  showReasoningTraces: boolean;
 }) {
   const assistantTimestamp = entries.find((entry): entry is Extract<ToolTurnEntry, { kind: 'assistant' }> => entry.kind === 'assistant')?.item.timestamp ?? firstTimestamp;
   const hasStreamingEntry = entries.some((entry) => {
@@ -324,7 +316,7 @@ function AssistantTurn({
         <div className="turn-user-header">
           <article className={cn('message', 'message-user')}>
             <MessageHeader role="user" timestamp={formatTimestamp(userMessage.timestamp)} />
-            <MessageBody item={userMessage} />
+            <MessageBody item={userMessage} showReasoningTraces={showReasoningTraces} />
           </article>
         </div>
       ) : null}
@@ -339,11 +331,10 @@ function AssistantTurn({
 
             {entries.length > 0 ? (
               <div className="message-turn-stack">
-                {entries.map((entry) => renderTurnEntry(entry))}
+                {entries.map((entry) => renderTurnEntry(entry, showReasoningTraces)).filter((entry): entry is React.ReactElement => Boolean(entry))}
               </div>
             ) : null}
 
-            {hasStreamingEntry ? <TurnActivity /> : null}
           </article>
         </FadeInOnReveal>
       </div>
@@ -351,7 +342,7 @@ function AssistantTurn({
   );
 }
 
-export function ConversationPanel({ items, error: errorMsg }: ConversationPanelProps) {
+export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true }: ConversationPanelProps) {
   const records = React.useMemo(() => buildRenderRecords(items), [items]);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = React.useRef(true);
@@ -414,7 +405,7 @@ export function ConversationPanel({ items, error: errorMsg }: ConversationPanelP
         <FadeInOnReveal key={record.item.id} animate>
           <article className={cn('message', 'message-user')}>
             <MessageHeader role="user" timestamp={formatTimestamp(record.item.timestamp)} />
-            <MessageBody item={record.item} />
+            <MessageBody item={record.item} showReasoningTraces={showReasoningTraces} />
           </article>
         </FadeInOnReveal>,
       ];
@@ -428,22 +419,25 @@ export function ConversationPanel({ items, error: errorMsg }: ConversationPanelP
           userMessage={record.userMessage}
           entries={record.entries}
           firstTimestamp={record.firstTimestamp}
+          showReasoningTraces={showReasoningTraces}
         />,
       ];
     }
 
     if (record.kind === 'orphan') {
       if (record.item.kind === 'thinking') {
-        return [
-          <ReasoningPart
-            key={record.item.id}
-            text={record.item.content}
-            variant="thinking"
-            blockId={record.item.id}
-            done={record.item.done}
-            isStreaming={!record.item.done}
-          />,
-        ];
+        return showReasoningTraces
+          ? [
+              <ReasoningPart
+                key={record.item.id}
+                text={record.item.content}
+                variant="thinking"
+                blockId={record.item.id}
+                done={record.item.done}
+                isStreaming={!record.item.done}
+              />,
+            ]
+          : [];
       }
 
       if (record.item.kind === 'tool_call') {
@@ -471,7 +465,7 @@ export function ConversationPanel({ items, error: errorMsg }: ConversationPanelP
       ];
     }
 
-    return [renderStandaloneMessage(record.item)];
+    return [renderStandaloneMessage(record.item, showReasoningTraces)];
   });
 
   return (

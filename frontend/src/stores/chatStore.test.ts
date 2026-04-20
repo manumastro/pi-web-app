@@ -6,7 +6,7 @@ describe('chatStore', () => {
     useChatStore.setState({
       conversation: [],
       streaming: 'idle',
-      statusMessage: 'Connecting…',
+      statusMessage: 'Connecting',
       error: '',
     });
     vi.unstubAllGlobals();
@@ -18,7 +18,7 @@ describe('chatStore', () => {
     const { conversation } = useChatStore.getState();
     expect(conversation).toHaveLength(3);
     expect(conversation[0]).toEqual(expect.objectContaining({ kind: 'message', role: 'user', content: 'hello' }));
-    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'thinking', done: false }));
+    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'thinking', content: '', done: false }));
     expect(conversation[2]).toEqual(expect.objectContaining({ kind: 'message', role: 'assistant', status: 'streaming' }));
   });
 });

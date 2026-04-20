@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
+import { appendPrompt, type ConversationItem } from '@/chatState';
 import { ConversationPanel } from './ConversationPanel';
-import type { ConversationItem } from '@/chatState';
 
 const items: ConversationItem[] = [
   {
@@ -71,7 +71,7 @@ describe('ConversationPanel', () => {
     const turnEntries = [...container.querySelectorAll('.message-assistant-turn .message-turn-stack > *')];
     expect(turnEntries).toHaveLength(4);
     expect(turnEntries[0]).toHaveClass('tool-block');
-    expect(turnEntries[1]).toHaveClass('reasoning-block');
+    expect(turnEntries[1]).toHaveClass('reasoning-timeline-block');
     expect(turnEntries[2]).toHaveTextContent('Ciao!');
     expect(turnEntries[3]).toHaveTextContent('Siamo in');
     expect(turnEntries[3]).toHaveTextContent('/home/manu');
@@ -85,13 +85,29 @@ describe('ConversationPanel', () => {
     expect(container.querySelector('.tool-input')).toHaveTextContent('pwd');
     expect(container.querySelector('.tool-output')).toHaveTextContent('/home/manu');
 
-    const reasoningSummary = container.querySelector('.reasoning-summary');
+    const reasoningSummary = container.querySelector('.reasoning-summary-row');
     expect(reasoningSummary).not.toBeNull();
-    expect(container.querySelector('details.reasoning-block')?.hasAttribute('open')).toBe(false);
+    expect(container.querySelector('.reasoning-expanded-body')).toHaveAttribute('aria-hidden', 'true');
 
     fireEvent.click(reasoningSummary!);
-    expect(container.querySelector('details.reasoning-block')?.hasAttribute('open')).toBe(true);
-    expect(container.querySelector('.reasoning-content')).toHaveTextContent('checking cwd');
+    expect(container.querySelector('.reasoning-expanded-body')).toHaveAttribute('aria-hidden', 'false');
+    expect(container.querySelector('.reasoning-content-markdown')).toHaveTextContent('checking cwd');
+  });
+
+  it('does not render a literal ellipsis for empty streaming assistant content', () => {
+    const streamingItems = appendPrompt([], 'hello');
+    const { queryByText } = render(<ConversationPanel items={streamingItems} />);
+
+    expect(queryByText('…')).toBeNull();
+  });
+
+  it('hides reasoning traces when disabled', () => {
+    const { container, queryByText } = render(<ConversationPanel items={items} showReasoningTraces={false} />);
+
+    expect(queryByText('checking cwd')).toBeNull();
+    expect(container.querySelector('.reasoning-timeline-block')).toBeNull();
+    expect(container.querySelector('.message-assistant-turn')).toHaveTextContent('Ciao!');
+    expect(container.querySelector('.message-assistant-turn')).toHaveTextContent('/home/manu');
   });
 
   it('renders reasoning before tool output only when that is the actual arrival order', () => {
@@ -145,7 +161,7 @@ describe('ConversationPanel', () => {
 
     const turnEntries = [...container.querySelectorAll('.message-assistant-turn .message-turn-stack > *')];
     expect(turnEntries).toHaveLength(3);
-    expect(turnEntries[0]).toHaveClass('reasoning-block');
+    expect(turnEntries[0]).toHaveClass('reasoning-timeline-block');
     expect(turnEntries[1]).toHaveClass('tool-block');
     expect(turnEntries[2]).toHaveTextContent('Siamo in');
     expect(turnEntries[2]).toHaveTextContent('/home/manu');

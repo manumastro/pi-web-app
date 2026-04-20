@@ -3,8 +3,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App';
 import type { SessionInfo } from './types';
 import { useChatStore } from './stores/chatStore';
+import { useProjectStore } from './stores/projectStore';
 import { useSessionStore } from './stores/sessionStore';
 import { useUIStore } from './stores/uiStore';
+import { createProjectIdFromPath } from './lib/path';
 
 const useSessionStreamMock = vi.fn();
 const apiGetMock = vi.fn();
@@ -40,22 +42,38 @@ beforeEach(() => {
   useChatStore.setState({
     conversation: [],
     streaming: 'idle',
-    statusMessage: 'Connecting…',
+    statusMessage: 'Connecting',
     error: '',
   });
   
   useSessionStore.setState({
     sessions: [],
-    selectedDirectory: '/',
+    selectedDirectory: '/tmp',
     selectedSessionId: '',
     sortedSessions: [],
     projectDirectories: [],
     currentSession: undefined,
     visibleSessions: [],
   });
+
+  useProjectStore.setState({
+    homeDirectory: '/tmp',
+    projects: [
+      {
+        id: createProjectIdFromPath('/tmp'),
+        path: '/tmp',
+        label: '~',
+        addedAt: '2026-04-15T10:00:00.000Z',
+        updatedAt: '2026-04-15T10:00:00.000Z',
+      },
+    ],
+    activeProjectId: createProjectIdFromPath('/tmp'),
+  });
   
   useUIStore.setState({
     sidebarOpen: true,
+    modelFilter: '',
+    showReasoningTraces: true,
     models: [],
     activeModelKey: '',
     prompt: '',
@@ -63,6 +81,9 @@ beforeEach(() => {
 
   // Default mock implementations for first test
   apiGetMock.mockImplementation(async (path: string) => {
+    if (path === '/api/config') {
+      return { homeDir: '/tmp', sdkCwd: '/tmp', sessionsDir: '/tmp/.pi/agent/sessions' };
+    }
     if (path === '/api/sessions') {
       return { sessions: [session] };
     }
@@ -155,17 +176,20 @@ describe('App', () => {
 
     // Wait for the new session button to appear (indicates initial load is complete)
     await waitFor(() => {
-      expect(screen.getByTitle('New session')).toBeInTheDocument();
+      expect(screen.getAllByTitle('New session').length).toBeGreaterThan(0);
     });
 
     // The model select is in the ComposerPanel which only shows when a session is selected.
     // We verify the UI renders correctly with the sidebar model controls.
     // Model selection via ComposerPanel is tested in integration tests.
-    expect(screen.getByRole('button', { name: 'New session' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'New session' }).length).toBeGreaterThan(0);
   });;;
 
   it('uses the selected active model when creating a session', async () => {
     apiGetMock.mockImplementation(async (path: string) => {
+      if (path === '/api/config') {
+        return { homeDir: '/tmp', sdkCwd: '/tmp', sessionsDir: '/tmp/.pi/agent/sessions' };
+      }
       if (path === '/api/sessions') {
         return { sessions: [] };
       }
@@ -208,8 +232,21 @@ describe('App', () => {
 
     render(<App />);
 
-    await screen.findByTitle('New session');
-    fireEvent.click(screen.getByTitle('New session'));
+    useUIStore.setState({
+      ...useUIStore.getState(),
+      models: [
+        {
+          key: 'openai/gpt-4o',
+          id: 'gpt-4o',
+          label: 'GPT-4o',
+          available: true,
+          active: true,
+          provider: 'openai',
+        },
+      ],
+      activeModelKey: 'openai/gpt-4o',
+    });
+    fireEvent.click(screen.getAllByTitle('New session')[0]!);
 
     await waitFor(() => {
       expect(apiRequestMock).toHaveBeenCalledWith(
@@ -225,7 +262,9 @@ describe('App', () => {
   it('syncs the current model before sending a prompt so refresh state works immediately', async () => {
     render(<App />);
 
-    await screen.findByTitle('New session');
+    await waitFor(() => {
+      expect(screen.getAllByTitle('New session').length).toBeGreaterThan(0);
+    });
     const prompt = screen.getByRole('textbox', { name: 'Prompt' });
     fireEvent.change(prompt, { target: { value: 'hello world' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));

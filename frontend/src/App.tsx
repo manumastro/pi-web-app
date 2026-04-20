@@ -1,12 +1,14 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { apiGet, apiRequest } from './api';
 import { appendPrompt, applySsePayload, messagesToConversation } from './chatState';
 import type { SsePayload } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
-import type { ModelInfo, SessionInfo, StreamingState } from './types';
+import { getProjectLabel, normalizeProjectPath } from './lib/path';
+import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from './types';
 
 // Store
 import { useChatStore } from './stores/chatStore';
+import { useProjectStore } from './stores/projectStore';
 import { useSessionStore } from './stores/sessionStore';
 import { useUIStore } from './stores/uiStore';
 
@@ -40,9 +42,8 @@ function setQueryParams(params: { cwd?: string; sessionId?: string }): void {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatDirectoryLabel(cwd: string): string {
-  const parts = cwd.split('/').filter(Boolean);
-  return parts.at(-1) ?? (cwd === '/' ? 'root' : cwd);
+function formatDirectoryLabel(cwd: string, homeDir: string): string {
+  return getProjectLabel(cwd, homeDir);
 }
 
 function generateTurnId(): string {
@@ -54,11 +55,11 @@ function generateTurnId(): string {
 
 // ─── Connection Banner ───────────────────────────────────────────────────────
 
-function ConnectionBanner({ state, message }: { state: StreamingState; message: string }) {
+function ConnectionBanner({ state, message, error }: { state: StreamingState; message: string; error?: string }) {
   if (state === 'idle') return null;
   return (
     <div className={`connection-banner ${state === 'error' ? 'error' : ''}`}>
-      {state === 'connecting' ? '⟳' : state === 'streaming' ? '◉' : '✗'} {message}
+      {state === 'error' ? '✗' : state === 'connecting' ? '⟳' : '◉'} {error ?? message}
     </div>
   );
 }
@@ -81,8 +82,6 @@ export default function App() {
 
   const {
     sessions,
-    sortedSessions,
-    projectDirectories,
     currentSession,
     visibleSessions,
     selectedDirectory,
@@ -96,6 +95,15 @@ export default function App() {
   } = useSessionStore();
 
   const {
+    homeDirectory,
+    projects,
+    hydrate: hydrateProjects,
+    addProject,
+    removeProject,
+    selectProject,
+  } = useProjectStore();
+
+  const {
     sidebarOpen,
     toggleSidebar,
     models,
@@ -104,11 +112,49 @@ export default function App() {
     setActiveModel,
     prompt,
     setPrompt,
+    showReasoningTraces,
   } = useUIStore();
 
   // ─── Derived State ──────────────────────────────────────────────────────────
+  const projectDirectories = useMemo<DirectoryInfo[]>(() => {
+    const sessionCounts = new Map<string, number>();
+    const updatedAtByPath = new Map<string, string>();
+
+    for (const session of sessions) {
+      sessionCounts.set(session.cwd, (sessionCounts.get(session.cwd) ?? 0) + 1);
+      const currentUpdatedAt = updatedAtByPath.get(session.cwd);
+      if (!currentUpdatedAt || session.updatedAt > currentUpdatedAt) {
+        updatedAtByPath.set(session.cwd, session.updatedAt);
+      }
+    }
+
+    const nextProjects = new Map<string, DirectoryInfo>();
+
+    for (const project of projects) {
+      nextProjects.set(project.path, {
+        cwd: project.path,
+        label: formatDirectoryLabel(project.path, homeDirectory),
+        sessionCount: sessionCounts.get(project.path) ?? 0,
+        updatedAt: updatedAtByPath.get(project.path) ?? project.updatedAt,
+      });
+    }
+
+    for (const session of sessions) {
+      if (!nextProjects.has(session.cwd)) {
+        nextProjects.set(session.cwd, {
+          cwd: session.cwd,
+          label: formatDirectoryLabel(session.cwd, homeDirectory),
+          sessionCount: sessionCounts.get(session.cwd) ?? 0,
+          updatedAt: updatedAtByPath.get(session.cwd) ?? session.updatedAt,
+        });
+      }
+    }
+
+    return Array.from(nextProjects.values()).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }, [homeDirectory, projects, sessions]);
+
   const currentDirectory = currentSession?.cwd ?? selectedDirectory;
-  const currentDirectoryLabel = formatDirectoryLabel(currentDirectory);
+  const currentDirectoryLabel = formatDirectoryLabel(currentDirectory, homeDirectory);
 
   // ─── API Functions ──────────────────────────────────────────────────────────
   const refreshModels = useCallback(async (selSessionId?: string): Promise<ModelInfo[]> => {
@@ -138,43 +184,68 @@ export default function App() {
     setConversation(messagesToConversation(payload.session.messages));
     setSelectedSessionId(payload.session.id);
     setSelectedDirectory(payload.session.cwd);
+
+    const projectState = useProjectStore.getState();
+    const matchingProject = projectState.projects.find((project) => project.path === payload.session.cwd);
+    if (matchingProject) {
+      selectProject(matchingProject.id);
+    } else {
+      const added = addProject(payload.session.cwd);
+      if (added) {
+        selectProject(added.id);
+      }
+    }
+
     setQueryParams({ cwd: payload.session.cwd, sessionId: payload.session.id });
     await refreshModels(payload.session.id);
-  }, [setConversation, setSelectedSessionId, setSelectedDirectory, refreshModels]);
+  }, [addProject, selectProject, setConversation, setSelectedSessionId, setSelectedDirectory, refreshModels]);
 
   const loadInitialState = useCallback(async (): Promise<void> => {
-    setStatusMessage('Loading…');
+    setStatusMessage('Loading');
     try {
-      const payload = await apiGet<{ sessions: SessionInfo[] }>('/api/sessions');
-      setSessions(payload.sessions);
-      
-      const queryCwd = getQueryParam('cwd') || selectedDirectory;
-      const querySessionId = getQueryParam('sessionId') || selectedSessionId;
-      
-      const firstDir = projectDirectories[0];
-      const firstSession = sortedSessions.find(s => s.cwd === (firstDir?.cwd ?? '/'));
-      
-      const targetCwd = queryCwd || firstDir?.cwd || '/';
-      const targetSessionId = querySessionId || firstSession?.id;
-      
+      const [configPayload, sessionsPayload] = await Promise.all([
+        apiGet<{ homeDir: string }>('/api/config'),
+        apiGet<{ sessions: SessionInfo[] }>('/api/sessions'),
+      ]);
+
+      hydrateProjects(configPayload.homeDir, sessionsPayload.sessions);
+      setSessions(sessionsPayload.sessions);
+
+      const querySessionId = getQueryParam('sessionId');
+      const queryCwdRaw = getQueryParam('cwd');
+      const normalizedQueryCwd = queryCwdRaw ? normalizeProjectPath(queryCwdRaw, configPayload.homeDir) ?? queryCwdRaw : '';
+      const currentProjects = useProjectStore.getState().projects;
+      const firstSessionDirectory = sessionsPayload.sessions[0]?.cwd ?? '';
+      const targetDirectory = normalizedQueryCwd || firstSessionDirectory || currentProjects[0]?.path || configPayload.homeDir;
+
+      if (normalizedQueryCwd && !currentProjects.some((project) => project.path === normalizedQueryCwd)) {
+        const added = addProject(normalizedQueryCwd);
+        if (added) {
+          selectProject(added.id);
+        }
+      }
+
+      const targetSessionId = querySessionId || sessionsPayload.sessions.find((session) => session.cwd === targetDirectory)?.id;
+
       if (targetSessionId) {
         await loadSession(targetSessionId);
         setStatusMessage('Connected');
       } else {
-        setSelectedDirectory(targetCwd);
+        setSelectedDirectory(targetDirectory);
         setSelectedSessionId('');
         setConversation([]);
-        setQueryParams({ cwd: targetCwd, sessionId: '' });
+        setQueryParams({ cwd: targetDirectory, sessionId: '' });
         await refreshModels(undefined);
         setStatusMessage('Select or create a session');
       }
+
       setError('');
     } catch (cause) {
       setStatusMessage('Load failed');
       setError(cause instanceof Error ? cause.message : 'Unknown error');
       setStreaming('error');
     }
-  }, [setSessions, setConversation, setSelectedDirectory, setSelectedSessionId, setStatusMessage, setError, setStreaming, refreshModels, loadSession, projectDirectories, sortedSessions, selectedDirectory, selectedSessionId]);
+  }, [addProject, hydrateProjects, loadSession, refreshModels, selectProject, setConversation, setError, setSelectedDirectory, setSelectedSessionId, setSessions, setStatusMessage, setStreaming]);
 
   // ─── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -203,12 +274,12 @@ export default function App() {
     },
     onConnectionLost: () => {
       setStreaming('connecting');
-      setStatusMessage('Reconnecting…');
+      setStatusMessage('Reconnecting');
     },
   });
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
-  const submitPrompt = useCallback(async (message: string, statusLabel: string): Promise<void> => {
+  const submitPrompt = useCallback(async (message: string): Promise<void> => {
     const { selectedSessionId: sessionId, currentSession, selectedDirectory } = useSessionStore.getState();
     const { activeModelKey: activeModel, models: availableModels } = useUIStore.getState();
     const cwd = currentSession?.cwd ?? selectedDirectory;
@@ -238,7 +309,7 @@ export default function App() {
       setActiveModel(model);
       setError('');
       setStreaming('streaming');
-      setStatusMessage(statusLabel);
+      setStatusMessage('Working');
       const turnId = generateTurnId();
       storeAppendPrompt(message, model, turnId);
       setPrompt('');
@@ -256,7 +327,7 @@ export default function App() {
   const handleSend = useCallback(async (): Promise<void> => {
     const text = prompt.trim();
     if (!text) return;
-    await submitPrompt(text, 'Sending…');
+    await submitPrompt(text);
   }, [prompt, submitPrompt]);
 
   const handleAbort = useCallback(async (): Promise<void> => {
@@ -279,21 +350,33 @@ export default function App() {
     addSession(created.session);
     setSelectedSessionId(created.session.id);
     setSelectedDirectory(created.session.cwd);
+
+    const projectState = useProjectStore.getState();
+    const matchingProject = projectState.projects.find((project) => project.path === created.session.cwd);
+    if (matchingProject) {
+      selectProject(matchingProject.id);
+    } else {
+      const added = addProject(created.session.cwd);
+      if (added) {
+        selectProject(added.id);
+      }
+    }
+
     setQueryParams({ cwd: created.session.cwd, sessionId: created.session.id });
     setConversation([]);
     setStatusMessage('Session ready');
     await refreshModels(created.session.id);
-  }, [addSession, setSelectedSessionId, setSelectedDirectory, setConversation, setStatusMessage, refreshModels]);
+  }, [addProject, addSession, selectProject, setSelectedSessionId, setSelectedDirectory, setConversation, setStatusMessage, refreshModels]);
 
   const handleDeleteSession = useCallback(async (targetId: string): Promise<void> => {
-    const { selectedSessionId, selectedDirectory, sortedSessions } = useSessionStore.getState();
+    const { selectedSessionId, selectedDirectory } = useSessionStore.getState();
     await apiRequest(`/api/sessions/${encodeURIComponent(targetId)}`, { method: 'DELETE' });
     deleteSessionFromStore(targetId);
-    
+
     if (selectedSessionId === targetId) {
-      const next = sortedSessions.find((s) => s.id !== targetId);
-      if (next) {
-        await loadSession(next.id);
+      const nextVisibleSession = useSessionStore.getState().visibleSessions.find((session) => session.id !== targetId);
+      if (nextVisibleSession) {
+        await loadSession(nextVisibleSession.id);
       } else {
         setSelectedSessionId('');
         setConversation([]);
@@ -304,6 +387,17 @@ export default function App() {
   }, [deleteSessionFromStore, loadSession, setSelectedSessionId, setConversation, setStatusMessage]);
 
   const handleDirectorySelect = useCallback(async (nextDir: string): Promise<void> => {
+    const projectState = useProjectStore.getState();
+    const matchingProject = projectState.projects.find((project) => project.path === nextDir);
+    if (matchingProject) {
+      selectProject(matchingProject.id);
+    } else {
+      const added = addProject(nextDir);
+      if (added) {
+        selectProject(added.id);
+      }
+    }
+
     const { sortedSessions } = useSessionStore.getState();
     setSelectedDirectory(nextDir);
     const next = sortedSessions.find((s) => s.cwd === nextDir);
@@ -315,7 +409,57 @@ export default function App() {
       setQueryParams({ cwd: nextDir, sessionId: '' });
       setStatusMessage('No sessions in this directory');
     }
-  }, [setSelectedDirectory, loadSession, setSelectedSessionId, setConversation, setStatusMessage]);
+  }, [addProject, loadSession, selectProject, setSelectedDirectory, setSelectedSessionId, setConversation, setStatusMessage]);
+
+  const handleProjectAdd = useCallback((path: string): boolean => {
+    const added = addProject(path);
+    if (!added) {
+      return false;
+    }
+
+    selectProject(added.id);
+    setSelectedDirectory(added.path);
+    setSelectedSessionId('');
+    setConversation([]);
+    setQueryParams({ cwd: added.path, sessionId: '' });
+    setStatusMessage('Project added');
+    return true;
+  }, [addProject, selectProject, setSelectedDirectory, setSelectedSessionId, setConversation, setStatusMessage]);
+
+  const handleProjectRemove = useCallback(async (cwd: string): Promise<void> => {
+    const project = useProjectStore.getState().projects.find((entry) => entry.path === cwd);
+    if (!project) {
+      return;
+    }
+
+    const wasActive = selectedDirectory === cwd;
+    removeProject(project.id);
+
+    if (wasActive) {
+      const nextProject = useProjectStore.getState().getActiveProject();
+      if (nextProject) {
+        await handleDirectorySelect(nextProject.path);
+        return;
+      }
+
+      setSelectedDirectory(homeDirectory);
+      setSelectedSessionId('');
+      setConversation([]);
+      setQueryParams({ cwd: homeDirectory, sessionId: '' });
+      setStatusMessage('Select or create a session');
+    }
+  }, [handleDirectorySelect, homeDirectory, removeProject, selectedDirectory, setConversation, setSelectedDirectory, setSelectedSessionId, setStatusMessage]);
+
+  const handleSessionRename = useCallback(async (sessionId: string, title: string): Promise<void> => {
+    const payload = await apiRequest<{ session: SessionInfo }>(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title }),
+    });
+    updateSession(payload.session.id, { title: payload.session.title });
+    if (selectedSessionId === sessionId) {
+      setConversation(messagesToConversation(payload.session.messages));
+    }
+  }, [selectedSessionId, setConversation, updateSession]);
 
   const handleSessionSelect = useCallback(async (targetId: string): Promise<void> => {
     await loadSession(targetId);
@@ -354,14 +498,18 @@ export default function App() {
   // ─── Render ─────────────────────────────────────────────────────────────────
   const sidebar = (
     <Sidebar
-      directories={projectDirectories}
+      projects={projectDirectories}
       sessions={visibleSessions}
       selectedDirectory={selectedDirectory}
       selectedSessionId={selectedSessionId}
+      homeDirectory={homeDirectory}
       sidebarOpen={sidebarOpen}
       onDirectorySelect={handleDirectorySelect}
+      onProjectAdd={handleProjectAdd}
+      onProjectRemove={handleProjectRemove}
       onSessionSelect={handleSessionSelect}
       onSessionDelete={handleDeleteSession}
+      onSessionRename={handleSessionRename}
       onNewSession={handleCreateSession}
       onToggleSidebar={toggleSidebar}
     />
@@ -379,7 +527,7 @@ export default function App() {
 
   const content = selectedSessionId ? (
     <ChatView sessionId={selectedSessionId}>
-      <ConversationPanel items={conversation} error={error} />
+      <ConversationPanel items={conversation} error={error} showReasoningTraces={showReasoningTraces} />
       <StatusRow state={streaming} statusMessage={statusMessage} onAbort={handleAbort} />
 
       <ComposerPanel
@@ -397,13 +545,17 @@ export default function App() {
     <ChatEmptyState onNewSession={handleCreateSession} />
   );
 
+  const connectionBanner = !selectedSessionId && streaming === 'error'
+    ? <ConnectionBanner state={streaming} message={statusMessage} error={error} />
+    : null;
+
   return (
     <>
       <MainLayout
         sidebar={sidebar}
         header={header}
         content={content}
-        connectionBanner={<ConnectionBanner state={streaming} message={statusMessage} />}
+        connectionBanner={connectionBanner}
         sidebarOpen={sidebarOpen}
       />
       <Toaster />

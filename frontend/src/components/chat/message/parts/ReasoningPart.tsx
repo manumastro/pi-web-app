@@ -1,8 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { Brain, ChevronRight, ChevronDown } from 'lucide-react';
+import React from 'react';
+import { Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ToolRevealOnMount } from '../../ToolRevealOnMount';
-import { formatDuration } from '../timeFormat';
+import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
 
 type ReasoningVariant = 'thinking' | 'justification';
 
@@ -23,8 +22,8 @@ const cleanReasoningText = (text: string): string => {
 
   return text
     .split('\n')
-    .map((line: string) => line.replace(/^>\s?/, '').trimEnd())
-    .filter((line: string) => line.trim().length > 0)
+    .map((line) => line.replace(/^>\s?/, '').trimEnd())
+    .filter((line) => line.trim().length > 0)
     .join('\n')
     .trim();
 };
@@ -51,6 +50,13 @@ const getReasoningSummary = (text: string): string => {
   return trimmed.substring(0, cutoff).trim();
 };
 
+const formatDuration = (start: number, end?: number, now: number = Date.now()): string => {
+  const duration = typeof end === 'number' ? end - start : now - start;
+  const seconds = duration / 1000;
+  const displaySeconds = seconds < 0.05 && typeof end === 'number' ? 0.1 : seconds;
+  return `${displaySeconds.toFixed(1)}s`;
+};
+
 export const ReasoningPart: React.FC<ReasoningPartProps> = ({
   text,
   variant = 'thinking',
@@ -60,63 +66,57 @@ export const ReasoningPart: React.FC<ReasoningPartProps> = ({
   isStreaming = false,
   className,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isMounted, setIsMounted] = React.useState(false);
 
-  const cleanedText = useMemo(() => cleanReasoningText(text), [text]);
-  const summary = useMemo(() => getReasoningSummary(cleanedText), [cleanedText]);
-
+  const cleanedText = React.useMemo(() => cleanReasoningText(text), [text]);
+  const summary = React.useMemo(() => getReasoningSummary(cleanedText), [cleanedText]);
+  const timeStart = typeof time?.start === 'number' && Number.isFinite(time.start) ? time.start : undefined;
+  const timeEnd = typeof time?.end === 'number' && Number.isFinite(time.end) ? time.end : undefined;
   const isEmpty = !cleanedText || cleanedText.length === 0;
+
+  React.useEffect(() => {
+    const raf = requestAnimationFrame(() => setIsMounted(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   if (isEmpty) {
     return null;
   }
 
   const label = variant === 'thinking' ? 'Thinking' : 'Justification';
-  const Icon = Brain;
-  const showStreamingDot = isStreaming || !done;
-
-  const timeStart = typeof time?.start === 'number' ? time.start : undefined;
-  const timeEnd = typeof time?.end === 'number' ? time.end : undefined;
 
   return (
-    <ToolRevealOnMount animate>
-      <details
-        className={cn('reasoning-block', className)}
-        open={isExpanded}
-        data-reasoning-block-id={blockId}
+    <div
+      className={cn('reasoning-timeline-block', isMounted && 'is-mounted', className)}
+      data-reasoning-block-id={blockId}
+      data-expanded={isExpanded}
+    >
+      <button
+        type="button"
+        className="reasoning-summary-row"
+        onClick={() => setIsExpanded((prev) => !prev)}
+        aria-expanded={isExpanded}
       >
-        <summary
-          className="reasoning-summary"
-          onClick={(e) => {
-            e.preventDefault();
-            setIsExpanded(!isExpanded);
-          }}
-        >
-          <span className="reasoning-toggle">
-            {isExpanded ? (
-              <ChevronDown size={14} className="toggle-icon-chevron" />
-            ) : (
-              <ChevronRight size={14} className="toggle-icon-chevron" />
-            )}
-            <Icon size={14} className="toggle-icon-brain" />
-          </span>
-          <span className={cn('reasoning-badge', variant === 'thinking' && 'thinking')}>
-            {label}
-          </span>
-          {summary && !isExpanded && (
-            <span className="reasoning-summary-text">{summary}</span>
-          )}
-          {timeStart !== undefined && (
-            <span className="reasoning-duration">
-              {formatDuration(timeStart, timeEnd)}
-            </span>
-          )}
-          {showStreamingDot && <span className="reasoning-streaming-dot" />}
-        </summary>
-        <div className="reasoning-body">
-          <pre className="reasoning-content">{cleanedText}</pre>
-        </div>
-      </details>
-    </ToolRevealOnMount>
+        <span className="reasoning-toggle-icon" aria-hidden="true">
+          {isExpanded ? <ChevronDown size={14} className="toggle-icon-chevron" /> : <ChevronRight size={14} className="toggle-icon-chevron" />}
+          <Brain size={14} className="toggle-icon-brain" />
+        </span>
+        <span className={cn('reasoning-badge', variant === 'thinking' && 'thinking')}>
+          {label}
+        </span>
+        {summary && !isExpanded ? (
+          <span className="reasoning-summary-text">{summary}</span>
+        ) : null}
+        {typeof timeStart === 'number' ? (
+          <span className="reasoning-duration">{formatDuration(timeStart, timeEnd)}</span>
+        ) : null}
+      </button>
+
+      <div className="reasoning-expanded-body" aria-hidden={!isExpanded}>
+        <SimpleMarkdownRenderer content={cleanedText} className="reasoning-content-markdown" />
+      </div>
+    </div>
   );
 };
 

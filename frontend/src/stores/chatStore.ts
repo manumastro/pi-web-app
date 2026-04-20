@@ -23,7 +23,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Initial state
   conversation: [],
   streaming: 'idle',
-  statusMessage: 'Connecting…',
+  statusMessage: 'Connecting',
   error: '',
   
   // Actions

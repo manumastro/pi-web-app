@@ -8,9 +8,10 @@ import { AssistantTextPart } from './parts/AssistantTextPart';
 type MessageBodyProps = {
   item: ConversationItem;
   className?: string;
+  showReasoningTraces?: boolean;
 };
 
-export const MessageBody: React.FC<MessageBodyProps> = ({ item, className }) => {
+export const MessageBody: React.FC<MessageBodyProps> = ({ item, className, showReasoningTraces = true }) => {
   switch (item.kind) {
     case 'message':
       return (
@@ -22,7 +23,7 @@ export const MessageBody: React.FC<MessageBodyProps> = ({ item, className }) => 
         />
       );
     case 'thinking':
-      return <ThinkingBody item={item} className={className} />;
+      return showReasoningTraces ? <ThinkingBody item={item} className={className} /> : null;
     case 'tool_call':
       return <ToolCallBody item={item} className={className} />;
     case 'tool_result':
@@ -51,14 +52,18 @@ const MessageContent: React.FC<MessageContentProps> = ({
   if (role === 'user') {
     return (
       <div className={cn('message-text-content', className)}>
-        {content || (status === 'streaming' ? '…' : '—')}
+        {content || '—'}
       </div>
     );
   }
 
+  if (!content || content.trim().length === 0) {
+    return null;
+  }
+
   return (
     <AssistantTextPart
-      text={content || (status === 'streaming' ? '…' : '—')}
+      text={content}
       animateTailText={status === 'streaming'}
       className={className}
     />

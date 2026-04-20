@@ -32,6 +32,7 @@ describe('config', () => {
 
       expect(config.port).toBe(3210);
       expect(config.nodeEnv).toBe('development');
+      expect(config.homeDir).toBe(process.env.HOME ?? '/home/manu');
       expect(config.sessionsDir).toBe(path.join(process.env.HOME ?? '/home/manu', '.pi/agent/sessions'));
       expect(config.sdkCwd).toBe(process.env.HOME ?? '/home/manu');
       expect(config.logLevel).toBe('info');
@@ -103,6 +104,7 @@ describe('config', () => {
 
       expect(config).toHaveProperty('port');
       expect(config).toHaveProperty('nodeEnv');
+      expect(config).toHaveProperty('homeDir');
       expect(config).toHaveProperty('sessionsDir');
       expect(config).toHaveProperty('sdkCwd');
       expect(config).toHaveProperty('model');

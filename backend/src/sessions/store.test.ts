@@ -97,10 +97,11 @@ describe('session store', () => {
   describe('updateSession', () => {
     it('should update session fields', () => {
       const session = store.createSession('/home/user');
-      const updated = store.updateSession(session.id, { status: 'prompting' });
+      const updated = store.updateSession(session.id, { status: 'prompting', title: 'Renamed session' });
 
       expect(updated).toBeDefined();
       expect(updated?.status).toBe('prompting');
+      expect(updated?.title).toBe('Renamed session');
     });
 
     it('should update updatedAt timestamp', async () => {

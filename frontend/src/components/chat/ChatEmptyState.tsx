@@ -11,11 +11,11 @@ export function ChatEmptyState({ onNewSession }: ChatEmptyStateProps) {
         <div className="empty-state-ring" />
         <div className="empty-state-core" />
       </div>
-      <p className="empty-state-title">No sessions in this workspace yet.</p>
-      <p className="empty-state-subtitle">Create a session to start chatting with the workspace.</p>
+      <p className="empty-state-title">No sessions in this project yet.</p>
+      <p className="empty-state-subtitle">Create a session in the current project to start chatting.</p>
       {onNewSession && (
         <button type="button" className="btn btn-primary btn-sm" onClick={onNewSession}>
-          Add action
+          New session
         </button>
       )}
     </div>

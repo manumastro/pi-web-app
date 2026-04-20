@@ -11,4 +11,3 @@ export { MessageHeader } from './message/MessageHeader';
 export { ReasoningPart } from './message/parts/ReasoningPart';
 export { ToolPart } from './message/parts/ToolPart';
 export { ScrollToBottomButton } from './components/ScrollToBottomButton';
-export { TurnActivity } from './components/TurnActivity';

@@ -43,11 +43,11 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
           type="button"
           className="btn btn-primary btn-sm header-action-button"
           onClick={onNewSession}
-          aria-label="Add action"
-          title="Add action"
+          aria-label="New session"
+          title="New session"
         >
           <Plus size={16} />
-          <span>Add action</span>
+          <span>New session</span>
         </button>
 
         <div className="header-title-group">
