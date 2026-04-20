@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { apiGet, apiRequest } from './api';
-import { appendPrompt } from './chatState';
 import type { SsePayload } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
 import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation, reconcileSessionDirectories, upsertDirectorySession } from './sync/bootstrap';
@@ -8,6 +7,7 @@ import { setSyncDirectory } from './sync/sync-context';
 import { reduceSessionLifecyclePayload } from './sync/event-reducer';
 import { useCurrentSessionActivity } from './sync/sync-context';
 import { isRunningSessionStatus } from './sync/sessionActivity';
+import { useSync } from './sync';
 import { getProjectLabel, normalizeProjectPath } from './lib/path';
 import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from './types';
 
@@ -51,13 +51,6 @@ function formatDirectoryLabel(cwd: string, homeDir: string): string {
   return getProjectLabel(cwd, homeDir);
 }
 
-function generateTurnId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `assistant-turn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 // ─── Connection Banner ───────────────────────────────────────────────────────
 
 function ConnectionBanner({ state, message, error }: { state: StreamingState; message: string; error?: string }) {
@@ -79,7 +72,6 @@ export default function App() {
     statusMessage,
     error,
     setConversation,
-    appendPrompt: storeAppendPrompt,
     setStreaming,
     setStatusMessage,
     setError,
@@ -92,12 +84,19 @@ export default function App() {
     selectedDirectory,
     selectedSessionId,
     setSessions,
-    addSession,
     updateSession,
-    deleteSession: deleteSessionFromStore,
     setSelectedDirectory,
     setSelectedSessionId,
   } = useSessionStore();
+
+  const {
+    createSession,
+    deleteSession: removeSession,
+    updateSessionTitle,
+    updateSessionModel,
+    abortCurrentOperation,
+    sendPrompt,
+  } = useSync();
 
   const {
     homeDirectory,
@@ -114,7 +113,6 @@ export default function App() {
     models,
     setModels,
     activeModelKey,
-    setActiveModel,
     prompt,
     setPrompt,
     showReasoningTraces,
@@ -295,102 +293,51 @@ export default function App() {
   });
 
   // ─── Handlers ───────────────────────────────────────────────────────────────
-  const submitPrompt = useCallback(async (message: string): Promise<void> => {
-    const { selectedSessionId: sessionId, currentSession, selectedDirectory } = useSessionStore.getState();
-    const { activeModelKey: activeModel, models: availableModels } = useUIStore.getState();
-    const cwd = currentSession?.cwd ?? selectedDirectory;
-    const model =
-      activeModel ||
-      availableModels.find((entry) => entry.active)?.key ||
-      availableModels.find((entry) => entry.available)?.key ||
-      currentSession?.model ||
-      '';
-
-    if (!sessionId) return;
-    if (!model) {
-      setError('No model selected');
-      setStreaming('error');
-      setStatusMessage('Error');
-      return;
-    }
-
-    try {
-      const synced = await apiRequest<{ session: SessionInfo }>('/api/models/session/model', {
-        method: 'PUT',
-        body: JSON.stringify({ sessionId, modelId: model }),
-      });
-      updateSession(synced.session.id, synced.session);
-      setSelectedSessionId(synced.session.id);
-      setSelectedDirectory(synced.session.cwd);
-      setActiveModel(model);
-      setError('');
-      setStreaming('streaming');
-      setStatusMessage('Working');
-      const turnId = generateTurnId();
-      storeAppendPrompt(message, model, turnId);
-      setPrompt('');
-      await apiRequest('/api/messages/prompt', {
-        method: 'POST',
-        body: JSON.stringify({ sessionId, cwd, message, model, messageId: turnId }),
-      });
-    } catch (cause) {
-      setStreaming('error');
-      setStatusMessage('Error');
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }, [setError, setStreaming, setStatusMessage, storeAppendPrompt, setPrompt, setSelectedSessionId, setSelectedDirectory, setActiveModel, updateSession]);
-
   const handleSend = useCallback(async (): Promise<void> => {
     const text = prompt.trim();
     if (!text) return;
-    await submitPrompt(text);
-  }, [prompt, submitPrompt]);
+    await sendPrompt({ message: text });
+  }, [prompt, sendPrompt]);
 
   const handleAbort = useCallback(async (): Promise<void> => {
     const sessionId = useSessionStore.getState().selectedSessionId;
     if (!sessionId) return;
-    await apiRequest('/api/messages/abort', {
-      method: 'POST',
-      body: JSON.stringify({ sessionId }),
-    });
-  }, []);
+    await abortCurrentOperation(sessionId);
+  }, [abortCurrentOperation]);
 
   const handleCreateSession = useCallback(async (): Promise<void> => {
     const currentModels = useUIStore.getState().models;
     const currentDirectory = useSessionStore.getState().selectedDirectory;
     const defaultModel = currentModels.find((m) => m.active)?.key ?? currentModels.find((m) => m.available)?.key ?? currentModels[0]?.key ?? '';
-    const created = await apiRequest<{ session: SessionInfo }>('/api/sessions', {
-      method: 'POST',
-      body: JSON.stringify({ cwd: currentDirectory, model: defaultModel }),
-    });
-    addSession(created.session);
-    setSyncDirectory(created.session.cwd);
-    reconcileSessionDirectories(useSessionStore.getState().sessions);
-    setSelectedSessionId(created.session.id);
-    setSelectedDirectory(created.session.cwd);
+    const created = await createSession({ cwd: currentDirectory, model: defaultModel });
+    if (!created) {
+      setStatusMessage('Session creation failed');
+      return;
+    }
 
     const projectState = useProjectStore.getState();
-    const matchingProject = projectState.projects.find((project) => project.path === created.session.cwd);
+    const matchingProject = projectState.projects.find((project) => project.path === created.cwd);
     if (matchingProject) {
       selectProject(matchingProject.id);
     } else {
-      const added = addProject(created.session.cwd);
+      const added = addProject(created.cwd);
       if (added) {
         selectProject(added.id);
       }
     }
 
-    setQueryParams({ cwd: created.session.cwd, sessionId: created.session.id });
+    setQueryParams({ cwd: created.cwd, sessionId: created.id });
     setConversation([]);
     setStatusMessage('Session ready');
-    await refreshModels(created.session.id);
-  }, [addProject, addSession, selectProject, setSelectedSessionId, setSelectedDirectory, setConversation, setStatusMessage, refreshModels]);
+    await refreshModels(created.id);
+  }, [addProject, createSession, selectProject, setConversation, setStatusMessage, refreshModels]);
 
   const handleDeleteSession = useCallback(async (targetId: string): Promise<void> => {
-    const { selectedSessionId, selectedDirectory } = useSessionStore.getState();
-    await apiRequest(`/api/sessions/${encodeURIComponent(targetId)}`, { method: 'DELETE' });
-    deleteSessionFromStore(targetId);
-    reconcileSessionDirectories(useSessionStore.getState().sessions.filter((session) => session.id !== targetId));
+    const { selectedSessionId, selectedDirectory, visibleSessions } = useSessionStore.getState();
+    const deleted = await removeSession(targetId);
+    if (!deleted) {
+      return;
+    }
 
     if (selectedSessionId === targetId) {
       const nextVisibleSession = useSessionStore.getState().visibleSessions.find((session) => session.id !== targetId);
@@ -403,7 +350,7 @@ export default function App() {
         setStatusMessage('No session');
       }
     }
-  }, [deleteSessionFromStore, loadSession, setSelectedSessionId, setConversation, setStatusMessage]);
+  }, [loadSession, removeSession, setSelectedSessionId, setConversation, setStatusMessage]);
 
   const handleDirectorySelect = useCallback(async (nextDir: string): Promise<void> => {
     const projectState = useProjectStore.getState();
@@ -473,16 +420,11 @@ export default function App() {
   }, [handleDirectorySelect, homeDirectory, removeProject, selectedDirectory, setConversation, setSelectedDirectory, setSelectedSessionId, setStatusMessage]);
 
   const handleSessionRename = useCallback(async (sessionId: string, title: string): Promise<void> => {
-    const payload = await apiRequest<{ session: SessionInfo }>(`/api/sessions/${encodeURIComponent(sessionId)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ title }),
-    });
-    updateSession(payload.session.id, { title: payload.session.title });
-    if (selectedSessionId === sessionId) {
-      setConversation(normalizeSelectedSessionConversation(payload.session));
+    const payload = await updateSessionTitle(sessionId, title);
+    if (payload && selectedSessionId === sessionId) {
+      setConversation(normalizeSelectedSessionConversation(payload));
     }
-    upsertDirectorySession(payload.session);
-  }, [selectedSessionId, setConversation, updateSession]);
+  }, [selectedSessionId, setConversation, updateSessionTitle]);
 
   const handleSessionSelect = useCallback(async (targetId: string): Promise<void> => {
     await loadSession(targetId);
@@ -498,25 +440,19 @@ export default function App() {
       setModels(currentModels.map((m) => ({ ...m, active: m.key === modelKey })));
       return;
     }
-    try {
-      const payload = await apiRequest<{ session: SessionInfo }>('/api/models/session/model', {
-        method: 'PUT',
-        body: JSON.stringify({ sessionId: currentSessionId, modelId: modelKey }),
-      });
-      updateSession(payload.session.id, payload.session);
-      setSelectedSessionId(payload.session.id);
-      setSelectedDirectory(payload.session.cwd);
-      setQueryParams({ cwd: payload.session.cwd, sessionId: payload.session.id });
-      setModels(currentModels.map((m) => ({ ...m, active: m.key === modelKey })));
-      setActiveModel(modelKey);
-      setError('');
-      await refreshModels(payload.session.id);
-    } catch (cause) {
+
+    const payload = await updateSessionModel(currentSessionId, modelKey);
+    if (!payload) {
       setStreaming('error');
       setStatusMessage('Error');
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError('Unable to update session model');
+      return;
     }
-  }, [setModels, setSelectedSessionId, setSelectedDirectory, setActiveModel, setError, setStreaming, setStatusMessage, updateSession, refreshModels]);
+
+    setQueryParams({ cwd: payload.cwd, sessionId: payload.id });
+    await refreshModels(payload.id);
+    setError('');
+  }, [refreshModels, setError, setModels, setStatusMessage, setStreaming, updateSessionModel]);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   const sidebar = (
