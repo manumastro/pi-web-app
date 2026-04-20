@@ -1,6 +1,7 @@
 import type { StreamingState } from '@/types';
 
 export type SessionActivityPhase = 'idle' | 'busy' | 'retry';
+export type SessionStatusLike = string | { type?: string | null } | null | undefined;
 
 export interface SessionActivityResult {
   phase: SessionActivityPhase;
@@ -25,24 +26,36 @@ const IDLE_RESULT: SessionActivityResult = {
   isCooldown: false,
 };
 
-export function isRunningSessionStatus(status?: string | null): boolean {
+export function getSessionStatusType(status?: SessionStatusLike): string | undefined {
   if (!status) {
-    return false;
+    return undefined;
   }
-  return RUNNING_SESSION_STATUSES.has(status);
+  if (typeof status === 'string') {
+    return status;
+  }
+  return typeof status.type === 'string' ? status.type : undefined;
 }
 
-export function getSessionActivityPhase(status?: string | null): SessionActivityPhase {
-  if (status === 'retry') {
+export function isRunningSessionStatus(status?: SessionStatusLike): boolean {
+  const type = getSessionStatusType(status);
+  if (!type) {
+    return false;
+  }
+  return RUNNING_SESSION_STATUSES.has(type);
+}
+
+export function getSessionActivityPhase(status?: SessionStatusLike): SessionActivityPhase {
+  const type = getSessionStatusType(status);
+  if (type === 'retry') {
     return 'retry';
   }
-  if (isRunningSessionStatus(status)) {
+  if (isRunningSessionStatus(type)) {
     return 'busy';
   }
   return 'idle';
 }
 
-export function getSessionActivityResult(status?: string | null): SessionActivityResult {
+export function getSessionActivityResult(status?: SessionStatusLike): SessionActivityResult {
   const phase = getSessionActivityPhase(status);
   if (phase === 'idle') {
     return IDLE_RESULT;

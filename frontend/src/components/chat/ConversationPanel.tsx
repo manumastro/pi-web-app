@@ -406,6 +406,10 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     scrollToBottom(false);
   }, [scrollToBottom]);
 
+  const hasWorkingPlaceholder = records.some(
+    (record) => record.kind === 'turn' && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming' && entry.item.content.trim().length === 0),
+  );
+
   const renderedRecords = records.flatMap((record) => {
     if (record.kind === 'user') {
       if (record.consumed) {
@@ -492,7 +496,25 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
         </div>
       ) : null}
 
-      {items.length === 0 && !errorMsg ? <SkeletonConversation /> : null}
+      {items.length === 0 && !errorMsg ? (
+        isWorking ? (
+          <div className="conversation-empty" aria-hidden="true">
+            <div className="conversation-empty-state">
+              <WorkingPlaceholder label={workingLabel} className="mt-1" />
+            </div>
+          </div>
+        ) : (
+          <SkeletonConversation />
+        )
+      ) : null}
+
+      {isWorking && !hasWorkingPlaceholder ? (
+        <div className="conversation-empty" aria-hidden="true">
+          <div className="conversation-empty-state">
+            <WorkingPlaceholder label={workingLabel} className="mt-1" />
+          </div>
+        </div>
+      ) : null}
 
       {renderedRecords}
 

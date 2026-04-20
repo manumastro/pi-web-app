@@ -3,9 +3,11 @@ import { apiGet, apiRequest } from './api';
 import { appendPrompt } from './chatState';
 import type { SsePayload } from './chatState';
 import { useSessionStream } from './hooks/useSessionStream';
-import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation } from './sync/bootstrap';
+import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation, reconcileSessionDirectories, upsertDirectorySession } from './sync/bootstrap';
+import { setSyncDirectory } from './sync/sync-context';
 import { reduceSessionLifecyclePayload } from './sync/event-reducer';
 import { useCurrentSessionActivity } from './sync/sync-context';
+import { isRunningSessionStatus } from './sync/sessionActivity';
 import { getProjectLabel, normalizeProjectPath } from './lib/path';
 import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from './types';
 
@@ -159,7 +161,9 @@ export default function App() {
   const currentDirectory = currentSession?.cwd ?? selectedDirectory;
   const currentDirectoryLabel = formatDirectoryLabel(currentDirectory, homeDirectory);
   const currentSessionActivity = useCurrentSessionActivity();
-  const interactionStreaming = currentSessionActivity.isWorking ? 'streaming' : streaming;
+  const interactionStreaming = isRunningSessionStatus(currentSession?.status) || currentSessionActivity.isWorking
+    ? 'streaming'
+    : streaming;
 
   // ─── API Functions ──────────────────────────────────────────────────────────
   const refreshModels = useCallback(async (selSessionId?: string): Promise<ModelInfo[]> => {
@@ -186,6 +190,7 @@ export default function App() {
     const payload = await apiGet<{ session: SessionInfo }>(
       `/api/sessions/${encodeURIComponent(targetSessionId)}`,
     );
+    setSyncDirectory(payload.session.cwd);
     hydrateSelectedSessionSnapshot(payload.session, {
       updateSession,
       setConversation,
@@ -194,6 +199,7 @@ export default function App() {
       setStreaming,
       setStatusMessage,
     });
+    upsertDirectorySession(payload.session);
 
     const projectState = useProjectStore.getState();
     const matchingProject = projectState.projects.find((project) => project.path === payload.session.cwd);
@@ -220,6 +226,7 @@ export default function App() {
 
       hydrateProjects(configPayload.homeDir, sessionsPayload.sessions);
       setSessions(sessionsPayload.sessions);
+      reconcileSessionDirectories(sessionsPayload.sessions);
 
       const querySessionId = getQueryParam('sessionId');
       const queryCwdRaw = getQueryParam('cwd');
@@ -238,8 +245,10 @@ export default function App() {
       const targetSessionId = querySessionId || sessionsPayload.sessions.find((session) => session.cwd === targetDirectory)?.id;
 
       if (targetSessionId) {
+        setSyncDirectory(targetDirectory);
         await loadSession(targetSessionId);
       } else {
+        setSyncDirectory(targetDirectory);
         setSelectedDirectory(targetDirectory);
         setSelectedSessionId('');
         setConversation([]);
@@ -355,6 +364,8 @@ export default function App() {
       body: JSON.stringify({ cwd: currentDirectory, model: defaultModel }),
     });
     addSession(created.session);
+    setSyncDirectory(created.session.cwd);
+    reconcileSessionDirectories(useSessionStore.getState().sessions);
     setSelectedSessionId(created.session.id);
     setSelectedDirectory(created.session.cwd);
 
@@ -379,6 +390,7 @@ export default function App() {
     const { selectedSessionId, selectedDirectory } = useSessionStore.getState();
     await apiRequest(`/api/sessions/${encodeURIComponent(targetId)}`, { method: 'DELETE' });
     deleteSessionFromStore(targetId);
+    reconcileSessionDirectories(useSessionStore.getState().sessions.filter((session) => session.id !== targetId));
 
     if (selectedSessionId === targetId) {
       const nextVisibleSession = useSessionStore.getState().visibleSessions.find((session) => session.id !== targetId);
@@ -406,6 +418,7 @@ export default function App() {
     }
 
     const { sortedSessions } = useSessionStore.getState();
+    setSyncDirectory(nextDir);
     setSelectedDirectory(nextDir);
     const next = sortedSessions.find((s) => s.cwd === nextDir);
     if (next) {
@@ -425,6 +438,7 @@ export default function App() {
     }
 
     selectProject(added.id);
+    setSyncDirectory(added.path);
     setSelectedDirectory(added.path);
     setSelectedSessionId('');
     setConversation([]);
@@ -449,6 +463,7 @@ export default function App() {
         return;
       }
 
+      setSyncDirectory(homeDirectory);
       setSelectedDirectory(homeDirectory);
       setSelectedSessionId('');
       setConversation([]);
@@ -466,6 +481,7 @@ export default function App() {
     if (selectedSessionId === sessionId) {
       setConversation(normalizeSelectedSessionConversation(payload.session));
     }
+    upsertDirectorySession(payload.session);
   }, [selectedSessionId, setConversation, updateSession]);
 
   const handleSessionSelect = useCallback(async (targetId: string): Promise<void> => {

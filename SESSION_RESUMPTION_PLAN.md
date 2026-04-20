@@ -1,12 +1,13 @@
 # Session Resumption / Live State Plan
 
 ## Goal
-Make session execution feel identical to OpenChamber when the user reloads, switches tabs, or leaves and returns to a running session:
+Make session execution and the internal architecture feel identical to OpenChamber when the user reloads, switches tabs, or leaves and returns to a running session. This is a **technical parity target**: we must replicate the OpenChamber architecture and internal flow **100%**, not just the user-visible behavior:
 
 - the backend remains authoritative for session lifecycle state
-- the frontend rehydrates that state on entry
+- the frontend rehydrates that state on entry through the same sync/bootstrap-style flow
 - a running session must still render as running even if the user left and came back
 - the visible state must be derived from persisted/live session status, not only from local transport state
+- the internal module layout, responsibilities, and data flow must converge to the OpenChamber sync architecture 1:1
 
 ## Reference behavior from OpenChamber
 
@@ -36,12 +37,38 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 - `backend/src/sdk/bridge.ts`
 - `backend/src/sse/*`
 
-### Frontend current candidates
-- `frontend/src/App.tsx`
-- `frontend/src/stores/sessionStore.ts`
-- `frontend/src/hooks/useSessionStream.ts`
-- `frontend/src/components/chat/*`
-- `frontend/src/components/session/*`
+### OpenChamber-style file parity matrix
+
+| OpenChamber file / module | Current pi-web-app equivalent | Status | Notes |
+|---|---|---|---|
+| `packages/ui/src/sync/bootstrap.ts` | `frontend/src/sync/bootstrap.ts` | implemented | hydrates the selected session snapshot on load/re-entry |
+| `packages/ui/src/sync/event-reducer.ts` | `frontend/src/sync/event-reducer.ts` | implemented | handles SSE completion/error lifecycle transitions |
+| `packages/ui/src/sync/live-aggregate.ts` | `frontend/src/sync/live-aggregate.ts` | implemented | live session/status aggregation helpers are now split into the sync layer |
+| `packages/ui/src/sync/sync-context.tsx` | `frontend/src/sync/sync-context.tsx` | implemented | hook surface now reads from the sync child-store topology |
+| `packages/ui/src/sync/index.ts` | `frontend/src/sync/index.ts` | implemented | aggregate export surface mirrors the OpenChamber sync entrypoint |
+| `packages/ui/src/sync/use-sync.ts` | none | missing | needed for the full bootstrap/flush orchestration model |
+| `packages/ui/src/sync/global-sync-store.ts` | `frontend/src/sync/global-sync-store.ts` | implemented | parity scaffolding for global sync state |
+| `packages/ui/src/sync/session-actions.ts` | none | missing | needed to separate SDK session actions from `App.tsx` |
+| `packages/ui/src/sync/sync-refs.ts` | `frontend/src/sync/sync-refs.ts` | implemented | selector helpers and stable access patterns are now split out |
+| `packages/ui/src/sync/child-store.ts` | `frontend/src/sync/child-store.ts` | implemented | per-directory store topology is now represented explicitly |
+| `packages/ui/src/sync/session-cache.ts` | none | missing | needed for the sync-layer cache semantics |
+| `packages/ui/src/sync/session-prefetch-cache.ts` | none | missing | needed for OpenChamber-like session warmup behavior |
+| `packages/ui/src/sync/streaming.ts` | none / partial `frontend/src/sync/sessionActivity.ts` | partial | activity/streaming derivation exists, but not as a dedicated streaming module yet |
+| `packages/ui/src/sync/optimistic.ts` | none | missing | optimistic mutation layer not yet ported |
+| `packages/ui/src/sync/persist-cache.ts` | none | missing | cache persistence layer not yet ported |
+| `packages/ui/src/sync/notification-store.ts` | none | missing | notification state not yet ported |
+| `packages/ui/src/sync/input-store.ts` | none | missing | draft input state still lives in current app stores |
+| `packages/ui/src/sync/selection-store.ts` | none | missing | selection state still lives in current app stores |
+| `packages/ui/src/sync/viewport-store.ts` | none | missing | viewport/session memory state still lives outside the sync layer |
+| `packages/ui/src/sync/voice-store.ts` | none | missing | voice state not yet ported |
+| `packages/ui/src/hooks/useSessionActivity.ts` | `frontend/src/hooks/useSessionActivity.ts` | compatibility wrapper | kept for current imports; should eventually become a thin proxy to the sync layer or be removed |
+
+### Frontend current candidates that still need decomposition
+- `frontend/src/App.tsx` — still orchestrates load, selection, and event handling; this should eventually shrink to a composition shell
+- `frontend/src/stores/sessionStore.ts` — currently conflates session list, status, and selection; OpenChamber splits these responsibilities across sync/UI stores
+- `frontend/src/lib/sessionActivity.ts` — compatibility re-export pending removal once imports are fully migrated
+- `frontend/src/chatState.ts` — conversation rehydration is correct for the current behavior, but long-term OpenChamber parity requires the sync-layer to own the equivalent lifecycle wiring
+- `frontend/src/components/chat/*` / `frontend/src/components/session/*` — UI consumers will need to bind to the final sync-layer selectors once the full decomposition lands
 
 ## Implementation phases
 
@@ -54,9 +81,12 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 
 ### Phase 2 — Align file structure with OpenChamber-style separation
 - [ ] split session lifecycle logic from `App.tsx`
+- [ ] split `sessionStore.ts` into sync-like session/session-ui responsibilities
+- [ ] port the remaining sync primitives (`use-sync.ts`, `session-actions.ts`, cache/persist/optimistic/session-prefetch modules) or add exact equivalents
 - [x] keep activity derivation in a dedicated hook/helper pair
 - [x] keep status mapping reusable for chat/status row/composer
 - [x] add unit tests for the new helper/hook behavior
+- [x] introduce explicit sync child-store / refs / global-store scaffolding
 
 ### Phase 3 — Verify and document
 - [x] run backend/frontend tests
@@ -72,18 +102,23 @@ OpenChamber keeps the running state in a live, authoritative `session_status` ma
 - [x] Frontend session activity rehydration implementation completed.
 - [x] App-level visual state now rehydrates from authoritative session activity.
 - [x] Tests cover the resumed-running-session case.
+- [ ] Full OpenChamber sync topology is still incomplete: `sessionStore.ts` and `App.tsx` are temporary convergence points pending the final module split, and `use-sync.ts` / the cache-optimistic-session-action modules are still to be ported.
 
 ## Notes
 
-Implemented file map:
+OpenChamber parity target file map:
 - `frontend/src/sync/sessionActivity.ts` — OpenChamber-style status helpers, now the canonical frontend activity utility
 - `frontend/src/sync/sync-context.tsx` — OpenChamber-style hook surface for session status/activity backed by the session store
 - `frontend/src/sync/bootstrap.ts` — session snapshot hydration on load/re-entry
 - `frontend/src/sync/event-reducer.ts` — SSE lifecycle reducer for done/error state transitions
-- `frontend/src/sync/live-aggregate.ts` — canonical re-export point for activity helpers
+- `frontend/src/sync/child-store.ts` — explicit per-directory store topology
+- `frontend/src/sync/global-sync-store.ts` — global sync state scaffold
+- `frontend/src/sync/live-aggregate.ts` — live session/status aggregation helpers in sync form
+- `frontend/src/sync/sync-refs.ts` — imperative selector/refs surface for the sync system
+- `frontend/src/sync/index.ts` — aggregate export surface mirroring the OpenChamber sync entrypoint
 - `frontend/src/hooks/useSessionActivity.ts` — compatibility hook wrapper for existing imports
 - `frontend/src/chatState.ts` — conversation rehydration helper that injects a running assistant placeholder for resumed busy sessions
 - `frontend/src/App.tsx` — session load/selection now uses sync-layer hydration/reducer helpers and authoritative activity state
 - `frontend/src/lib/sessionActivity.ts` — compatibility re-export while the codebase transitions to the sync-style layout
 
-Remaining gap for exact 1:1 parity: the app still orchestrates session loading in `App.tsx` instead of a full `sync/bootstrap.ts` + `sync-context.tsx` split like OpenChamber, but the live-running visual state now behaves the same.
+Remaining work for exact 1:1 parity: continue migrating the remaining app-level orchestration into the OpenChamber-style sync layer until `App.tsx` is only a composition shell, `sessionStore.ts` is split into dedicated sync/UI stores, and the missing OpenChamber modules (`use-sync.ts`, `global-sync-store.ts`, `session-actions.ts`, `sync-refs.ts`, `child-store.ts`, `session-cache.ts`, `session-prefetch-cache.ts`, `input-store.ts`, `selection-store.ts`, `viewport-store.ts`, `voice-store.ts`, `optimistic.ts`, `persist-cache.ts`, `notification-store.ts`) are either ported or intentionally superseded by an exact equivalent. The acceptance criterion is **100% technical architecture parity** with OpenChamber.
