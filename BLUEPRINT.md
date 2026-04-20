@@ -34,12 +34,12 @@
 - REST + SSE backend wiring for sessions, messages, models, and live event streaming.
 - **OpenChamber-aligned frontend** with Tailwind CSS v4, Radix UI primitives, light theme with warm/beige palette (oklch-based), IBM Plex Sans/Mono fonts, 304px sidebar, and 56px header.
 - Directory-based project navigation, session list with relative timestamps, model picker with search-first design.
-- Model selection picker now lists the full CLI-scoped registry with search/favorites; availability is reflected from live auth state and model changes reuse the shared Pi auth store (`~/.pi/agent/auth.json` + env) without a second login, instead of silently swapping models.
+- Model selection picker now mirrors OpenChamber's desktop model menu with search, favorites, recent models, collapsible provider groups, and the full CLI-scoped registry; availability is reflected from live auth state and model changes reuse the shared Pi auth store (`~/.pi/agent/auth.json` + env) without a second login, instead of silently swapping models.
 - Question/permission interaction UI was removed from the frontend; the current renderer focuses on chat turns, thinking, and tool blocks only.
 - Thinking blocks and tool calls/results now render through the new OpenChamber-style conversation panel: assistant turns are built from ordered turn records, reasoning/tool blocks start collapsed, tool output is attached to its call, user/assistant rows animate with fade/wipe reveal, and the legacy ChatMessage/TurnItem/ToolBlock/ThinkingBlock and permission/question interaction components were removed. Session history loading still reconstructs assistant reasoning/visible-answer splits and tool rows into the same turn model, so old sessions no longer leak raw thought text into the assistant body. Tool calls/results carry the originating `messageId` through the chat store and the backend persists them in session history with stringified inputs (e.g. `pwd`) and final outputs while ignoring legacy duplicate `toolResult` message-end events; the client also sends a shared turn id with each prompt so optimistic placeholders and backend SSE events stay aligned. Reloads keep the OpenChamber-style call/output blocks intact; the turn stack preserves arrival order for interleaved thinking/tool events, historical tool input formatting in `chatState.ts` was consolidated into one helper, and the frontend now uses OpenChamber-style wipe reveal animations on mount for reasoning/tool cards. The optimistic conversation row comes from the shared chat store, and the frontend now re-syncs the active model to the backend on send so refresh state works without manual re-selection.
 - Send-only composer (Enter to send, Shift+Enter newline), Stop button, Build chip.
 - SSE reconnect backoff, session existence check on SSE route, server binds to 0.0.0.0.
-- **Build/test green (19 frontend tests, 74 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
+- **Build/test green (21 frontend tests, 74 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
 - Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` and SDK compaction hooks no-op to prevent `totalTokens` crashes in multi-turn sessions.
 - systemd service launches Bash interactively so `~/.bashrc` exports (including `OPENCODE_API_KEY`) are visible to the backend, matching CLI credentials; the CLI remains the source of truth for auth/model access.
 - Model selection now persisted per-session via `PUT /api/models/session/model`; active model is selected by `isSelected` flag from the API.
@@ -1614,7 +1614,7 @@ NODE_PATH=/usr/bin/node
 - Legacy interaction panels removed from the frontend; no inline question/permission cards are rendered in the current UI.
 - SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
 - Server binds to `0.0.0.0:3210` (accessible from public IP).
-- Build green, 73 backend tests + 21 frontend tests passing, `pi-web.service` active.
+- Build green, 74 backend tests + 21 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
 - Final polish: markdown rendering in messages, syntax highlighting for code blocks, keyboard shortcuts.
