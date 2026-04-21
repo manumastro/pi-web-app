@@ -2,6 +2,7 @@ import React from 'react';
 import { Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
+import { useStreamingTextThrottle } from '../../hooks/useStreamingTextThrottle';
 
 type ReasoningVariant = 'thinking' | 'justification';
 
@@ -70,10 +71,15 @@ export const ReasoningPart: React.FC<ReasoningPartProps> = ({
   const [isMounted, setIsMounted] = React.useState(false);
 
   const cleanedText = React.useMemo(() => cleanReasoningText(text), [text]);
-  const summary = React.useMemo(() => getReasoningSummary(cleanedText), [cleanedText]);
+  const throttledText = useStreamingTextThrottle({
+    text: cleanedText,
+    isStreaming,
+    identityKey: blockId,
+  });
+  const summary = React.useMemo(() => getReasoningSummary(throttledText), [throttledText]);
   const timeStart = typeof time?.start === 'number' && Number.isFinite(time.start) ? time.start : undefined;
   const timeEnd = typeof time?.end === 'number' && Number.isFinite(time.end) ? time.end : undefined;
-  const isEmpty = !cleanedText || cleanedText.length === 0;
+  const isEmpty = !throttledText || throttledText.length === 0;
 
   React.useEffect(() => {
     const raf = requestAnimationFrame(() => setIsMounted(true));
@@ -114,7 +120,7 @@ export const ReasoningPart: React.FC<ReasoningPartProps> = ({
       </button>
 
       <div className="reasoning-expanded-body" aria-hidden={!isExpanded}>
-        <SimpleMarkdownRenderer content={cleanedText} className="reasoning-content-markdown" />
+        <SimpleMarkdownRenderer content={throttledText} className="reasoning-content-markdown" />
       </div>
     </div>
   );

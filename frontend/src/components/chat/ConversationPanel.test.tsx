@@ -121,6 +121,43 @@ describe('ConversationPanel', () => {
     expect(container.querySelector('.message-assistant-turn .working-placeholder')).not.toBeNull();
   });
 
+  it('keeps assistant-card working feedback visible while tools stream and assistant text is still empty', () => {
+    const streamingTurnItems: ConversationItem[] = [
+      {
+        kind: 'message',
+        id: 'user-stream-tools',
+        role: 'user',
+        content: 'hello',
+        timestamp: '2026-04-19T08:00:00.000Z',
+        status: 'complete',
+      },
+      {
+        kind: 'tool_call',
+        id: 'tool-stream',
+        messageId: 'assistant-stream-tools',
+        toolCallId: 'tool-stream',
+        toolName: 'bash',
+        input: 'pwd',
+        timestamp: '2026-04-19T08:00:00.500Z',
+      },
+      {
+        kind: 'message',
+        id: 'assistant-stream-tools',
+        messageId: 'assistant-stream-tools',
+        role: 'assistant',
+        content: '',
+        timestamp: 'streaming',
+        status: 'streaming',
+      },
+    ];
+
+    const { container, getByText } = render(<ConversationPanel items={streamingTurnItems} isWorking workingLabel="Working..." />);
+
+    expect(getByText('Working...')).toBeInTheDocument();
+    expect(container.querySelector('.message-assistant-turn .working-placeholder')).not.toBeNull();
+    expect(container.querySelector('.tool-block')).not.toBeNull();
+  });
+
   it('shows assistant-card working feedback only before streamed text arrives', () => {
     const streamingTurnItems: ConversationItem[] = [
       {

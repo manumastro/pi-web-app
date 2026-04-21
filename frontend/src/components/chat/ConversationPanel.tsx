@@ -398,7 +398,7 @@ function AssistantTurn({
           >
             <MessageHeader role="assistant" timestamp={formatTimestamp(assistantTimestamp)} />
 
-            {showWorkingPlaceholder && !hasNonAssistantEntries ? (
+            {showWorkingPlaceholder ? (
               <WorkingPlaceholder label={workingLabel} className="mt-1" />
             ) : null}
 

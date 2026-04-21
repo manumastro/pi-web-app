@@ -145,42 +145,41 @@ const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableDataCellElement>> = ({
   <td className="markdown-td" {...props}>{children}</td>
 );
 
-export const SimpleMarkdownRenderer: React.FC<SimpleMarkdownRendererProps> = ({
+export const SimpleMarkdownRenderer: React.FC<SimpleMarkdownRendererProps> = React.memo(function SimpleMarkdownRenderer({
   content,
   className,
   components,
-}) => {
-  const normalizedContent = normalizeMarkdownContent(content);
+}) {
+  const normalizedContent = useMemo(() => normalizeMarkdownContent(content), [content]);
+  const mergedComponents = useMemo(() => ({
+    code: ({ className, children }: { className?: string; children?: React.ReactNode }) => {
+      const isInline = !className?.startsWith('language-');
+      if (isInline) {
+        return <InlineCode>{children}</InlineCode>;
+      }
+      return <CodeBlock className={className}>{String(children)}</CodeBlock>;
+    },
+    a: Link as any,
+    table: Table,
+    thead: TableHead,
+    tbody: TableBody,
+    tr: TableRow,
+    th: TableHeaderCell,
+    td: TableCell,
+    ...components,
+  }), [components]);
+
   if (!normalizedContent) {
     return null;
   }
 
   return (
     <div className={cn('markdown-body', className)}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code: ({ className, children, ...props }) => {
-            const isInline = !className?.startsWith('language-');
-            if (isInline) {
-              return <InlineCode>{children}</InlineCode>;
-            }
-            return <CodeBlock className={className}>{String(children)}</CodeBlock>;
-          },
-          a: Link as any,
-          table: Table,
-          thead: TableHead,
-          tbody: TableBody,
-          tr: TableRow,
-          th: TableHeaderCell,
-          td: TableCell,
-          ...components,
-        }}
-      >
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mergedComponents}>
         {normalizedContent}
       </ReactMarkdown>
     </div>
   );
-};
+});
 
 export default SimpleMarkdownRenderer;
