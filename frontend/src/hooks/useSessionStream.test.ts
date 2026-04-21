@@ -49,15 +49,17 @@ class MockEventSource {
 function Harness({
   sessionId,
   onPayload,
+  onPayloadBatch,
   onConnected,
   onConnectionLost,
 }: {
   sessionId?: string;
   onPayload: (payload: SsePayload) => void;
+  onPayloadBatch?: (payloads: SsePayload[]) => void;
   onConnected: () => void;
   onConnectionLost: () => void;
 }) {
-  useSessionStream({ sessionId, onPayload, onConnected, onConnectionLost });
+  useSessionStream({ sessionId, onPayload, onPayloadBatch, onConnected, onConnectionLost });
   useEffect(() => undefined, []);
   return null;
 }
@@ -97,6 +99,7 @@ describe('useSessionStream', () => {
       content: 'Hello',
       timestamp: '2026-04-15T10:00:00.000Z',
     });
+    await vi.advanceTimersByTimeAsync(16);
     expect(onPayload).toHaveBeenCalledWith(expect.objectContaining({ type: 'text_chunk', content: 'Hello' }));
 
     instance.fail();
@@ -104,5 +107,46 @@ describe('useSessionStream', () => {
 
     await vi.advanceTimersByTimeAsync(3000);
     expect(MockEventSource.instances).toHaveLength(2);
+  });
+
+  it('batches multiple payloads arriving in the same frame', async () => {
+    const onPayload = vi.fn();
+    const onPayloadBatch = vi.fn();
+    const onConnected = vi.fn();
+    const onConnectionLost = vi.fn();
+
+    render(
+      React.createElement(Harness, {
+        sessionId: 'session-1',
+        onPayload,
+        onPayloadBatch,
+        onConnected,
+        onConnectionLost,
+      }),
+    );
+
+    const instance = MockEventSource.instances[0]!;
+    instance.emit('text_chunk', {
+      type: 'text_chunk',
+      sessionId: 'session-1',
+      messageId: 'm1',
+      content: 'Hel',
+      timestamp: '2026-04-15T10:00:00.000Z',
+    });
+    instance.emit('text_chunk', {
+      type: 'text_chunk',
+      sessionId: 'session-1',
+      messageId: 'm1',
+      content: 'lo',
+      timestamp: '2026-04-15T10:00:00.020Z',
+    });
+
+    expect(onPayloadBatch).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(16);
+    expect(onPayloadBatch).toHaveBeenCalledWith([
+      expect.objectContaining({ content: 'Hel' }),
+      expect.objectContaining({ content: 'lo' }),
+    ]);
+    expect(onPayload).not.toHaveBeenCalled();
   });
 });

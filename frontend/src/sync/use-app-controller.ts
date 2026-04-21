@@ -3,7 +3,7 @@ import { apiGet } from '@/api';
 import type { SsePayload } from '@/sync/conversation';
 import { useSessionStream } from '@/hooks/useSessionStream';
 import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation, reconcileSessionDirectories, upsertDirectorySession } from './bootstrap';
-import { reduceSessionLifecyclePayload } from './event-reducer';
+import { reduceSessionLifecyclePayload, reduceSessionLifecyclePayloads } from './event-reducer';
 import { markSessionViewed } from './notification-store';
 import { useCurrentSessionActivity, setSyncDirectory } from './sync-context';
 import { useStreamingSession, type StreamPhase } from './streaming';
@@ -313,6 +313,18 @@ export function useAppController(): AppController {
     onPayload: (payload: SsePayload) => {
       const currentConversation = useChatStore.getState().conversation;
       reduceSessionLifecyclePayload(currentConversation, payload, {
+        setConversation,
+        updateSession,
+        setStreaming,
+        setStatusMessage,
+      });
+    },
+    onPayloadBatch: (payloads: SsePayload[]) => {
+      if (payloads.length === 0) {
+        return;
+      }
+      const currentConversation = useChatStore.getState().conversation;
+      reduceSessionLifecyclePayloads(currentConversation, payloads, {
         setConversation,
         updateSession,
         setStreaming,

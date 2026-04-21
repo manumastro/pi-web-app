@@ -78,42 +78,59 @@ export function reduceSessionLifecyclePayload(
   payload: SsePayload,
   deps: SessionLifecycleReducerDeps,
 ): ConversationItem[] {
-  const updatedConversation = applySsePayload(currentConversation, payload);
+  return reduceSessionLifecyclePayloads(currentConversation, [payload], deps);
+}
+
+export function reduceSessionLifecyclePayloads(
+  currentConversation: ConversationItem[],
+  payloads: SsePayload[],
+  deps: SessionLifecycleReducerDeps,
+): ConversationItem[] {
+  if (payloads.length === 0) {
+    return currentConversation;
+  }
+
+  let updatedConversation = currentConversation;
+  for (const payload of payloads) {
+    updatedConversation = applySsePayload(updatedConversation, payload);
+    applyStreamingPayloadState(payload.sessionId, payload, updatedConversation);
+  }
+
   deps.setConversation(updatedConversation);
-  applyStreamingPayloadState(payload.sessionId, payload, updatedConversation);
 
-  const nextStatus = transitionStatusForPayload(payload);
-  patchSessionStatus(deps.directory, payload.sessionId, nextStatus);
+  const finalPayload = payloads[payloads.length - 1]!;
+  const nextStatus = transitionStatusForPayload(finalPayload);
+  patchSessionStatus(deps.directory, finalPayload.sessionId, nextStatus);
 
-  if (payload.type === 'done') {
-    deps.updateSession(payload.sessionId, { status: 'idle' });
+  if (finalPayload.type === 'done') {
+    deps.updateSession(finalPayload.sessionId, { status: 'idle' });
     deps.setStreaming('idle');
-    deps.setStatusMessage(payload.aborted ? 'Stopped' : 'Connected');
+    deps.setStatusMessage(finalPayload.aborted ? 'Stopped' : 'Connected');
     appendNotification({
       type: 'turn-complete',
-      session: payload.sessionId,
+      session: finalPayload.sessionId,
       directory: deps.directory,
       time: Date.now(),
       viewed: false,
     });
-  } else if (payload.type === 'error') {
-    deps.updateSession(payload.sessionId, { status: 'error' });
+  } else if (finalPayload.type === 'error') {
+    deps.updateSession(finalPayload.sessionId, { status: 'error' });
     deps.setStreaming('error');
     deps.setStatusMessage('Error');
     appendNotification({
       type: 'error',
-      session: payload.sessionId,
+      session: finalPayload.sessionId,
       directory: deps.directory,
       time: Date.now(),
       viewed: false,
       error: {
-        message: payload.message,
+        message: finalPayload.message,
       },
     });
   } else if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
     deps.setStreaming('streaming');
   }
 
-  patchSessionMessages(deps.directory, payload.sessionId, updatedConversation);
+  patchSessionMessages(deps.directory, finalPayload.sessionId, updatedConversation);
   return updatedConversation;
 }
