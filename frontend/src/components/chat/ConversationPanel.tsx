@@ -628,10 +628,17 @@ const StreamingTailContent = React.memo(function StreamingTailContent({
 export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...' }: ConversationPanelProps) {
   const records = React.useMemo(() => buildRenderRecords(items), [items]);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
+  const bottomAnchorRef = React.useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = React.useRef(true);
   const [showScrollButton, setShowScrollButton] = React.useState(false);
 
   const scrollToBottom = React.useCallback((instant = false) => {
+    const anchor = bottomAnchorRef.current;
+    if (anchor && typeof anchor.scrollIntoView === 'function') {
+      anchor.scrollIntoView({ block: 'end', behavior: instant ? 'auto' : 'smooth' });
+      return;
+    }
+
     const el = panelRef.current;
     if (!el) {
       return;
@@ -666,7 +673,7 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     };
   }, []);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!shouldAutoScrollRef.current) {
       return;
     }
@@ -736,6 +743,8 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
           workingLabel={workingLabel}
         />
       ) : null}
+
+      <div ref={bottomAnchorRef} aria-hidden="true" className="conversation-bottom-anchor" />
 
       <ScrollToBottomButton visible={showScrollButton} onClick={handleScrollToBottom} />
     </div>
