@@ -10,6 +10,29 @@ export default defineConfig({
   build: {
     outDir: '../dist/public',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return undefined;
+          }
+
+          if (id.includes('react-markdown') || id.includes('remark-gfm') || id.includes('marked')) {
+            return 'markdown-vendor';
+          }
+
+          if (id.includes('@radix-ui') || id.includes('sonner')) {
+            return 'ui-vendor';
+          }
+
+          if (id.includes('lucide-react')) {
+            return 'icon-vendor';
+          }
+
+          return undefined;
+        },
+      },
+    },
   },
   resolve: {
     alias: {
