@@ -374,6 +374,10 @@ function AssistantTurn({
 
     return !entry.result;
   });
+  const nonAssistantEntries = entries.filter((entry) => entry.kind !== 'assistant');
+  const assistantEntries = entries.filter((entry): entry is Extract<ToolTurnEntry, { kind: 'assistant' }> => entry.kind === 'assistant');
+  const orderedEntries: ToolTurnEntry[] = [...nonAssistantEntries, ...assistantEntries];
+  const hasNonAssistantEntries = nonAssistantEntries.length > 0;
 
   return (
     <section className="turn-item" id={`turn-${turnId}`} data-turn-id={turnId}>
@@ -394,13 +398,13 @@ function AssistantTurn({
           >
             <MessageHeader role="assistant" timestamp={formatTimestamp(assistantTimestamp)} />
 
-            {showWorkingPlaceholder ? (
+            {showWorkingPlaceholder && !hasNonAssistantEntries ? (
               <WorkingPlaceholder label={workingLabel} className="mt-1" />
             ) : null}
 
-            {entries.length > 0 ? (
+            {orderedEntries.length > 0 ? (
               <div className="message-turn-stack">
-                {entries.map((entry) => renderTurnEntry(entry, showReasoningTraces)).filter((entry): entry is React.ReactElement => Boolean(entry))}
+                {orderedEntries.map((entry) => renderTurnEntry(entry, showReasoningTraces)).filter((entry): entry is React.ReactElement => Boolean(entry))}
               </div>
             ) : null}
 
@@ -453,20 +457,24 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
   }, []);
 
   React.useEffect(() => {
-    if (shouldAutoScrollRef.current) {
-      scrollToBottom(true);
+    if (!shouldAutoScrollRef.current) {
+      return;
     }
-  }, [items.length, scrollToBottom]);
+
+    const rafId = window.requestAnimationFrame(() => {
+      scrollToBottom(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [items, scrollToBottom]);
 
   const handleScrollToBottom = React.useCallback(() => {
     shouldAutoScrollRef.current = true;
     setShowScrollButton(false);
     scrollToBottom(false);
   }, [scrollToBottom]);
-
-  const hasWorkingPlaceholder = records.some(
-    (record) => record.kind === 'turn' && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming' && entry.item.content.trim().length === 0),
-  );
 
   const renderedRecords = records.flatMap((record) => {
     if (record.kind === 'user') {
@@ -493,7 +501,11 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
           entries={record.entries}
           firstTimestamp={record.firstTimestamp}
           showReasoningTraces={showReasoningTraces}
-          showWorkingPlaceholder={isWorking && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming' && entry.item.content.trim().length === 0)}
+          showWorkingPlaceholder={
+            isWorking
+            && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming')
+            && !record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0)
+          }
           workingLabel={workingLabel}
         />,
       ];
@@ -567,12 +579,6 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
       ) : null}
 
       {renderedRecords}
-
-      {isWorking && items.length > 0 && !hasWorkingPlaceholder ? (
-        <div className="conversation-working-tail" aria-hidden="true">
-          <WorkingPlaceholder label={workingLabel} className="mt-1" />
-        </div>
-      ) : null}
 
       <ScrollToBottomButton visible={showScrollButton} onClick={handleScrollToBottom} />
     </div>

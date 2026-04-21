@@ -64,7 +64,7 @@ const MessageContent: React.FC<MessageContentProps> = ({
   return (
     <AssistantTextPart
       text={content}
-      animateTailText={status === 'streaming'}
+      isStreaming={status === 'streaming'}
       className={className}
     />
   );

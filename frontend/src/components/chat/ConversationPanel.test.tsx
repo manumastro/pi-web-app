@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
-import { appendPrompt, type ConversationItem } from '@/sync/conversation';
+import type { ConversationItem } from '@/sync/conversation';
 import { ConversationPanel } from './ConversationPanel';
 
 const items: ConversationItem[] = [
@@ -94,28 +94,59 @@ describe('ConversationPanel', () => {
     expect(container.querySelector('.reasoning-content-markdown')).toHaveTextContent('checking cwd');
   });
 
-  it('renders a working placeholder at message level for an empty streaming assistant response', () => {
-    const streamingItems = appendPrompt([], 'hello');
+  it('renders a working placeholder inside the assistant card for an empty streaming response with no tool/reasoning entries', () => {
+    const streamingItems: ConversationItem[] = [
+      {
+        kind: 'message',
+        id: 'user-empty-stream',
+        role: 'user',
+        content: 'hello',
+        timestamp: '2026-04-19T08:10:00.000Z',
+        status: 'complete',
+      },
+      {
+        kind: 'message',
+        id: 'assistant-empty-stream',
+        messageId: 'assistant-empty-stream',
+        role: 'assistant',
+        content: '',
+        timestamp: 'streaming',
+        status: 'streaming',
+      },
+    ];
+
     const { getByText, container } = render(<ConversationPanel items={streamingItems} isWorking workingLabel="Working..." />);
 
     expect(getByText('Working...')).toBeInTheDocument();
     expect(container.querySelector('.message-assistant-turn .working-placeholder')).not.toBeNull();
   });
 
-  it('renders global working feedback at the bottom when a streaming placeholder is not attached to a turn', () => {
-    const { container } = render(<ConversationPanel items={items} isWorking workingLabel="Working..." />);
+  it('shows assistant-card working feedback only before streamed text arrives', () => {
+    const streamingTurnItems: ConversationItem[] = [
+      {
+        kind: 'message',
+        id: 'user-stream',
+        role: 'user',
+        content: 'hello',
+        timestamp: '2026-04-19T08:00:00.000Z',
+        status: 'complete',
+      },
+      {
+        kind: 'message',
+        id: 'assistant-stream',
+        messageId: 'assistant-stream',
+        role: 'assistant',
+        content: 'Sto generando',
+        timestamp: '2026-04-19T08:00:01.000Z',
+        status: 'streaming',
+      },
+    ];
 
-    const turn = container.querySelector('.turn-item');
-    const tail = container.querySelector('.conversation-working-tail');
+    const { container, queryByText } = render(<ConversationPanel items={streamingTurnItems} isWorking workingLabel="Working..." />);
 
-    expect(tail).not.toBeNull();
-    expect(turn).not.toBeNull();
-
-    if (!turn || !tail) {
-      throw new Error('Expected both turn and working tail to exist');
-    }
-
-    expect(turn.compareDocumentPosition(tail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelector('.message-assistant-turn .working-placeholder')).toBeNull();
+    expect(queryByText('Working...')).toBeNull();
+    expect(container.querySelector('.conversation-working-tail')).toBeNull();
   });
 
   it('hides reasoning traces when disabled', () => {

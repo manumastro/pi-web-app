@@ -400,7 +400,7 @@
 }
 
 .message {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.45rem;
   border-radius: 0.75rem;
   overflow: hidden;
 }
@@ -408,8 +408,8 @@
 .message-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
+  gap: 0.35rem;
+  margin-bottom: 0.15rem;
 }
 
 .message-role {
@@ -427,12 +427,12 @@
 
 .message-content {
   font-size: var(--text-markdown);
-  line-height: 1.32;
+  line-height: 1.18;
   color: var(--foreground);
 }
 
 .message-assistant-body {
-  margin-top: 0.5rem;
+  margin-top: 0.28rem;
 }
 
 .message-user {
@@ -493,8 +493,8 @@
 .message-turn-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 0.45rem;
+  gap: 0.16rem;
+  margin-top: 0.2rem;
 }
 
 .message-turn-stack .message {
@@ -1207,13 +1207,6 @@
     padding: 2.5rem 1rem 3rem;
   }
 
-  .conversation-working-tail {
-    display: flex;
-    align-items: center;
-    min-height: 1.5rem;
-    padding: 0.125rem 0.75rem 0.5rem;
-  }
-
   .conversation-skeleton {
     display: flex;
     flex-direction: column;
@@ -1739,7 +1732,7 @@
 }
 
 .reasoning-expanded-body[aria-hidden='false'] {
-  padding: 0.75rem 0 0.25rem 0.75rem;
+  padding: 0.45rem 0 0.12rem 0.6rem;
   max-height: 28rem;
   opacity: 1;
   transform: translateY(0);
@@ -1748,9 +1741,9 @@
 }
 
 .reasoning-content-markdown {
-  border-radius: 0.6rem;
+  border-radius: 0.5rem;
   background: color-mix(in oklab, var(--surface-2) 60%, transparent);
-  padding: 0.65rem 0.8rem;
+  padding: 0.42rem 0.55rem;
 }
 
 .working-placeholder {
@@ -1793,9 +1786,9 @@
 .tool-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 0.6rem 0.45rem 0.5rem;
-  border-radius: 0.75rem;
+  gap: 0.4rem;
+  padding: 0.28rem 0.45rem 0.28rem 0.35rem;
+  border-radius: 0.6rem;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
@@ -1835,12 +1828,12 @@
 .tool-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 1.35rem;
-  padding: 0 0.5rem;
+  min-height: 1.1rem;
+  padding: 0 0.35rem;
   border-radius: 999px;
   background: color-mix(in oklab, var(--surface-3) 64%, transparent);
   color: color-mix(in oklab, var(--foreground) 70%, transparent);
-  font-size: 0.6875rem;
+  font-size: 0.65625rem;
   font-weight: 600;
   font-family: var(--font-mono);
 }
@@ -1874,10 +1867,10 @@
 }
 
 .tool-content {
-  padding: 0.15rem 0.6rem 0.6rem 0.6rem;
+  padding: 0.05rem 0.45rem 0.4rem 0.45rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.3rem;
 }
 
 .tool-section {
@@ -1885,12 +1878,12 @@
 }
 
 .tool-section-label {
-  font-size: 0.65625rem;
+  font-size: 0.625rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: color-mix(in oklab, var(--foreground) 52%, transparent);
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.18rem;
 }
 
 .tool-section-label.error {
@@ -1900,15 +1893,15 @@
 .tool-input,
 .tool-output {
   margin: 0;
-  padding: 0.45rem 0.6rem;
+  padding: 0.32rem 0.45rem;
   font-family: var(--font-mono);
   font-size: var(--text-code);
-  line-height: 1.4;
+  line-height: 1.24;
   white-space: pre-wrap;
   word-break: break-word;
   background: color-mix(in oklab, var(--surface-2) 76%, var(--background) 24%);
   border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
-  border-radius: 0.5rem;
+  border-radius: 0.45rem;
   color: var(--foreground);
 }
 
@@ -1944,7 +1937,7 @@
 
 .markdown-body {
   font-size: 0.9375rem;
-  line-height: 1.32;
+  line-height: 1.18;
   color: var(--foreground);
 }
 
@@ -1953,7 +1946,7 @@
 }
 
 .markdown-body p + p {
-  margin-top: 0.12em;
+  margin-top: 0;
 }
 
 .markdown-body p:first-child {
@@ -1975,7 +1968,7 @@
 .markdown-body ul,
 .markdown-body ol {
   padding-left: 1.2em;
-  margin: 0.14em 0;
+  margin: 0.04em 0;
 }
 
 .markdown-body ul {
@@ -1987,18 +1980,18 @@
 }
 
 .markdown-body li {
-  margin: 0.06em 0;
+  margin: 0;
 }
 
 .markdown-body blockquote {
-  margin: 0.35em 0;
-  padding: 0.2em 0.65em;
+  margin: 0.2em 0;
+  padding: 0.12em 0.55em;
   border-left: 3px solid var(--border);
   color: color-mix(in oklab, var(--foreground) 75%, transparent);
 }
 
 .markdown-body hr {
-  margin: 0.75em 0;
+  margin: 0.45em 0;
   border: none;
   border-top: 1px solid var(--border);
 }
