@@ -1633,18 +1633,19 @@ NODE_PATH=/usr/bin/node
 - Fixed fallback lookup in `frontend/src/sync/conversation.ts` so unknown `messageId` chunks update the latest assistant/thinking entry instead of the oldest one, preventing cross-turn content bleed and “stuck streaming” placeholders when multiple turns are present.
 - Added regression tests for generated turn-id propagation (`frontend/src/sync/session-actions.test.ts`), delayed user/assistant attachment (`frontend/src/components/chat/ConversationPanel.test.tsx`), latest-item fallback chunk routing (`frontend/src/sync/conversation.test.ts`), markdown spacing normalization, and GFM table rendering (`frontend/src/components/chat/MarkdownRenderer.test.tsx`).
 - Removed Tailwind `prose` class from chat markdown and normalized excessive blank lines (3+ newlines collapsed to 2) in `frontend/src/components/chat/MarkdownRenderer.tsx` to prevent oversized vertical spacing in assistant answers after refresh.
-- Aligned markdown output behavior with OpenChamber patterns by tightening paragraph/list/code spacing in `frontend/src/styles.css` and adding explicit GFM table rendering/styling (wrapper + bordered cells) in `frontend/src/components/chat/MarkdownRenderer.tsx`.
+- Aligned markdown output behavior with OpenChamber patterns by tightening paragraph/list/code spacing in the frontend global stylesheet (now `frontend/src/index.css`) and adding explicit GFM table rendering/styling (wrapper + bordered cells) in `frontend/src/components/chat/MarkdownRenderer.tsx`.
 - Updated `ConversationPanel` fallback working indicator placement so, while generating, the global working hint is rendered as a compact tail at the bottom of the conversation (instead of appearing above existing messages), matching OpenChamber flow.
 - Removed the bottom status bar (`StatusRow`) from `App.tsx` so working feedback is no longer shown in a separate footer strip; stop control remains in the composer and generation feedback stays in the assistant conversation flow (OpenChamber-aligned behavior).
 - Updated streaming UX to better match OpenChamber: assistant "Working" placeholder is now shown only before text chunks arrive and hidden while tool/reasoning entries are active (never as a detached bottom-left indicator), turn entries render tool/reasoning blocks before assistant text during generation, and streaming auto-scroll now follows chunk updates with `requestAnimationFrame` for smoother motion.
 - Reduced streaming render overhead by using lightweight plain-text rendering while assistant content is `streaming` plus a small text-throttle window for chunk updates (markdown parsing is applied after completion), improving perceived output smoothness.
 - Replaced streaming shine/tail rendering with plain throttled text updates in `AssistantTextPart` to remove chunk-jitter and better match OpenChamber's smooth streaming behavior.
-- Further tightened chat density in `frontend/src/styles.css` (message/stack/markdown + tool/reasoning spacing and paddings) to align vertical rhythm more closely with OpenChamber.
-- Tightened chat vertical rhythm in `frontend/src/styles.css` (message header/content/turn-stack and markdown paragraph/list line spacing) to reduce oversized row gaps and better match OpenChamber density.
+- Further tightened chat density in the frontend global stylesheet (now `frontend/src/index.css`) (message/stack/markdown + tool/reasoning spacing and paddings) to align vertical rhythm more closely with OpenChamber.
+- Tightened chat vertical rhythm in the frontend global stylesheet (now `frontend/src/index.css`) (message header/content/turn-stack and markdown paragraph/list line spacing) to reduce oversized row gaps and better match OpenChamber density.
 - Added explicit OpenChamber-style tool output card styling for the new tool renderer classes (`tool-block`, `tool-content`, `tool-input`, `tool-output`, `tool-timestamp`) so expanded tool payloads no longer inherit browser `pre` defaults that caused large vertical whitespace.
 - Disabled inferred assistant-content splitting into pseudo-thinking on rehydration (`frontend/src/sync/conversation.ts`), so normal multi-paragraph assistant replies are no longer misclassified as reasoning blocks after refresh.
 - Frontend localStorage cache persistence is now disabled by default (project/ui/model/theme + sync metadata), with an explicit opt-in flag `VITE_ENABLE_FRONTEND_CACHE=true`; startup clears stale `pi-web-app:*` and `pi.dir.*` keys when cache is disabled.
 - Backend static hosting now disables HTTP caching for frontend assets + `index.html` by default via `PI_WEB_DISABLE_FRONTEND_HTTP_CACHE=true` (no-store/no-cache headers), with explicit opt-out by setting it to `false`.
+- Frontend stylesheet architecture now mirrors OpenChamber 1:1: single CSS entrypoint `frontend/src/index.css` importing `styles/design-system.css`, `styles/typography.css`, and `styles/mobile.css`; `frontend/src/styles.css` removed.
 
 #### Deferred
 - Light theme, virtualization for long conversations, slash commands, todo system, shell mode.
@@ -1710,6 +1711,7 @@ NODE_PATH=/usr/bin/node
 - [ ] Virtualized message list (for long sessions) - deferred
 - [x] Keyboard shortcuts (Enter to send)
 - [x] OpenChamber-aligned working indicator placement and compact message spacing in chat rendering
+- [x] OpenChamber 1:1 stylesheet structure (`index.css` entrypoint + semantic tokens/typography/mobile split)
 - [ ] Accessibility (ARIA labels, keyboard nav) - partial
 - [ ] Favicon, meta tags
 - [ ] **Gate**: Full user journey works smoothly - partial

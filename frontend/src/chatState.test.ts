@@ -29,7 +29,7 @@ describe('conversation', () => {
     expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'message', role: 'assistant', status: 'streaming', content: '' }));
   });
 
-  it('splits assistant reasoning from the visible answer and keeps tool calls/results attached to the turn', () => {
+  it('keeps persisted assistant content intact and keeps tool calls/results attached to the same turn', () => {
     const conversation = messagesToConversation([
       { id: 'u1', role: 'user', content: 'hi', timestamp: '2026-04-15T10:00:00.000Z' },
       { id: 'a1', role: 'assistant', messageId: 'turn-1', content: 'I should answer briefly.\n\n\nHi! How can I help?', timestamp: '2026-04-15T10:00:01.000Z' },
@@ -40,17 +40,27 @@ describe('conversation', () => {
 
     expect(conversation).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'thinking', content: 'I should answer briefly.' }),
-        expect.objectContaining({ kind: 'message', role: 'assistant', content: 'Hi! How can I help?' }),
-        expect.objectContaining({ kind: 'tool_call', toolName: 'bash', input: 'pwd' }),
-        expect.objectContaining({ kind: 'tool_result', toolCallId: 'call-1', result: '/home/manu' }),
-        expect.objectContaining({ kind: 'thinking', content: 'The cwd is known now.' }),
-        expect.objectContaining({ kind: 'message', role: 'assistant', content: 'Siamo in `/home/manu`.' }),
+        expect.objectContaining({ kind: 'message', role: 'assistant', id: 'a1', messageId: 'turn-1' }),
+        expect.objectContaining({ kind: 'tool_call', toolName: 'bash', input: 'pwd', messageId: 'turn-1' }),
+        expect.objectContaining({ kind: 'tool_result', toolCallId: 'call-1', result: '/home/manu', messageId: 'turn-1' }),
+        expect.objectContaining({ kind: 'message', role: 'assistant', id: 'a3', messageId: 'turn-1' }),
       ]),
     );
 
-    expect(conversation.some((item) => item.kind === 'message' && item.id === 'a1')).toBe(true);
-    expect(conversation.some((item) => item.kind === 'message' && item.id === 'a3')).toBe(true);
+    const firstAssistant = conversation.find((item) => item.kind === 'message' && item.id === 'a1');
+    const secondAssistant = conversation.find((item) => item.kind === 'message' && item.id === 'a3');
+    expect(firstAssistant?.kind).toBe('message');
+    expect(secondAssistant?.kind).toBe('message');
+    if (firstAssistant?.kind === 'message') {
+      expect(firstAssistant.content).toContain('I should answer briefly.');
+      expect(firstAssistant.content).toContain('Hi! How can I help?');
+    }
+    if (secondAssistant?.kind === 'message') {
+      expect(secondAssistant.content).toContain('The cwd is known now.');
+      expect(secondAssistant.content).toContain('Siamo in `/home/manu`.');
+    }
+
+    expect(conversation.some((item) => item.kind === 'thinking')).toBe(false);
   });
 
   it('appends a prompt with thinking above the assistant draft', () => {
