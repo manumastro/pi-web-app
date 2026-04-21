@@ -11,7 +11,7 @@ type MessageBodyProps = {
   showReasoningTraces?: boolean;
 };
 
-export const MessageBody: React.FC<MessageBodyProps> = ({ item, className, showReasoningTraces = true }) => {
+export const MessageBody: React.FC<MessageBodyProps> = React.memo(function MessageBody({ item, className, showReasoningTraces = true }) {
   switch (item.kind) {
     case 'message':
       return (
@@ -33,7 +33,7 @@ export const MessageBody: React.FC<MessageBodyProps> = ({ item, className, showR
     default:
       return null;
   }
-};
+}, (prev, next) => prev.item === next.item && prev.className === next.className && prev.showReasoningTraces === next.showReasoningTraces);
 
 // Message content rendering with markdown support
 interface MessageContentProps {

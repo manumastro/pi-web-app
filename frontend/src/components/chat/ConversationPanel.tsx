@@ -503,7 +503,7 @@ function areRenderRecordsEquivalent(left: RenderRecord[], right: RenderRecord[])
   });
 }
 
-const ConversationHistory = React.memo(function ConversationHistory({
+const StaticHistoryList = React.memo(function StaticHistoryList({
   records,
   showReasoningTraces,
   isWorking,
@@ -597,6 +597,32 @@ const ConversationHistory = React.memo(function ConversationHistory({
     && prev.isWorking === next.isWorking
     && prev.workingLabel === next.workingLabel
     && areRenderRecordsEquivalent(prev.records, next.records);
+});
+
+const StreamingTailContent = React.memo(function StreamingTailContent({
+  record,
+  showReasoningTraces,
+  isWorking,
+  workingLabel,
+}: {
+  record: RenderRecord;
+  showReasoningTraces: boolean;
+  isWorking: boolean;
+  workingLabel: string;
+}) {
+  return (
+    <StaticHistoryList
+      records={[record]}
+      showReasoningTraces={showReasoningTraces}
+      isWorking={isWorking}
+      workingLabel={workingLabel}
+    />
+  );
+}, (prev, next) => {
+  return prev.showReasoningTraces === next.showReasoningTraces
+    && prev.isWorking === next.isWorking
+    && prev.workingLabel === next.workingLabel
+    && prev.record === next.record;
 });
 
 export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...' }: ConversationPanelProps) {
@@ -695,7 +721,7 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
         )
       ) : null}
 
-      <ConversationHistory
+      <StaticHistoryList
         records={historyRecords}
         showReasoningTraces={showReasoningTraces}
         isWorking={isWorking}
@@ -703,8 +729,8 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
       />
 
       {trailingStreamingRecord ? (
-        <ConversationHistory
-          records={[trailingStreamingRecord]}
+        <StreamingTailContent
+          record={trailingStreamingRecord}
           showReasoningTraces={showReasoningTraces}
           isWorking={isWorking}
           workingLabel={workingLabel}

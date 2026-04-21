@@ -25,12 +25,12 @@ const roleColors: Record<MessageRole, string> = {
   tool: 'role-tool',
 };
 
-export const MessageHeader: React.FC<MessageHeaderProps> = ({
+export const MessageHeader: React.FC<MessageHeaderProps> = React.memo(function MessageHeader({
   role,
   timestamp,
   agentName,
   className,
-}) => {
+}) {
   return (
     <div className={cn('message-header', className)}>
       <span className={cn('message-role-badge', roleColors[role])}>
@@ -43,6 +43,6 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({
       )}
     </div>
   );
-};
+});
 
 export default MessageHeader;
