@@ -399,6 +399,10 @@
   padding: 1rem;
 }
 
+.history-record-static {
+  contain: layout style paint;
+}
+
 .message {
   margin-bottom: 0.45rem;
   border-radius: 0.75rem;

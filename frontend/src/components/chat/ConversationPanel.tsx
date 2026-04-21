@@ -477,6 +477,18 @@ const AssistantTurn = React.memo(function AssistantTurn({
   });
 });
 
+function wrapStaticHistoryNode(key: string, node: React.ReactElement): React.ReactElement {
+  return (
+    <div
+      key={key}
+      className="history-record history-record-static"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '320px' }}
+    >
+      {node}
+    </div>
+  );
+}
+
 function areRenderRecordsEquivalent(left: RenderRecord[], right: RenderRecord[]): boolean {
   if (left.length !== right.length) return false;
 
@@ -532,31 +544,36 @@ const StaticHistoryList = React.memo(function StaticHistoryList({
       }
 
       return [
-        <FadeInOnReveal key={record.item.id} animate>
-          <article className={cn('message', 'message-user')}>
-            <MessageHeader role="user" timestamp={formatTimestamp(record.item.timestamp)} />
-            <MessageBody item={record.item} showReasoningTraces={showReasoningTraces} />
-          </article>
-        </FadeInOnReveal>,
+        wrapStaticHistoryNode(
+          record.item.id,
+          <FadeInOnReveal animate>
+            <article className={cn('message', 'message-user')}>
+              <MessageHeader role="user" timestamp={formatTimestamp(record.item.timestamp)} />
+              <MessageBody item={record.item} showReasoningTraces={showReasoningTraces} />
+            </article>
+          </FadeInOnReveal>,
+        ),
       ];
     }
 
     if (record.kind === 'turn') {
       return [
-        <AssistantTurn
-          key={record.turnId}
-          turnId={record.turnId}
-          userMessage={record.userMessage}
-          entries={record.entries}
-          firstTimestamp={record.firstTimestamp}
-          showReasoningTraces={showReasoningTraces}
-          showWorkingPlaceholder={
-            isWorking
-            && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming')
-            && !record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0)
-          }
-          workingLabel={workingLabel}
-        />,
+        wrapStaticHistoryNode(
+          record.turnId,
+          <AssistantTurn
+            turnId={record.turnId}
+            userMessage={record.userMessage}
+            entries={record.entries}
+            firstTimestamp={record.firstTimestamp}
+            showReasoningTraces={showReasoningTraces}
+            showWorkingPlaceholder={
+              isWorking
+              && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming')
+              && !record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0)
+            }
+            workingLabel={workingLabel}
+          />,
+        ),
       ];
     }
 
@@ -564,44 +581,50 @@ const StaticHistoryList = React.memo(function StaticHistoryList({
       if (record.item.kind === 'thinking') {
         return showReasoningTraces
           ? [
-              <ReasoningPart
-                key={record.item.id}
-                text={record.item.content}
-                variant="thinking"
-                blockId={record.item.id}
-                done={record.item.done}
-                isStreaming={!record.item.done}
-              />,
+              wrapStaticHistoryNode(
+                record.item.id,
+                <ReasoningPart
+                  text={record.item.content}
+                  variant="thinking"
+                  blockId={record.item.id}
+                  done={record.item.done}
+                  isStreaming={!record.item.done}
+                />,
+              ),
             ]
           : [];
       }
 
       if (record.item.kind === 'tool_call') {
         return [
-          <ToolPart
-            key={record.item.id}
-            toolId={record.item.toolCallId}
-            toolName={record.item.toolName}
-            input={record.item.input}
-            status="pending"
-            timestamp={formatTimestamp(record.item.timestamp)}
-          />,
+          wrapStaticHistoryNode(
+            record.item.id,
+            <ToolPart
+              toolId={record.item.toolCallId}
+              toolName={record.item.toolName}
+              input={record.item.input}
+              status="pending"
+              timestamp={formatTimestamp(record.item.timestamp)}
+            />,
+          ),
         ];
       }
 
       return [
-        <ToolPart
-          key={record.item.id}
-          toolId={record.item.toolCallId}
-          toolName="result"
-          output={record.item.result}
-          status={record.item.success ? 'success' : 'error'}
-          timestamp={formatTimestamp(record.item.timestamp)}
-        />,
+        wrapStaticHistoryNode(
+          record.item.id,
+          <ToolPart
+            toolId={record.item.toolCallId}
+            toolName="result"
+            output={record.item.result}
+            status={record.item.success ? 'success' : 'error'}
+            timestamp={formatTimestamp(record.item.timestamp)}
+          />,
+        ),
       ];
     }
 
-    return [renderStandaloneMessage(record.item, showReasoningTraces)];
+    return [wrapStaticHistoryNode(record.item.id, renderStandaloneMessage(record.item, showReasoningTraces))];
   });
 }, (prev, next) => {
   return prev.showReasoningTraces === next.showReasoningTraces
