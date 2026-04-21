@@ -102,6 +102,22 @@ describe('ConversationPanel', () => {
     expect(container.querySelector('.message-assistant-turn .working-placeholder')).not.toBeNull();
   });
 
+  it('renders global working feedback at the bottom when a streaming placeholder is not attached to a turn', () => {
+    const { container } = render(<ConversationPanel items={items} isWorking workingLabel="Working..." />);
+
+    const turn = container.querySelector('.turn-item');
+    const tail = container.querySelector('.conversation-working-tail');
+
+    expect(tail).not.toBeNull();
+    expect(turn).not.toBeNull();
+
+    if (!turn || !tail) {
+      throw new Error('Expected both turn and working tail to exist');
+    }
+
+    expect(turn.compareDocumentPosition(tail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('hides reasoning traces when disabled', () => {
     const { container, queryByText } = render(<ConversationPanel items={items} showReasoningTraces={false} />);
 

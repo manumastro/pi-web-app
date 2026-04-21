@@ -566,15 +566,13 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
         )
       ) : null}
 
-      {isWorking && !hasWorkingPlaceholder ? (
-        <div className="conversation-empty" aria-hidden="true">
-          <div className="conversation-empty-state">
-            <WorkingPlaceholder label={workingLabel} className="mt-1" />
-          </div>
+      {renderedRecords}
+
+      {isWorking && items.length > 0 && !hasWorkingPlaceholder ? (
+        <div className="conversation-working-tail" aria-hidden="true">
+          <WorkingPlaceholder label={workingLabel} className="mt-1" />
         </div>
       ) : null}
-
-      {renderedRecords}
 
       <ScrollToBottomButton visible={showScrollButton} onClick={handleScrollToBottom} />
     </div>

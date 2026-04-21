@@ -400,7 +400,7 @@
 }
 
 .message {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   border-radius: 0.75rem;
   overflow: hidden;
 }
@@ -409,7 +409,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .message-role {
@@ -427,12 +427,12 @@
 
 .message-content {
   font-size: var(--text-markdown);
-  line-height: 1.4;
+  line-height: 1.32;
   color: var(--foreground);
 }
 
 .message-assistant-body {
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
 }
 
 .message-user {
@@ -493,8 +493,8 @@
 .message-turn-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
-  margin-top: 0.625rem;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
 }
 
 .message-turn-stack .message {
@@ -1205,6 +1205,13 @@
     align-items: center;
     justify-content: center;
     padding: 2.5rem 1rem 3rem;
+  }
+
+  .conversation-working-tail {
+    display: flex;
+    align-items: center;
+    min-height: 1.5rem;
+    padding: 0.125rem 0.75rem 0.5rem;
   }
 
   .conversation-skeleton {
@@ -1937,7 +1944,7 @@
 
 .markdown-body {
   font-size: 0.9375rem;
-  line-height: 1.4;
+  line-height: 1.32;
   color: var(--foreground);
 }
 
@@ -1946,7 +1953,7 @@
 }
 
 .markdown-body p + p {
-  margin-top: 0.2em;
+  margin-top: 0.12em;
 }
 
 .markdown-body p:first-child {
@@ -1968,7 +1975,7 @@
 .markdown-body ul,
 .markdown-body ol {
   padding-left: 1.2em;
-  margin: 0.2em 0;
+  margin: 0.14em 0;
 }
 
 .markdown-body ul {
@@ -1980,7 +1987,7 @@
 }
 
 .markdown-body li {
-  margin: 0.1em 0;
+  margin: 0.06em 0;
 }
 
 .markdown-body blockquote {

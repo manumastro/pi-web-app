@@ -406,6 +406,7 @@ No hardcoded paths. Ever.
 | Image support (paste/pick) | **P2** | V3 | Medium | ❌ Deferred |
 | Steer / Follow-up | **P2** | V3 | Low | ✅ Proven |
 | Session status in sidebar | **P1** | V2 | Low | ✅ Proven |
+| OpenChamber-style working indicator placement + compact message spacing | **P1** | V2 | Low | ✅ Proven |
 | Error pattern detection | **P2** | V3 | High | ⚠️ Partial |
 | Context compaction display | **P2** | V3 | Low | ✅ Proven |
 | Server log viewer | **P3** | V4 | Low | ✅ Proven |
@@ -1610,6 +1611,8 @@ NODE_PATH=/usr/bin/node
 
 ### 15.0 Status Snapshot
 
+> Maintenance note: after every significant change, update this snapshot **and** the `Current state` line in `AGENTS.md`.
+
 #### Done (2026-04-18)
 - Backend SDK bridge, dynamic model registry, JSONL session persistence, SSE replay, and REST/SSE wiring.
 - Frontend OpenChamber-style UI: Flexoki dark palette (#151313/#da702c/#cecdc3), IBM Plex Sans/Mono fonts, 280px sidebar with project/session/model sections, 48px header with status chip.
@@ -1631,6 +1634,8 @@ NODE_PATH=/usr/bin/node
 - Added regression tests for generated turn-id propagation (`frontend/src/sync/session-actions.test.ts`), delayed user/assistant attachment (`frontend/src/components/chat/ConversationPanel.test.tsx`), latest-item fallback chunk routing (`frontend/src/sync/conversation.test.ts`), markdown spacing normalization, and GFM table rendering (`frontend/src/components/chat/MarkdownRenderer.test.tsx`).
 - Removed Tailwind `prose` class from chat markdown and normalized excessive blank lines (3+ newlines collapsed to 2) in `frontend/src/components/chat/MarkdownRenderer.tsx` to prevent oversized vertical spacing in assistant answers after refresh.
 - Aligned markdown output behavior with OpenChamber patterns by tightening paragraph/list/code spacing in `frontend/src/styles.css` and adding explicit GFM table rendering/styling (wrapper + bordered cells) in `frontend/src/components/chat/MarkdownRenderer.tsx`.
+- Updated `ConversationPanel` fallback working indicator placement so, while generating, the global working hint is rendered as a compact tail at the bottom of the conversation (instead of appearing above existing messages), matching OpenChamber flow.
+- Tightened chat vertical rhythm in `frontend/src/styles.css` (message header/content/turn-stack and markdown paragraph/list line spacing) to reduce oversized row gaps and better match OpenChamber density.
 - Added explicit OpenChamber-style tool output card styling for the new tool renderer classes (`tool-block`, `tool-content`, `tool-input`, `tool-output`, `tool-timestamp`) so expanded tool payloads no longer inherit browser `pre` defaults that caused large vertical whitespace.
 - Disabled inferred assistant-content splitting into pseudo-thinking on rehydration (`frontend/src/sync/conversation.ts`), so normal multi-paragraph assistant replies are no longer misclassified as reasoning blocks after refresh.
 - Frontend localStorage cache persistence is now disabled by default (project/ui/model/theme + sync metadata), with an explicit opt-in flag `VITE_ENABLE_FRONTEND_CACHE=true`; startup clears stale `pi-web-app:*` and `pi.dir.*` keys when cache is disabled.
@@ -1699,6 +1704,7 @@ NODE_PATH=/usr/bin/node
 - [ ] Syntax highlighting (highlight.js) - deferred
 - [ ] Virtualized message list (for long sessions) - deferred
 - [x] Keyboard shortcuts (Enter to send)
+- [x] OpenChamber-aligned working indicator placement and compact message spacing in chat rendering
 - [ ] Accessibility (ARIA labels, keyboard nav) - partial
 - [ ] Favicon, meta tags
 - [ ] **Gate**: Full user journey works smoothly - partial
