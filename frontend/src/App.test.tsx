@@ -105,6 +105,7 @@ beforeEach(() => {
             available: true,
             isSelected: true,
             provider: 'anthropic',
+            reasoning: true,
           },
           {
             key: 'openai/gpt-4o',
@@ -113,8 +114,15 @@ beforeEach(() => {
             available: true,
             isSelected: false,
             provider: 'openai',
+            reasoning: false,
           },
         ],
+      };
+    }
+    if (path === '/api/models/session/thinking?sessionId=session-1') {
+      return {
+        currentLevel: 'medium',
+        availableLevels: ['minimal', 'low', 'medium', 'high'],
       };
     }
     if (path === '/api/models') {
@@ -127,6 +135,7 @@ beforeEach(() => {
             available: true,
             isSelected: true,
             provider: 'anthropic',
+            reasoning: true,
           },
         ],
       };

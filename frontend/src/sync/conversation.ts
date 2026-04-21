@@ -86,6 +86,7 @@ function toMessageItem(message: SessionMessage): MessageItem {
     content: message.content,
     timestamp: message.timestamp,
     status: 'complete',
+    messageId: message.messageId,
   };
 }
 
@@ -220,7 +221,9 @@ function lastMessageIndex(
       continue;
     }
 
-    fallbackIndex = index;
+    if (fallbackIndex < 0) {
+      fallbackIndex = index;
+    }
     if (!messageId || item.messageId === messageId) {
       return index;
     }
@@ -256,7 +259,9 @@ function lastThinkingIndex(items: ConversationItem[], messageId?: string): numbe
     if (!item || item.kind !== 'thinking') {
       continue;
     }
-    fallbackIndex = index;
+    if (fallbackIndex < 0) {
+      fallbackIndex = index;
+    }
     if (!messageId || item.messageId === messageId) {
       return index;
     }
@@ -299,6 +304,21 @@ function upsertThinkingBeforeAssistant(items: ConversationItem[], item: Thinking
   const next = [...items];
   if (assistantIndex >= 0) {
     next.splice(assistantIndex, 0, item);
+    return next;
+  }
+
+  // No assistant with a matching messageId — append to the last turn by
+  // finding the assistant message with the latest timestamp, then insert
+  // before it (keeps thinking above the answer).
+  const lastAssistantIndex = items.reduce<number>((best, entry, idx) => {
+    if (entry.kind === 'message' && entry.role === 'assistant') {
+      return idx > best ? idx : best;
+    }
+    return best;
+  }, -1);
+
+  if (lastAssistantIndex >= 0) {
+    next.splice(lastAssistantIndex, 0, item);
     return next;
   }
 
@@ -462,6 +482,7 @@ export function appendPrompt(conversation: ConversationItem[], text: string, tur
       content: text,
       timestamp: new Date().toISOString(),
       status: 'complete',
+      messageId: assistantTurnId,
     },
     {
       kind: 'thinking',

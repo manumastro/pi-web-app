@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { cacheGetItem, cacheRemoveItem, cacheSetItem } from '@/lib/frontend-cache';
 import type { SessionInfo } from '@/types';
 import { createProjectIdFromPath, getProjectLabel, normalizeProjectPath } from '@/lib/path';
 
@@ -28,16 +29,12 @@ const STORAGE_KEY = 'pi-web-app:projects';
 const ACTIVE_PROJECT_KEY = 'pi-web-app:active-project';
 
 function readStoredProjects(): ProjectEntry[] {
-  if (typeof window === 'undefined') {
+  const raw = cacheGetItem(STORAGE_KEY);
+  if (!raw) {
     return [];
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) {
       return [];
@@ -59,36 +56,16 @@ function readStoredProjects(): ProjectEntry[] {
 }
 
 function readStoredActiveProjectId(): string {
-  if (typeof window === 'undefined') {
-    return '';
-  }
-
-  try {
-    return window.localStorage.getItem(ACTIVE_PROJECT_KEY) ?? '';
-  } catch {
-    return '';
-  }
+  return cacheGetItem(ACTIVE_PROJECT_KEY) ?? '';
 }
 
 function persistProjects(projects: ProjectEntry[], activeProjectId: string): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
+  cacheSetItem(STORAGE_KEY, JSON.stringify(projects));
 
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-  } catch {
-    // ignored
-  }
-
-  try {
-    if (activeProjectId) {
-      window.localStorage.setItem(ACTIVE_PROJECT_KEY, activeProjectId);
-    } else {
-      window.localStorage.removeItem(ACTIVE_PROJECT_KEY);
-    }
-  } catch {
-    // ignored
+  if (activeProjectId) {
+    cacheSetItem(ACTIVE_PROJECT_KEY, activeProjectId);
+  } else {
+    cacheRemoveItem(ACTIVE_PROJECT_KEY);
   }
 }
 

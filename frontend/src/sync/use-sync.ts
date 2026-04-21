@@ -7,6 +7,7 @@ import {
   deleteSession,
   sendPrompt,
   updateSessionModel,
+  updateSessionThinkingLevel,
   updateSessionTitle,
 } from './session-actions';
 
@@ -18,6 +19,7 @@ export interface SyncActions {
   deleteSession: typeof deleteSession;
   updateSessionTitle: typeof updateSessionTitle;
   updateSessionModel: typeof updateSessionModel;
+  updateSessionThinkingLevel: typeof updateSessionThinkingLevel;
   abortCurrentOperation: typeof abortCurrentOperation;
   sendPrompt: typeof sendPrompt;
 }
@@ -31,6 +33,7 @@ export function useSync(): SyncActions {
   const remove = useCallback(deleteSession, []);
   const rename = useCallback(updateSessionTitle, []);
   const retargetModel = useCallback(updateSessionModel, []);
+  const retargetThinking = useCallback(updateSessionThinkingLevel, []);
   const abort = useCallback(abortCurrentOperation, []);
   const prompt = useCallback(sendPrompt, []);
 
@@ -43,9 +46,10 @@ export function useSync(): SyncActions {
       deleteSession: remove,
       updateSessionTitle: rename,
       updateSessionModel: retargetModel,
+      updateSessionThinkingLevel: retargetThinking,
       abortCurrentOperation: abort,
       sendPrompt: prompt,
     }),
-    [activeModelKey, abort, create, currentDirectory, currentSessionId, prompt, remove, rename, retargetModel],
+    [activeModelKey, abort, create, currentDirectory, currentSessionId, prompt, remove, rename, retargetModel, retargetThinking],
   );
 }

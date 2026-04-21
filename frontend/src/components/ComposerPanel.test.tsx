@@ -3,9 +3,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ComposerPanel from './chat/ComposerPanel';
 
 const mockModels = [
-  { key: 'anthropic/claude-3-5-sonnet', id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', available: true, active: false, provider: 'anthropic' },
-  { key: 'google-gemini/gemini-pro', id: 'gemini-pro', label: 'Gemini Pro', available: true, active: true, provider: 'google-gemini' },
-  { key: 'openai/gpt-4o', id: 'gpt-4o', label: 'GPT-4o', available: true, active: false, provider: 'openai' },
+  { key: 'anthropic/claude-3-5-sonnet', id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', available: true, active: false, provider: 'anthropic', reasoning: true },
+  { key: 'google-gemini/gemini-pro', id: 'gemini-pro', label: 'Gemini Pro', available: true, active: true, provider: 'google-gemini', reasoning: true },
+  { key: 'openai/gpt-4o', id: 'gpt-4o', label: 'GPT-4o', available: true, active: false, provider: 'openai', reasoning: false },
 ];
 
 beforeEach(() => {
@@ -99,7 +99,7 @@ describe('ComposerPanel', () => {
     expect(onModelSelect).toHaveBeenCalledWith('openai/gpt-4o');
   });
 
-  it('persists favourites in localStorage', async () => {
+  it('marks favourites in-memory when cache persistence is disabled', async () => {
     render(
       <ComposerPanel
         prompt="hello world"
@@ -115,13 +115,32 @@ describe('ComposerPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Claude 3.5 Sonnet' }));
 
-    const favoriteButton = await screen.findAllByRole('button', { name: 'Add to favorites' });
-    fireEvent.click(favoriteButton[0]);
+    const favoriteButtons = await screen.findAllByRole('button', { name: 'Add to favorites' });
+    fireEvent.click(favoriteButtons[0]);
 
     await waitFor(() => {
-      expect(JSON.parse(localStorage.getItem('pi-web-app:model-favorites') ?? '[]')).toContain(
-        'anthropic/claude-3-5-sonnet',
-      );
+      expect(screen.getAllByRole('button', { name: 'Remove from favorites' }).length).toBeGreaterThan(0);
     });
+  });
+
+  it('shows an inline thinking-level error when provided', () => {
+    render(
+      <ComposerPanel
+        prompt="hello world"
+        streaming="idle"
+        models={mockModels}
+        activeModelKey="google-gemini/gemini-pro"
+        availableThinkingLevels={['minimal', 'low', 'medium']}
+        activeThinkingLevel="medium"
+        thinkingLevelError="No API key for anthropic/claude-3-5-sonnet-20241022"
+        onPromptChange={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+        onModelSelect={vi.fn()}
+        onThinkingLevelSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No API key for anthropic/claude-3-5-sonnet-20241022');
   });
 });

@@ -1,19 +1,22 @@
 import { create } from 'zustand';
-import type { ModelInfo } from '@/types';
+import { cacheGetItem, cacheSetItem } from '@/lib/frontend-cache';
+import type { ModelInfo, ThinkingLevel } from '@/types';
 
 interface UIState {
   // Sidebar state
   sidebarOpen: boolean;
   modelFilter: string;
   showReasoningTraces: boolean;
-  
+
   // Model state
   models: ModelInfo[];
   activeModelKey: string;
-  
+  availableThinkingLevels: ThinkingLevel[];
+  activeThinkingLevel?: ThinkingLevel;
+
   // Composer state
   prompt: string;
-  
+
   // Actions
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -21,38 +24,23 @@ interface UIState {
   setShowReasoningTraces: (value: boolean) => void;
   setModels: (models: ModelInfo[]) => void;
   setActiveModel: (key: string) => void;
+  setThinkingConfig: (levels: ThinkingLevel[], active?: ThinkingLevel) => void;
   setPrompt: (prompt: string) => void;
 }
 
 const SHOW_REASONING_STORAGE_KEY = 'pi-web-app:show-reasoning-traces';
 
 function readStoredShowReasoningTraces(): boolean {
-  if (typeof window === 'undefined') {
+  const raw = cacheGetItem(SHOW_REASONING_STORAGE_KEY);
+  if (raw === null) {
     return true;
   }
 
-  try {
-    const raw = window.localStorage.getItem(SHOW_REASONING_STORAGE_KEY);
-    if (raw === null) {
-      return true;
-    }
-
-    return raw !== 'false';
-  } catch {
-    return true;
-  }
+  return raw !== 'false';
 }
 
 function persistShowReasoningTraces(value: boolean): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(SHOW_REASONING_STORAGE_KEY, value ? 'true' : 'false');
-  } catch {
-    // ignored
-  }
+  cacheSetItem(SHOW_REASONING_STORAGE_KEY, value ? 'true' : 'false');
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -62,8 +50,10 @@ export const useUIStore = create<UIState>((set) => ({
   showReasoningTraces: readStoredShowReasoningTraces(),
   models: [],
   activeModelKey: '',
+  availableThinkingLevels: [],
+  activeThinkingLevel: undefined,
   prompt: '',
-  
+
   // Actions
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
@@ -72,7 +62,7 @@ export const useUIStore = create<UIState>((set) => ({
     persistShowReasoningTraces(showReasoningTraces);
     set({ showReasoningTraces });
   },
-  
+
   setModels: (models) => {
     const active = models.find((m) => m.active && m.available)
       ?? models.find((m) => m.available)
@@ -82,7 +72,8 @@ export const useUIStore = create<UIState>((set) => ({
       activeModelKey: active?.key ?? '',
     });
   },
-  
+
   setActiveModel: (activeModelKey) => set({ activeModelKey }),
+  setThinkingConfig: (availableThinkingLevels, activeThinkingLevel) => set({ availableThinkingLevels, activeThinkingLevel }),
   setPrompt: (prompt) => set({ prompt }),
 }));

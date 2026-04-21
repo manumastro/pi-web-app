@@ -28,6 +28,9 @@ export default function App() {
     models,
     activeModelKey,
     showReasoningTraces,
+    availableThinkingLevels,
+    activeThinkingLevel,
+    thinkingLevelError,
     prompt,
     setPrompt,
     projectDirectories,
@@ -48,6 +51,7 @@ export default function App() {
     handleSessionRename,
     handleSessionSelect,
     handleModelSelect,
+    handleThinkingLevelSelect,
   } = useAppController();
 
   const sidebar = useMemo(() => (
@@ -109,10 +113,14 @@ export default function App() {
         streaming={interactionStreaming}
         models={models}
         activeModelKey={activeModelKey}
+        availableThinkingLevels={availableThinkingLevels}
+        activeThinkingLevel={activeThinkingLevel}
+        thinkingLevelError={thinkingLevelError}
         onPromptChange={setPrompt}
         onSend={handleSend}
         onAbort={handleAbort}
         onModelSelect={handleModelSelect}
+        onThinkingLevelSelect={handleThinkingLevelSelect}
       />
     </ChatView>
   ) : (
@@ -131,6 +139,7 @@ export default function App() {
         content={content}
         connectionBanner={connectionBanner}
         sidebarOpen={sidebarOpen}
+        onSidebarClose={toggleSidebar}
       />
       <Toaster />
     </>

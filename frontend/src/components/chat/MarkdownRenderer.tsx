@@ -11,6 +11,13 @@ interface SimpleMarkdownRendererProps {
   components?: Record<string, React.ComponentType<any>>;
 }
 
+export function normalizeMarkdownContent(content: string): string {
+  return content
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 // Simple code block component with syntax highlighting
 const CodeBlock: React.FC<{ children: string; className?: string; node?: any }> = ({
   children,
@@ -112,17 +119,44 @@ const Link: React.FC<{ href: string; children: React.ReactNode }> = ({ href, chi
   );
 };
 
+const Table: React.FC<React.TableHTMLAttributes<HTMLTableElement>> = ({ children, ...props }) => (
+  <div className="markdown-table-wrap">
+    <table className="markdown-table" {...props}>{children}</table>
+  </div>
+);
+
+const TableHead: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({ children, ...props }) => (
+  <thead className="markdown-thead" {...props}>{children}</thead>
+);
+
+const TableBody: React.FC<React.HTMLAttributes<HTMLTableSectionElement>> = ({ children, ...props }) => (
+  <tbody className="markdown-tbody" {...props}>{children}</tbody>
+);
+
+const TableRow: React.FC<React.HTMLAttributes<HTMLTableRowElement>> = ({ children, ...props }) => (
+  <tr className="markdown-tr" {...props}>{children}</tr>
+);
+
+const TableHeaderCell: React.FC<React.ThHTMLAttributes<HTMLTableHeaderCellElement>> = ({ children, ...props }) => (
+  <th className="markdown-th" {...props}>{children}</th>
+);
+
+const TableCell: React.FC<React.TdHTMLAttributes<HTMLTableDataCellElement>> = ({ children, ...props }) => (
+  <td className="markdown-td" {...props}>{children}</td>
+);
+
 export const SimpleMarkdownRenderer: React.FC<SimpleMarkdownRendererProps> = ({
   content,
   className,
   components,
 }) => {
-  if (!content || content.trim().length === 0) {
+  const normalizedContent = normalizeMarkdownContent(content);
+  if (!normalizedContent) {
     return null;
   }
 
   return (
-    <div className={cn('markdown-body', 'prose', className)}>
+    <div className={cn('markdown-body', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -134,10 +168,16 @@ export const SimpleMarkdownRenderer: React.FC<SimpleMarkdownRendererProps> = ({
             return <CodeBlock className={className}>{String(children)}</CodeBlock>;
           },
           a: Link as any,
+          table: Table,
+          thead: TableHead,
+          tbody: TableBody,
+          tr: TableRow,
+          th: TableHeaderCell,
+          td: TableCell,
           ...components,
         }}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

@@ -108,7 +108,7 @@ function ProjectMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 opacity-0 group-hover:opacity-100"
+          className="sidebar-row-menu-trigger inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 opacity-0 group-hover:opacity-100"
           aria-label="Project menu"
           onClick={(event) => event.stopPropagation()}
         >
@@ -423,7 +423,7 @@ export function SidebarPanel({
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"
-                              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-opacity opacity-0 group-hover:opacity-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                              className="sidebar-row-menu-trigger inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-opacity opacity-0 group-hover:opacity-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                               aria-label="Session menu"
                             >
                               <MoreHorizontal className="h-3.5 w-3.5" />

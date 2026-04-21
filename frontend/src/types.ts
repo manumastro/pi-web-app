@@ -9,11 +9,14 @@ export interface SessionMessage {
   success?: boolean;
 }
 
+export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+
 export interface SessionInfo {
   id: string;
   cwd: string;
   title?: string;
   model?: string;
+  thinkingLevel?: ThinkingLevel;
   status: string;
   messages: SessionMessage[];
   createdAt: string;
@@ -34,6 +37,7 @@ export interface ModelInfo {
   available: boolean;
   active: boolean;
   provider: string | undefined;
+  reasoning: boolean;
 }
 
 export type StreamingState = 'idle' | 'connecting' | 'streaming' | 'error';

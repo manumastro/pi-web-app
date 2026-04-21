@@ -7,6 +7,7 @@ import {
   createAgentSession,
   type AgentSessionEvent,
 } from '@mariozechner/pi-coding-agent';
+import type { ThinkingLevel } from '@mariozechner/pi-ai';
 import type { Config } from '../config/index.js';
 import {
   modelKey,
@@ -26,6 +27,7 @@ export interface PromptRequest {
   message: string;
   model?: string;
   messageId?: string;
+  thinkingLevel?: ThinkingLevel | undefined;
 }
 
 export interface PromptResult {
@@ -38,6 +40,8 @@ export interface SdkBridge {
   prompt: (request: PromptRequest) => Promise<PromptResult>;
   abort: (sessionId: string) => Promise<void>;
   setModel: (sessionId: string, modelKey: string) => Promise<void>;
+  setThinkingLevel: (sessionId: string, thinkingLevel: ThinkingLevel) => Promise<void>;
+  getThinkingLevels: (sessionId: string) => Promise<{ currentLevel: ThinkingLevel | undefined; availableLevels: ThinkingLevel[] }>;
 }
 
 interface ActiveAgentSession {
@@ -320,8 +324,12 @@ export function createSdkBridge(params: {
     if (parsedModel) {
       const model = modelRegistry.find(parsedModel.provider, parsedModel.modelId);
       if (model) {
-        session.setModel(model as never);
+        await session.setModel(model as never);
       }
+    }
+
+    if (stored.thinkingLevel) {
+      session.setThinkingLevel(stored.thinkingLevel);
     }
 
     if (stored.messages.length > 0) {
@@ -511,7 +519,7 @@ export function createSdkBridge(params: {
     const assistantMessageId = request.messageId ?? config.generateSessionId();
 
     sessionStore.updateSession(session.id, { status: 'busy', cwd, model: resolvedModelKey });
-    sessionStore.addMessage(session.id, { role: 'user', content: request.message });
+    sessionStore.addMessage(session.id, { role: 'user', content: request.message, messageId: assistantMessageId });
 
     try {
       const active = await getOrCreateAgentSession(session.id, cwd, resolvedModelKey);
@@ -523,8 +531,14 @@ export function createSdkBridge(params: {
       if (parsed) {
         const model = modelRegistry.find(parsed.provider, parsed.modelId);
         if (model) {
-          active.agentSession.setModel(model as never);
+          await active.agentSession.setModel(model as never);
         }
+      }
+
+      const effectiveThinkingLevel = request.thinkingLevel ?? session.thinkingLevel;
+      if (effectiveThinkingLevel) {
+        active.agentSession.setThinkingLevel(effectiveThinkingLevel as ThinkingLevel);
+        sessionStore.updateSession(session.id, { thinkingLevel: effectiveThinkingLevel });
       }
 
       await active.agentSession.prompt(request.message);
@@ -586,10 +600,46 @@ export function createSdkBridge(params: {
     if (parsed) {
       const model = modelRegistry.find(parsed.provider, parsed.modelId);
       if (model) {
-        active.agentSession.setModel(model as never);
+        await active.agentSession.setModel(model as never);
       }
+    }
+
+    if (session.thinkingLevel) {
+      active.agentSession.setThinkingLevel(session.thinkingLevel);
     }
   }
 
-  return { listModels, prompt, abort, setModel };
+  async function setThinkingLevel(sessionId: string, thinkingLevel: ThinkingLevel): Promise<void> {
+    const session = sessionStore.getSession(sessionId);
+    if (!session) {
+      return;
+    }
+
+    const active = await getOrCreateAgentSession(sessionId, session.cwd, session.model);
+    active.agentSession.setThinkingLevel(thinkingLevel);
+    sessionStore.updateSession(sessionId, { thinkingLevel });
+  }
+
+  async function getThinkingLevels(sessionId: string): Promise<{ currentLevel: ThinkingLevel | undefined; availableLevels: ThinkingLevel[] }> {
+    const session = sessionStore.getSession(sessionId);
+    if (!session) {
+      return { currentLevel: undefined, availableLevels: [] };
+    }
+
+    const allowedLevels: ThinkingLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+    const active = await getOrCreateAgentSession(sessionId, session.cwd, session.model);
+    if (session.thinkingLevel) {
+      active.agentSession.setThinkingLevel(session.thinkingLevel);
+    }
+    const allLevels = active.agentSession.getAvailableThinkingLevels();
+    const availableLevels = (allLevels as unknown as ThinkingLevel[])
+      .filter((l) => allowedLevels.includes(l));
+    const rawCurrent = active.agentSession.thinkingLevel as unknown as ThinkingLevel | undefined;
+    const currentLevel: ThinkingLevel | undefined = allowedLevels.includes(rawCurrent as ThinkingLevel)
+      ? rawCurrent
+      : undefined;
+    return { currentLevel, availableLevels };
+  }
+
+  return { listModels, prompt, abort, setModel, setThinkingLevel, getThinkingLevels };
 }

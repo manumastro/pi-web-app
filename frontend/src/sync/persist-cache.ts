@@ -1,3 +1,4 @@
+import { cacheGetItem, cacheRemoveItem, cacheSetItem, isFrontendCacheEnabled } from '@/lib/frontend-cache';
 import type { SyncDirectoryState } from './types';
 
 export type PersistedDirCache = {
@@ -28,11 +29,16 @@ function cacheKey(directory: string, key: CacheKey): string {
 }
 
 function readCache<T>(directory: string, key: CacheKey): T | undefined {
+  if (!isFrontendCacheEnabled()) {
+    return undefined;
+  }
+
+  const raw = cacheGetItem(cacheKey(directory, key));
+  if (!raw) {
+    return undefined;
+  }
+
   try {
-    const raw = globalThis.localStorage?.getItem(cacheKey(directory, key));
-    if (!raw) {
-      return undefined;
-    }
     return JSON.parse(raw) as T;
   } catch {
     return undefined;
@@ -40,28 +46,26 @@ function readCache<T>(directory: string, key: CacheKey): T | undefined {
 }
 
 function writeCache<T>(directory: string, key: CacheKey, value: T | undefined): void {
-  try {
-    const storage = globalThis.localStorage;
-    if (!storage) {
-      return;
-    }
-    const k = cacheKey(directory, key);
-    if (value === undefined) {
-      storage.removeItem(k);
-    } else {
-      storage.setItem(k, JSON.stringify(value));
-    }
-  } catch {
-    // ignore quota / storage errors
+  if (!isFrontendCacheEnabled()) {
+    return;
   }
+
+  const k = cacheKey(directory, key);
+  if (value === undefined) {
+    cacheRemoveItem(k);
+    return;
+  }
+
+  cacheSetItem(k, JSON.stringify(value));
 }
 
 function clearCache(directory: string): void {
+  if (!isFrontendCacheEnabled() || typeof window === 'undefined') {
+    return;
+  }
+
   try {
-    const storage = globalThis.localStorage;
-    if (!storage) {
-      return;
-    }
+    const storage = window.localStorage;
     const prefix = storagePrefix(directory);
     const keys: string[] = [];
     for (let index = 0; index < storage.length; index += 1) {

@@ -284,6 +284,35 @@ describe('sdk bridge', () => {
     expect(sessionStore.getSession('session-4')?.model).toBe('openai/gpt-4.1');
   });
 
+  it('propagates model auth errors from thinking-level loading instead of silently falling back', async () => {
+    const fake = createFakeAgentSession();
+    fake.session.setModel = vi.fn().mockRejectedValue(new Error('No API key for anthropic/claude-3-5-sonnet-20241022'));
+    mocks.createAgentSessionMock.mockResolvedValue(fake);
+
+    const sessionStore = createSessionStore();
+    sessionStore.createSession('/tmp/project', 'anthropic/claude-3-5-sonnet-20241022', 'session-auth-error');
+    const sseManager = createSseManager();
+    const bridge = createSdkBridge({
+      config: {
+        port: 3210,
+        nodeEnv: 'development',
+        sessionsDir: '/tmp/sessions',
+        sdkCwd: '/tmp/project',
+        model: 'anthropic/claude-3-5-sonnet-20241022',
+        corsOrigins: [],
+        logLevel: 'info',
+        sessionIdPrefix: 'session',
+        generateSessionId: () => 'generated-session-id',
+      },
+      sessionStore,
+      sseManager,
+    });
+
+    await expect(bridge.getThinkingLevels('session-auth-error'))
+      .rejects
+      .toThrow('No API key for anthropic/claude-3-5-sonnet-20241022');
+  });
+
   it('lists all models (available and unavailable) from the sdk registry', async () => {
     const bridge = createSdkBridge({
       config: {

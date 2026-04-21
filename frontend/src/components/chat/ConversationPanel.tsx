@@ -120,15 +120,34 @@ function groupToolEntry(entries: ToolTurnEntry[], item: ToolCallItem | ToolResul
 function buildRenderRecords(items: ConversationItem[]): RenderRecord[] {
   const records: RenderRecord[] = [];
   const turns = new Map<string, Extract<RenderRecord, { kind: 'turn' }>>();
+  const pendingUsersByTurnId = new Map<string, Extract<RenderRecord, { kind: 'user' }>>();
   let lastPendingUserRecord: Extract<RenderRecord, { kind: 'user' }> | undefined;
 
   const attachPendingUserToTurn = (turn: Extract<RenderRecord, { kind: 'turn' }>): void => {
-    if (turn.userMessage || !lastPendingUserRecord || lastPendingUserRecord.consumed) {
+    if (turn.userMessage) {
+      return;
+    }
+
+    const matchedPending = pendingUsersByTurnId.get(turn.turnId);
+    if (matchedPending && !matchedPending.consumed) {
+      turn.userMessage = matchedPending.item;
+      matchedPending.consumed = true;
+      pendingUsersByTurnId.delete(turn.turnId);
+      if (lastPendingUserRecord?.item.id === matchedPending.item.id) {
+        lastPendingUserRecord = undefined;
+      }
+      return;
+    }
+
+    if (!lastPendingUserRecord || lastPendingUserRecord.consumed) {
       return;
     }
 
     turn.userMessage = lastPendingUserRecord.item;
     lastPendingUserRecord.consumed = true;
+    if (lastPendingUserRecord.item.messageId) {
+      pendingUsersByTurnId.delete(lastPendingUserRecord.item.messageId);
+    }
     lastPendingUserRecord = undefined;
   };
 
@@ -152,6 +171,27 @@ function buildRenderRecords(items: ConversationItem[]): RenderRecord[] {
 
   for (const item of items) {
     if (isUserMessage(item)) {
+      const userTurnId = item.messageId?.trim() || undefined;
+      if (userTurnId) {
+        const existingTurn = turns.get(userTurnId);
+        if (existingTurn && !existingTurn.userMessage) {
+          existingTurn.userMessage = item;
+          continue;
+        }
+      } else {
+        const latestTurnWithoutUser = records.reduce<Extract<RenderRecord, { kind: 'turn' }> | undefined>((candidate, record) => {
+          if (record.kind !== 'turn' || record.userMessage) {
+            return candidate;
+          }
+          return record;
+        }, undefined);
+
+        if (latestTurnWithoutUser) {
+          latestTurnWithoutUser.userMessage = item;
+          continue;
+        }
+      }
+
       const userRecord: Extract<RenderRecord, { kind: 'user' }> = {
         kind: 'user',
         item,
@@ -159,6 +199,9 @@ function buildRenderRecords(items: ConversationItem[]): RenderRecord[] {
       };
       records.push(userRecord);
       lastPendingUserRecord = userRecord;
+      if (userTurnId) {
+        pendingUsersByTurnId.set(userTurnId, userRecord);
+      }
       continue;
     }
 
@@ -194,6 +237,21 @@ function buildRenderRecords(items: ConversationItem[]): RenderRecord[] {
     }
 
     // Questions / permissions / errors are rendered elsewhere in App.
+  }
+
+  // Attach the last pending user record to the last turn that has no user entry.
+  // This handles cases where a user message was sent but the backend didn't
+  // store its id on the assistant message, so the user wasn't linked.
+  if (lastPendingUserRecord && !lastPendingUserRecord.consumed) {
+    const turnsWithoutUser = records.filter(
+      (r): r is Extract<RenderRecord, { kind: 'turn' }> =>
+        r.kind === 'turn' && !r.userMessage,
+    );
+    const lastTurn = turnsWithoutUser.at(-1);
+    if (lastTurn) {
+      lastTurn.userMessage = lastPendingUserRecord.item;
+      lastPendingUserRecord.consumed = true;
+    }
   }
 
   return records;

@@ -15,18 +15,23 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { cacheGetItem, cacheSetItem } from '@/lib/frontend-cache';
 import { cn } from '@/lib/utils';
-import type { ModelInfo, StreamingState } from '@/types';
+import type { ModelInfo, StreamingState, ThinkingLevel } from '@/types';
 
 interface ComposerPanelProps {
   prompt: string;
   streaming: StreamingState;
   models: ModelInfo[];
   activeModelKey: string;
+  availableThinkingLevels?: ThinkingLevel[];
+  activeThinkingLevel?: ThinkingLevel;
+  thinkingLevelError?: string;
   onPromptChange: (value: string) => void;
   onSend: () => Promise<void>;
   onAbort: () => Promise<void>;
   onModelSelect: (modelKey: string) => void;
+  onThinkingLevelSelect?: (thinkingLevel: ThinkingLevel) => void;
 }
 
 type ModelSection = 'favorites' | 'recent' | 'provider';
@@ -50,17 +55,22 @@ const RECENTS_STORAGE_KEY = 'pi-web-app:model-recents';
 const COLLAPSED_PROVIDERS_STORAGE_KEY = 'pi-web-app:model-collapsed-providers';
 const MAX_RECENT_MODELS = 6;
 
+function formatThinkingLabel(level: ThinkingLevel): string {
+  switch (level) {
+    case 'xhigh':
+      return 'X-High';
+    default:
+      return level.charAt(0).toUpperCase() + level.slice(1);
+  }
+}
+
 function readStoredList(key: string): string[] {
-  if (typeof window === 'undefined') {
+  const raw = cacheGetItem(key);
+  if (!raw) {
     return [];
   }
 
   try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) {
-      return [];
-    }
-
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) {
       return [];
@@ -76,15 +86,7 @@ function readStoredList(key: string): string[] {
 }
 
 function writeStoredList(key: string, values: string[]): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(key, JSON.stringify(values));
-  } catch {
-    // Ignore storage failures.
-  }
+  cacheSetItem(key, JSON.stringify(values));
 }
 
 function formatProviderLabel(providerKey: string | undefined): string {
@@ -193,10 +195,14 @@ export function ComposerPanel({
   streaming,
   models,
   activeModelKey,
+  availableThinkingLevels = [],
+  activeThinkingLevel,
+  thinkingLevelError,
   onPromptChange,
   onSend,
   onAbort,
   onModelSelect,
+  onThinkingLevelSelect,
 }: ComposerPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -211,6 +217,10 @@ export function ComposerPanel({
 
   const isStreaming = streaming === 'streaming';
   const isEmpty = prompt.trim().length === 0;
+  const canSelectThinkingLevel = availableThinkingLevels.length > 0 && typeof onThinkingLevelSelect === 'function';
+  const selectedThinkingLevel = activeThinkingLevel && availableThinkingLevels.includes(activeThinkingLevel)
+    ? activeThinkingLevel
+    : availableThinkingLevels[0];
 
   useEffect(() => {
     writeStoredList(FAVORITES_STORAGE_KEY, Array.from(favorites));
@@ -607,6 +617,31 @@ export function ComposerPanel({
               <Settings2 size={14} />
               <span>Default</span>
             </button>
+
+            {canSelectThinkingLevel ? (
+              <div className="composer-thinking-field">
+                <label className="composer-thinking-wrap" aria-label="Thinking level">
+                  <select
+                    className="composer-thinking-select"
+                    value={selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium'}
+                    onChange={(event) => onThinkingLevelSelect?.(event.target.value as ThinkingLevel)}
+                    disabled={isStreaming}
+                    aria-invalid={Boolean(thinkingLevelError)}
+                  >
+                    {availableThinkingLevels.map((level) => (
+                      <option key={level} value={level}>
+                        {formatThinkingLabel(level)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {thinkingLevelError ? (
+                  <p className="composer-thinking-error" role="alert">
+                    {thinkingLevelError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="relative flex min-w-0">
               <button

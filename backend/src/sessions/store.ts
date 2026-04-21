@@ -4,6 +4,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import type { ThinkingLevel } from '@mariozechner/pi-ai';
 
 export type SessionStatus =
   | 'idle'
@@ -33,6 +34,7 @@ export interface Session {
   cwd: string;
   title?: string;
   model: string | undefined;
+  thinkingLevel?: ThinkingLevel;
   status: SessionStatus;
   messages: Message[];
   createdAt: string;
@@ -83,6 +85,7 @@ function createSessionObject(
   cwd: string,
   model?: string,
   title?: string,
+  thinkingLevel?: ThinkingLevel,
 ): Session {
   const now = new Date().toISOString();
   return {
@@ -90,6 +93,7 @@ function createSessionObject(
     cwd,
     ...(title !== undefined ? { title } : {}),
     model,
+    ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
     status: 'idle',
     messages: [],
     createdAt: now,

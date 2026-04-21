@@ -14,16 +14,18 @@ function IconButton({
   label,
   onClick,
   children,
+  className,
 }: {
   title: string;
   label: string;
   onClick?: () => void;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
     <button
       type="button"
-      className="btn btn-ghost btn-icon btn-sm"
+      className={className ?? 'btn btn-ghost btn-icon btn-sm'}
       onClick={onClick}
       aria-label={label}
       title={title}
@@ -41,7 +43,7 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
       <div className="app-header-left">
         <button
           type="button"
-          className="btn btn-primary btn-sm header-action-button"
+          className="btn btn-primary btn-sm header-action-button header-action-button-primary"
           onClick={onNewSession}
           aria-label="New session"
           title="New session"
@@ -63,6 +65,7 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
           onClick={() => {
             alert('Layers panel coming soon');
           }}
+          className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
         >
           <Layers3 size={16} />
         </IconButton>
@@ -72,6 +75,7 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
           onClick={() => {
             alert('Terminal coming soon');
           }}
+          className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
         >
           <SquareTerminal size={16} />
         </IconButton>
@@ -79,6 +83,7 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
           title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
           label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
           onClick={onToggleSidebar}
+          className="btn btn-ghost btn-icon btn-sm header-action-button"
         >
           {sidebarOpen ? <PanelRightClose size={16} /> : <PanelLeft size={16} />}
         </IconButton>

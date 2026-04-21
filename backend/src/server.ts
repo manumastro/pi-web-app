@@ -41,10 +41,30 @@ export function createApp() {
   registerApiRoutes(app, { bridge, sessionStore, config });
   app.use('/api/events', createSseRouter(sseManager, sessionStore));
 
+  const disableFrontendHttpCache = (process.env.PI_WEB_DISABLE_FRONTEND_HTTP_CACHE ?? 'true').toLowerCase() !== 'false';
+  const applyNoStoreHeaders = (res: express.Response): void => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+  };
+
   const publicDir = path.resolve(process.cwd(), 'dist/public');
   if (fs.existsSync(publicDir)) {
-    app.use(express.static(publicDir));
+    app.use(express.static(publicDir, {
+      etag: !disableFrontendHttpCache,
+      lastModified: !disableFrontendHttpCache,
+      maxAge: disableFrontendHttpCache ? 0 : undefined,
+      setHeaders: (res) => {
+        if (disableFrontendHttpCache) {
+          applyNoStoreHeaders(res);
+        }
+      },
+    }));
     app.get('*', (_req, res) => {
+      if (disableFrontendHttpCache) {
+        applyNoStoreHeaders(res);
+      }
       res.sendFile(path.join(publicDir, 'index.html'));
     });
   }

@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@/types';
+import type { SessionInfo, ThinkingLevel } from '@/types';
 import { apiRequest } from '@/api';
 import { useChatStore } from '@/stores/chatStore';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -23,6 +23,7 @@ export interface SendPromptInput {
   message: string;
   model?: string;
   turnId?: string;
+  thinkingLevel?: ThinkingLevel;
 }
 
 function resolveModelKey(explicit?: string, sessionId?: string): string {
@@ -187,6 +188,25 @@ export async function updateSessionModel(sessionId: string, modelKey: string): P
   }
 }
 
+export async function updateSessionThinkingLevel(sessionId: string, thinkingLevel: ThinkingLevel): Promise<SessionInfo | null> {
+  try {
+    const result = await apiRequest<{ session: SessionInfo }>('/api/models/session/thinking', {
+      method: 'PUT',
+      body: JSON.stringify({ sessionId, thinkingLevel }),
+    });
+
+    if (!result.session) {
+      return null;
+    }
+
+    applySessionSnapshot(result.session);
+    return result.session;
+  } catch (error) {
+    console.error('[session-actions] updateSessionThinkingLevel failed', error);
+    return null;
+  }
+}
+
 export async function abortCurrentOperation(sessionId: string): Promise<void> {
   try {
     await apiRequest('/api/messages/abort', {
@@ -196,6 +216,15 @@ export async function abortCurrentOperation(sessionId: string): Promise<void> {
   } catch (error) {
     console.error('[session-actions] abort failed', error);
   }
+}
+
+function generateTurnId(): string {
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
+  }
+
+  return `turn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
@@ -208,6 +237,7 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
   const currentSession = sessionUiStore.currentSession ?? useSessionStore.getState().sessions.find((entry) => entry.id === sessionId);
   const cwd = input.cwd ?? currentSession?.cwd ?? sessionUiStore.selectedDirectory;
   const resolvedModel = resolveModelKey(input.model || currentSession?.model, sessionId);
+  const resolvedThinkingLevel = input.thinkingLevel ?? currentSession?.thinkingLevel;
 
   if (!resolvedModel) {
     const chat = useChatStore.getState();
@@ -228,11 +258,13 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
 
   const effectiveSession = syncedSession ?? currentSession;
 
+  const turnId = input.turnId && input.turnId.trim().length > 0 ? input.turnId : generateTurnId();
+
   const chat = useChatStore.getState();
   chat.setError('');
   chat.setStreaming('streaming');
   chat.setStatusMessage('Working');
-  chat.appendPrompt(input.message, resolvedModel, input.turnId);
+  chat.appendPrompt(input.message, resolvedModel, turnId);
   useUIStore.getState().setPrompt('');
   useInputStore.getState().setPendingInputText(null);
 
@@ -244,7 +276,8 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
         cwd,
         message: input.message,
         model: resolvedModel,
-        messageId: input.turnId,
+        messageId: turnId,
+        thinkingLevel: resolvedThinkingLevel,
       }),
     });
     return true;

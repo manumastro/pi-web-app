@@ -42,6 +42,7 @@ function resetStores(): void {
         available: true,
         active: true,
         provider: 'provider',
+        reasoning: true,
       },
     ],
     activeModelKey: 'provider/demo-model',
@@ -126,6 +127,59 @@ describe('session actions', () => {
     expect(useUIStore.getState().prompt).toBe('');
     expect(useChatStore.getState().streaming).toBe('streaming');
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('generates and reuses a turn id when none is provided', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === '/api/models/session/model' && init?.method === 'PUT') {
+        return new Response(JSON.stringify({ session: sessionFixture }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url === '/api/messages/prompt' && init?.method === 'POST') {
+        return new Response('', { status: 202 });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    useSessionStore.setState({
+      sessions: [sessionFixture],
+      sessionStatuses: { 'session-1': 'idle' },
+      sortedSessions: [sessionFixture],
+    });
+
+    useSessionUiStore.setState({
+      selectedDirectory: '/workspace/demo',
+      selectedSessionId: 'session-1',
+      currentSession: sessionFixture,
+      visibleSessions: [sessionFixture],
+    });
+
+    const ok = await sendPrompt({
+      sessionId: 'session-1',
+      cwd: '/workspace/demo',
+      message: 'Run the build',
+      model: 'provider/demo-model',
+    });
+
+    expect(ok).toBe(true);
+    const [, promptCall] = fetchMock.mock.calls;
+    const promptBody = JSON.parse(String(promptCall?.[1]?.body ?? '{}')) as { messageId?: string };
+    expect(typeof promptBody.messageId).toBe('string');
+    expect(promptBody.messageId).toBeTruthy();
+
+    const [optimisticUser, optimisticThinking, optimisticAssistant] = useChatStore.getState().conversation;
+    expect(optimisticUser?.kind).toBe('message');
+    expect(optimisticThinking?.kind).toBe('thinking');
+    expect(optimisticAssistant?.kind).toBe('message');
+    if (optimisticUser?.kind === 'message' && optimisticThinking?.kind === 'thinking' && optimisticAssistant?.kind === 'message') {
+      expect(optimisticUser.messageId).toBe(promptBody.messageId);
+      expect(optimisticThinking.messageId).toBe(promptBody.messageId);
+      expect(optimisticAssistant.messageId).toBe(promptBody.messageId);
+    }
   });
 
   it('keeps the active model in sync when the backend returns an updated session', async () => {

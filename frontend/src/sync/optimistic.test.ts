@@ -35,6 +35,30 @@ describe('optimistic helpers', () => {
     expect(draft.message['session-1']).toHaveLength(0);
   });
 
+  it('keeps chronological order when optimistic ids are lexicographically out of order', () => {
+    const page = {
+      session: [
+        { id: 'z-user', role: 'user' as const, content: 'first', timestamp: '2026-04-21T10:33:00.000Z' },
+      ],
+      complete: false,
+      cursor: 'next',
+    };
+
+    const merged = mergeOptimisticPage(page, [
+      {
+        message: {
+          id: 'a-assistant',
+          role: 'assistant',
+          content: 'second',
+          timestamp: '2026-04-21T10:34:00.000Z',
+        },
+        parts: [],
+      },
+    ]);
+
+    expect(merged.session.map((message) => message.id)).toEqual(['z-user', 'a-assistant']);
+  });
+
   it('deduplicates sorted message arrays', () => {
     const merged = mergeMessages([{ id: 'a' }], [{ id: 'a' }, { id: 'b' }]);
     expect(merged.map((entry) => entry.id)).toEqual(['a', 'b']);

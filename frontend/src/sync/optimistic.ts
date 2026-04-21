@@ -2,8 +2,21 @@ import type { SessionInfo, SessionMessage } from '@/types';
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
+function compareMessageOrder(left: SessionMessage, right: SessionMessage): number {
+  const leftTs = Date.parse(left.timestamp);
+  const rightTs = Date.parse(right.timestamp);
+  const leftHasTs = Number.isFinite(leftTs);
+  const rightHasTs = Number.isFinite(rightTs);
+
+  if (leftHasTs && rightHasTs && leftTs !== rightTs) {
+    return leftTs - rightTs;
+  }
+
+  return cmp(left.id, right.id);
+}
+
 function sortMessages(messages: SessionMessage[]): SessionMessage[] {
-  return [...messages].sort((left, right) => cmp(left.id, right.id));
+  return [...messages].sort(compareMessageOrder);
 }
 
 export type OptimisticStore = {

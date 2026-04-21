@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiGet } from '@/api';
 import type { SsePayload } from '@/sync/conversation';
 import { useSessionStream } from '@/hooks/useSessionStream';
@@ -15,7 +15,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getProjectLabel, normalizeProjectPath } from '@/lib/path';
-import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState } from '@/types';
+import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState, ThinkingLevel } from '@/types';
 
 function getQueryParam(name: string): string {
   return new URLSearchParams(window.location.search).get(name) ?? '';
@@ -44,6 +44,9 @@ export type AppController = {
   models: ModelInfo[];
   activeModelKey: string;
   showReasoningTraces: boolean;
+  availableThinkingLevels: ThinkingLevel[];
+  activeThinkingLevel?: ThinkingLevel;
+  thinkingLevelError: string;
   prompt: string;
   setPrompt: (value: string) => void;
   projectDirectories: DirectoryInfo[];
@@ -65,6 +68,7 @@ export type AppController = {
   handleSessionRename: (sessionId: string, title: string) => Promise<void>;
   handleSessionSelect: (targetId: string) => Promise<void>;
   handleModelSelect: (modelKey: string) => Promise<void>;
+  handleThinkingLevelSelect: (thinkingLevel: ThinkingLevel) => Promise<void>;
 };
 
 export function useAppController(): AppController {
@@ -99,6 +103,7 @@ export function useAppController(): AppController {
     deleteSession: removeSession,
     updateSessionTitle,
     updateSessionModel,
+    updateSessionThinkingLevel,
     abortCurrentOperation,
     sendPrompt,
   } = useSync();
@@ -119,10 +124,14 @@ export function useAppController(): AppController {
     setModels,
     activeModelKey,
     showReasoningTraces,
+    availableThinkingLevels,
+    activeThinkingLevel,
+    setThinkingConfig,
   } = useUIStore();
 
   const { pendingInputText, setPendingInputText } = useInputStore();
   const prompt = pendingInputText ?? '';
+  const [thinkingLevelError, setThinkingLevelError] = useState('');
 
   const projectDirectories = useMemo<DirectoryInfo[]>(() => {
     const sessionCounts = new Map<string, number>();
@@ -182,11 +191,33 @@ export function useAppController(): AppController {
         available: Boolean(model.available),
         active: Boolean(model.isSelected),
         provider: model.provider ? String(model.provider) : undefined,
+        reasoning: Boolean(model.reasoning),
       };
     });
     setModels(mapped);
     return mapped;
   }, [setModels]);
+
+  const refreshThinkingLevels = useCallback(async (sessionId?: string): Promise<void> => {
+    if (!sessionId) {
+      setThinkingConfig([], undefined);
+      setThinkingLevelError('');
+      return;
+    }
+
+    try {
+      const payload = await apiGet<{ currentLevel?: ThinkingLevel; availableLevels?: ThinkingLevel[] }>(
+        `/api/models/session/thinking?sessionId=${encodeURIComponent(sessionId)}`,
+      );
+      setThinkingConfig(payload.availableLevels ?? [], payload.currentLevel);
+      setThinkingLevelError('');
+    } catch (cause) {
+      setThinkingConfig([], undefined);
+      const message = cause instanceof Error ? cause.message : 'Unable to load thinking levels';
+      setThinkingLevelError(message);
+      setError(message);
+    }
+  }, [setError, setThinkingConfig]);
 
   const loadSession = useCallback(async (targetSessionId: string): Promise<void> => {
     const payload = await apiGet<{ session: SessionInfo }>(`/api/sessions/${encodeURIComponent(targetSessionId)}`);
@@ -215,7 +246,8 @@ export function useAppController(): AppController {
     setQueryParams({ cwd: payload.session.cwd, sessionId: payload.session.id });
     markSessionViewed(payload.session.id);
     await refreshModels(payload.session.id);
-  }, [addProject, refreshModels, selectProject, setConversation, setSelectedDirectory, setSelectedSessionId, setStatusMessage, setStreaming, updateSession]);
+    await refreshThinkingLevels(payload.session.id);
+  }, [addProject, refreshModels, refreshThinkingLevels, selectProject, setConversation, setSelectedDirectory, setSelectedSessionId, setStatusMessage, setStreaming, updateSession]);
 
   const loadInitialState = useCallback(async (): Promise<void> => {
     setStatusMessage('Loading');
@@ -255,6 +287,7 @@ export function useAppController(): AppController {
         setConversation([]);
         setQueryParams({ cwd: targetDirectory, sessionId: '' });
         await refreshModels(undefined);
+        setThinkingConfig([], undefined);
         setStatusMessage('Select or create a session');
       }
 
@@ -264,7 +297,7 @@ export function useAppController(): AppController {
       setError(cause instanceof Error ? cause.message : 'Unknown error');
       setStreaming('error');
     }
-  }, [addProject, hydrateProjects, loadSession, refreshModels, selectProject, setConversation, setError, setSelectedDirectory, setSelectedSessionId, setSessions, setStatusMessage, setStreaming]);
+  }, [addProject, hydrateProjects, loadSession, refreshModels, selectProject, setConversation, setError, setSelectedDirectory, setSelectedSessionId, setSessions, setStatusMessage, setStreaming, setThinkingConfig]);
 
   useEffect(() => {
     void loadInitialState();
@@ -298,7 +331,7 @@ export function useAppController(): AppController {
     const text = prompt.trim();
     if (!text) return;
 
-    const sent = await sendPrompt({ message: text });
+    const sent = await sendPrompt({ message: text, thinkingLevel: activeThinkingLevel });
     if (!sent) {
       const sessionId = useSessionUiStore.getState().selectedSessionId;
       if (sessionId) {
@@ -310,7 +343,7 @@ export function useAppController(): AppController {
         }
       }
     }
-  }, [loadSession, prompt, sendPrompt, setError]);
+  }, [activeThinkingLevel, loadSession, prompt, sendPrompt, setError]);
 
   const handleAbort = useCallback(async (): Promise<void> => {
     const sessionId = useSessionUiStore.getState().selectedSessionId;
@@ -343,7 +376,8 @@ export function useAppController(): AppController {
     setConversation([]);
     setStatusMessage('Session ready');
     await refreshModels(created.id);
-  }, [addProject, createSession, selectProject, setConversation, setStatusMessage, refreshModels]);
+    await refreshThinkingLevels(created.id);
+  }, [addProject, createSession, selectProject, setConversation, setStatusMessage, refreshModels, refreshThinkingLevels]);
 
   const handleDeleteSession = useCallback(async (targetId: string): Promise<void> => {
     const { selectedSessionId, selectedDirectory } = useSessionUiStore.getState();
@@ -462,8 +496,30 @@ export function useAppController(): AppController {
 
     setQueryParams({ cwd: payload.cwd, sessionId: payload.id });
     await refreshModels(payload.id);
+    await refreshThinkingLevels(payload.id);
     setError('');
-  }, [refreshModels, setError, setModels, setStatusMessage, setStreaming, updateSessionModel]);
+  }, [refreshModels, refreshThinkingLevels, setError, setModels, setStatusMessage, setStreaming, updateSessionModel]);
+
+  const handleThinkingLevelSelect = useCallback(async (thinkingLevel: ThinkingLevel): Promise<void> => {
+    const currentSessionId = useSessionUiStore.getState().selectedSessionId;
+    if (!currentSessionId) {
+      return;
+    }
+
+    const payload = await updateSessionThinkingLevel(currentSessionId, thinkingLevel);
+    if (!payload) {
+      setStreaming('error');
+      setStatusMessage('Error');
+      const message = 'Unable to update thinking level';
+      setThinkingLevelError(message);
+      setError(message);
+      return;
+    }
+
+    setThinkingConfig(availableThinkingLevels, payload.thinkingLevel);
+    setThinkingLevelError('');
+    setError('');
+  }, [availableThinkingLevels, setError, setStatusMessage, setStreaming, setThinkingConfig, updateSessionThinkingLevel]);
 
   return {
     conversation,
@@ -475,6 +531,9 @@ export function useAppController(): AppController {
     models,
     activeModelKey,
     showReasoningTraces,
+    availableThinkingLevels,
+    activeThinkingLevel,
+    thinkingLevelError,
     prompt,
     setPrompt: (value: string) => setPendingInputText(value),
     projectDirectories,
@@ -496,5 +555,6 @@ export function useAppController(): AppController {
     handleSessionRename,
     handleSessionSelect,
     handleModelSelect,
+    handleThinkingLevelSelect,
   };
 }

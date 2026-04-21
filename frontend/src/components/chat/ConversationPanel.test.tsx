@@ -167,4 +167,77 @@ describe('ConversationPanel', () => {
     expect(turnEntries[2]).toHaveTextContent('Siamo in');
     expect(turnEntries[2]).toHaveTextContent('/home/manu');
   });
+
+  it('attaches a late user message to the matching assistant turn via messageId', () => {
+    const delayedUserItems: ConversationItem[] = [
+      {
+        kind: 'thinking',
+        id: 'thinking-late',
+        messageId: 'turn-late',
+        content: 'analyzing',
+        done: true,
+        timestamp: '2026-04-21T11:34:00.000Z',
+      },
+      {
+        kind: 'message',
+        id: 'assistant-late',
+        messageId: 'turn-late',
+        role: 'assistant',
+        content: 'Siamo in /home/manu/pi-web-app.',
+        timestamp: '2026-04-21T11:34:01.000Z',
+        status: 'complete',
+      },
+      {
+        kind: 'message',
+        id: 'user-late',
+        messageId: 'turn-late',
+        role: 'user',
+        content: 'in quale cwd siamo?',
+        timestamp: '2026-04-21T11:33:59.000Z',
+        status: 'complete',
+      },
+    ];
+
+    const { container, getByText } = render(<ConversationPanel items={delayedUserItems} />);
+
+    expect(container.querySelectorAll('.turn-item')).toHaveLength(1);
+    expect(container.querySelector('.turn-user-header .message-user')).not.toBeNull();
+    expect(getByText('in quale cwd siamo?')).toBeInTheDocument();
+  });
+
+  it('attaches a late user message even without messageId to the latest open turn', () => {
+    const delayedUserItems: ConversationItem[] = [
+      {
+        kind: 'thinking',
+        id: 'thinking-no-id',
+        messageId: 'turn-no-id',
+        content: 'analyzing',
+        done: true,
+        timestamp: '2026-04-21T11:34:00.000Z',
+      },
+      {
+        kind: 'message',
+        id: 'assistant-no-id',
+        messageId: 'turn-no-id',
+        role: 'assistant',
+        content: 'Siamo in /home/manu/pi-web-app.',
+        timestamp: '2026-04-21T11:34:01.000Z',
+        status: 'complete',
+      },
+      {
+        kind: 'message',
+        id: 'user-no-id',
+        role: 'user',
+        content: 'in quale cwd siamo?',
+        timestamp: '2026-04-21T11:33:59.000Z',
+        status: 'complete',
+      },
+    ];
+
+    const { container } = render(<ConversationPanel items={delayedUserItems} />);
+
+    expect(container.querySelectorAll('.turn-item')).toHaveLength(1);
+    expect(container.querySelector('.turn-user-header .message-user')).not.toBeNull();
+    expect(container.querySelector('.message-assistant-turn')).toHaveTextContent('Siamo in /home/manu/pi-web-app.');
+  });
 });
