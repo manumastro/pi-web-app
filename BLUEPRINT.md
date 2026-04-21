@@ -1646,7 +1646,7 @@ NODE_PATH=/usr/bin/node
 - Frontend localStorage cache persistence is now disabled by default (project/ui/model/theme + sync metadata), with an explicit opt-in flag `VITE_ENABLE_FRONTEND_CACHE=true`; startup clears stale `pi-web-app:*` and `pi.dir.*` keys when cache is disabled.
 - Backend static hosting now disables HTTP caching for frontend assets + `index.html` by default via `PI_WEB_DISABLE_FRONTEND_HTTP_CACHE=true` (no-store/no-cache headers), with explicit opt-out by setting it to `false`.
 - Frontend stylesheet architecture uses a single CSS entrypoint `frontend/src/index.css` importing `styles/design-system.css`, `styles/typography.css`, and `styles/mobile.css`, with project-specific compatibility/layout rules preserved in the entrypoint so existing UI classnames remain styled.
-- Streaming chat rendering now follows the OpenChamber pattern more closely: assistant and reasoning text use a shared throttled streaming hook, markdown is rendered during streaming (not only on completion), and in-turn working feedback remains visible while tool/reasoning activity is in progress until assistant text arrives.
+- Streaming chat rendering now follows the OpenChamber pattern more closely: assistant and reasoning text use a shared throttled streaming hook, markdown is rendered during streaming (not only on completion), in-turn working feedback remains visible while tool/reasoning activity is in progress until assistant text arrives, and the actively streaming tail is rendered separately from static history to reduce re-render churn during chunk updates.
 
 #### Deferred
 - Light theme, virtualization for long conversations, slash commands, todo system, shell mode.

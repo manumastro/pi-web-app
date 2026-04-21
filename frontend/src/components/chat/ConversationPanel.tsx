@@ -299,6 +299,44 @@ function renderStandaloneMessage(item: SystemMessageItem | AssistantMessageItem,
   );
 }
 
+function hasStreamingTurnEntry(entry: ToolTurnEntry): boolean {
+  if (entry.kind === 'assistant') {
+    return entry.item.status === 'streaming';
+  }
+
+  if (entry.kind === 'thinking') {
+    return !entry.item.done;
+  }
+
+  return !entry.result;
+}
+
+function isStreamingRecord(record: RenderRecord | undefined): boolean {
+  if (!record) {
+    return false;
+  }
+
+  if (record.kind === 'turn') {
+    return record.entries.some(hasStreamingTurnEntry);
+  }
+
+  if (record.kind === 'standalone') {
+    return record.item.role === 'assistant' && record.item.status === 'streaming';
+  }
+
+  if (record.kind === 'orphan') {
+    if (record.item.kind === 'thinking') {
+      return !record.item.done;
+    }
+    if (record.item.kind === 'tool_call') {
+      return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
 function renderToolEntry(entry: Extract<ToolTurnEntry, { kind: 'tool' }>): React.ReactElement {
   const toolName = entry.call?.toolName ?? 'result';
   const toolId = entry.call?.toolCallId ?? entry.result?.toolCallId ?? entry.call?.id ?? entry.result?.id ?? 'tool';
@@ -345,7 +383,7 @@ function renderTurnEntry(entry: ToolTurnEntry, showReasoningTraces: boolean): Re
   return renderToolEntry(entry);
 }
 
-function AssistantTurn({
+const AssistantTurn = React.memo(function AssistantTurn({
   turnId,
   userMessage,
   entries,
@@ -363,17 +401,7 @@ function AssistantTurn({
   workingLabel: string;
 }) {
   const assistantTimestamp = entries.find((entry): entry is Extract<ToolTurnEntry, { kind: 'assistant' }> => entry.kind === 'assistant')?.item.timestamp ?? firstTimestamp;
-  const hasStreamingEntry = entries.some((entry) => {
-    if (entry.kind === 'assistant') {
-      return entry.item.status === 'streaming';
-    }
-
-    if (entry.kind === 'thinking') {
-      return !entry.item.done;
-    }
-
-    return !entry.result;
-  });
+  const hasStreamingEntry = entries.some(hasStreamingTurnEntry);
   const nonAssistantEntries = entries.filter((entry) => entry.kind !== 'assistant');
   const assistantEntries = entries.filter((entry): entry is Extract<ToolTurnEntry, { kind: 'assistant' }> => entry.kind === 'assistant');
   const orderedEntries: ToolTurnEntry[] = [...nonAssistantEntries, ...assistantEntries];
@@ -413,70 +441,80 @@ function AssistantTurn({
       </div>
     </section>
   );
+}, (prev, next) => {
+  if (prev.turnId !== next.turnId) return false;
+  if (prev.firstTimestamp !== next.firstTimestamp) return false;
+  if (prev.showReasoningTraces !== next.showReasoningTraces) return false;
+  if (prev.showWorkingPlaceholder !== next.showWorkingPlaceholder) return false;
+  if (prev.workingLabel !== next.workingLabel) return false;
+  if (prev.userMessage !== next.userMessage) return false;
+  if (prev.entries.length !== next.entries.length) return false;
+
+  return prev.entries.every((entry, index) => {
+    const other = next.entries[index];
+    if (!other || entry.kind !== other.kind) return false;
+    if (entry.kind === 'assistant' && other.kind === 'assistant') {
+      return entry.item === other.item;
+    }
+    if (entry.kind === 'thinking' && other.kind === 'thinking') {
+      return entry.item === other.item;
+    }
+    if (entry.kind === 'tool' && other.kind === 'tool') {
+      return entry.call === other.call && entry.result === other.result;
+    }
+    return false;
+  });
+});
+
+function areRenderRecordsEquivalent(left: RenderRecord[], right: RenderRecord[]): boolean {
+  if (left.length !== right.length) return false;
+
+  return left.every((record, index) => {
+    const other = right[index];
+    if (!other || record.kind !== other.kind) return false;
+
+    if (record.kind === 'user' && other.kind === 'user') {
+      return record.item === other.item && record.consumed === other.consumed;
+    }
+
+    if (record.kind === 'standalone' && other.kind === 'standalone') {
+      return record.item === other.item;
+    }
+
+    if (record.kind === 'orphan' && other.kind === 'orphan') {
+      return record.item === other.item;
+    }
+
+    if (record.kind === 'turn' && other.kind === 'turn') {
+      if (record.turnId !== other.turnId) return false;
+      if (record.userMessage !== other.userMessage) return false;
+      if (record.entries.length !== other.entries.length) return false;
+      return record.entries.every((entry, entryIndex) => {
+        const otherEntry = other.entries[entryIndex];
+        if (!otherEntry || entry.kind !== otherEntry.kind) return false;
+        if (entry.kind === 'assistant' && otherEntry.kind === 'assistant') return entry.item === otherEntry.item;
+        if (entry.kind === 'thinking' && otherEntry.kind === 'thinking') return entry.item === otherEntry.item;
+        if (entry.kind === 'tool' && otherEntry.kind === 'tool') return entry.call === otherEntry.call && entry.result === otherEntry.result;
+        return false;
+      });
+    }
+
+    return false;
+  });
 }
 
-export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...' }: ConversationPanelProps) {
-  const records = React.useMemo(() => buildRenderRecords(items), [items]);
-  const panelRef = React.useRef<HTMLDivElement | null>(null);
-  const shouldAutoScrollRef = React.useRef(true);
-  const [showScrollButton, setShowScrollButton] = React.useState(false);
-
-  const scrollToBottom = React.useCallback((instant = false) => {
-    const el = panelRef.current;
-    if (!el) {
-      return;
-    }
-
-    if (typeof el.scrollTo === 'function') {
-      el.scrollTo({ top: el.scrollHeight, behavior: instant ? 'auto' : 'smooth' });
-      return;
-    }
-
-    el.scrollTop = el.scrollHeight;
-  }, []);
-
-  React.useEffect(() => {
-    const el = panelRef.current;
-    if (!el) {
-      return;
-    }
-
-    const updateScrollState = () => {
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      const atBottom = distanceFromBottom < 120;
-      shouldAutoScrollRef.current = atBottom;
-      setShowScrollButton(!atBottom);
-    };
-
-    updateScrollState();
-    el.addEventListener('scroll', updateScrollState, { passive: true });
-
-    return () => {
-      el.removeEventListener('scroll', updateScrollState);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (!shouldAutoScrollRef.current) {
-      return;
-    }
-
-    const rafId = window.requestAnimationFrame(() => {
-      scrollToBottom(true);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-    };
-  }, [items, scrollToBottom]);
-
-  const handleScrollToBottom = React.useCallback(() => {
-    shouldAutoScrollRef.current = true;
-    setShowScrollButton(false);
-    scrollToBottom(false);
-  }, [scrollToBottom]);
-
-  const renderedRecords = records.flatMap((record) => {
+const ConversationHistory = React.memo(function ConversationHistory({
+  records,
+  showReasoningTraces,
+  isWorking,
+  workingLabel,
+}: {
+  records: RenderRecord[];
+  showReasoningTraces: boolean;
+  isWorking: boolean;
+  workingLabel: string;
+}) {
+  return records.flatMap((record) => {
     if (record.kind === 'user') {
       if (record.consumed) {
         return [];
@@ -554,6 +592,85 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
 
     return [renderStandaloneMessage(record.item, showReasoningTraces)];
   });
+}, (prev, next) => {
+  return prev.showReasoningTraces === next.showReasoningTraces
+    && prev.isWorking === next.isWorking
+    && prev.workingLabel === next.workingLabel
+    && areRenderRecordsEquivalent(prev.records, next.records);
+});
+
+export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...' }: ConversationPanelProps) {
+  const records = React.useMemo(() => buildRenderRecords(items), [items]);
+  const panelRef = React.useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = React.useRef(true);
+  const [showScrollButton, setShowScrollButton] = React.useState(false);
+
+  const scrollToBottom = React.useCallback((instant = false) => {
+    const el = panelRef.current;
+    if (!el) {
+      return;
+    }
+
+    if (typeof el.scrollTo === 'function') {
+      el.scrollTo({ top: el.scrollHeight, behavior: instant ? 'auto' : 'smooth' });
+      return;
+    }
+
+    el.scrollTop = el.scrollHeight;
+  }, []);
+
+  React.useEffect(() => {
+    const el = panelRef.current;
+    if (!el) {
+      return;
+    }
+
+    const updateScrollState = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const atBottom = distanceFromBottom < 120;
+      shouldAutoScrollRef.current = atBottom;
+      setShowScrollButton(!atBottom);
+    };
+
+    updateScrollState();
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!shouldAutoScrollRef.current) {
+      return;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      scrollToBottom(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [items, scrollToBottom]);
+
+  const handleScrollToBottom = React.useCallback(() => {
+    shouldAutoScrollRef.current = true;
+    setShowScrollButton(false);
+    scrollToBottom(false);
+  }, [scrollToBottom]);
+
+  const trailingStreamingRecord = React.useMemo(() => {
+    const lastRecord = records.at(-1);
+    return isStreamingRecord(lastRecord) ? lastRecord : undefined;
+  }, [records]);
+
+  const historyRecords = React.useMemo(() => {
+    if (!trailingStreamingRecord) {
+      return records;
+    }
+    return records.slice(0, -1);
+  }, [records, trailingStreamingRecord]);
 
   return (
     <div className="messages-panel" role="log" aria-label="Conversation" aria-live="polite" ref={panelRef} style={{ position: 'relative' }}>
@@ -578,7 +695,21 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
         )
       ) : null}
 
-      {renderedRecords}
+      <ConversationHistory
+        records={historyRecords}
+        showReasoningTraces={showReasoningTraces}
+        isWorking={isWorking}
+        workingLabel={workingLabel}
+      />
+
+      {trailingStreamingRecord ? (
+        <ConversationHistory
+          records={[trailingStreamingRecord]}
+          showReasoningTraces={showReasoningTraces}
+          isWorking={isWorking}
+          workingLabel={workingLabel}
+        />
+      ) : null}
 
       <ScrollToBottomButton visible={showScrollButton} onClick={handleScrollToBottom} />
     </div>
