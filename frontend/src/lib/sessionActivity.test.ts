@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getSessionActivityPhase,
   getSessionActivityResult,
+  getSessionActivityResultWithStreaming,
   getVisualStreamingState,
   isRunningSessionStatus,
 } from '@/sync/sessionActivity';
@@ -39,5 +40,22 @@ describe('sessionActivity', () => {
   it('keeps the transport state when the session is not running', () => {
     expect(getVisualStreamingState('idle', 'connecting')).toBe('connecting');
     expect(getVisualStreamingState('busy', 'idle')).toBe('streaming');
+    expect(getVisualStreamingState('idle', 'idle', 'cooldown')).toBe('streaming');
+  });
+
+  it('promotes cooldown lifecycle into a working activity result', () => {
+    expect(getSessionActivityResultWithStreaming('idle', 'cooldown')).toEqual({
+      phase: 'cooldown',
+      isWorking: true,
+      isBusy: false,
+      isCooldown: true,
+    });
+    expect(getSessionActivityResultWithStreaming('busy', 'streaming')).toEqual({
+      phase: 'busy',
+      isWorking: true,
+      isBusy: true,
+      isCooldown: false,
+    });
+    expect(getSessionActivityResultWithStreaming('idle', null)).toEqual(getSessionActivityResult('idle'));
   });
 });

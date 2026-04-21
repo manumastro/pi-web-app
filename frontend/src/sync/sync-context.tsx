@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react';
 import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { ChildStoreManager } from './child-store';
-import { getSessionStatusType } from './sessionActivity';
+import { getSessionActivityResultWithStreaming, getSessionStatusType } from './sessionActivity';
+import { useStreamingSession } from './streaming';
 import type { SessionActivityResult } from './sessionActivity';
 import { setSyncRefs } from './sync-refs';
 import type { SyncDirectoryState } from './types';
@@ -213,9 +214,8 @@ export function useSessionDirectory(sessionID?: string | null, directory?: strin
 
 export function useSessionActivity(sessionId: string | null | undefined, directory?: string): SessionActivityResult {
   const sessionStatus = useSessionStatus(sessionId ?? '', directory);
-  const statusType = getSessionStatusType(sessionStatus);
-  const phase = statusType === 'retry' ? 'retry' : statusType && statusType !== 'idle' ? 'busy' : 'idle';
-  if (!sessionId || phase === 'idle') {
+  const streamingSession = useStreamingSession(sessionId ?? undefined);
+  if (!sessionId) {
     return {
       phase: 'idle',
       isWorking: false,
@@ -224,12 +224,7 @@ export function useSessionActivity(sessionId: string | null | undefined, directo
     };
   }
 
-  return {
-    phase,
-    isWorking: true,
-    isBusy: true,
-    isCooldown: false,
-  };
+  return getSessionActivityResultWithStreaming(getSessionStatusType(sessionStatus), streamingSession.phase);
 }
 
 export function useCurrentSessionActivity(): SessionActivityResult {

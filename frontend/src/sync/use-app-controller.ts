@@ -7,7 +7,7 @@ import { reduceSessionLifecyclePayload, reduceSessionLifecyclePayloads } from '.
 import { markSessionViewed } from './notification-store';
 import { useCurrentSessionActivity, setSyncDirectory } from './sync-context';
 import { useStreamingSession, type StreamPhase } from './streaming';
-import { isRunningSessionStatus } from './sessionActivity';
+import { getVisualStreamingState, isRunningSessionStatus } from './sessionActivity';
 import { useInputStore } from './input-store';
 import { useSync } from './use-sync';
 import { useChatStore } from '@/stores/chatStore';
@@ -177,9 +177,11 @@ export function useAppController(): AppController {
   const currentDirectoryLabel = formatDirectoryLabel(currentDirectory, homeDirectory);
   const currentSessionActivity = useCurrentSessionActivity();
   const streamingSession = useStreamingSession(selectedSessionId || undefined);
-  const interactionStreaming = isRunningSessionStatus(currentSession?.status) || currentSessionActivity.isWorking
-    ? 'streaming'
-    : streaming;
+  const interactionStreaming = getVisualStreamingState(
+    currentSession?.status ?? null,
+    streaming,
+    streamingSession.phase,
+  );
 
   const refreshModels = useCallback(async (selSessionId?: string): Promise<ModelInfo[]> => {
     const url = selSessionId

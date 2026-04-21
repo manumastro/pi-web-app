@@ -1,6 +1,7 @@
 import type { StreamingState } from '@/types';
+import type { StreamPhase } from './streaming';
 
-export type SessionActivityPhase = 'idle' | 'busy' | 'retry';
+export type SessionActivityPhase = 'idle' | 'busy' | 'retry' | 'cooldown';
 export type SessionStatusLike = string | { type?: string | null } | null | undefined;
 
 export interface SessionActivityResult {
@@ -69,11 +70,37 @@ export function getSessionActivityResult(status?: SessionStatusLike): SessionAct
   };
 }
 
+export function getSessionActivityResultWithStreaming(
+  status?: SessionStatusLike,
+  streamPhase?: StreamPhase | null,
+): SessionActivityResult {
+  if (streamPhase === 'cooldown') {
+    return {
+      phase: 'cooldown',
+      isWorking: true,
+      isBusy: false,
+      isCooldown: true,
+    };
+  }
+
+  if (streamPhase === 'streaming') {
+    return {
+      phase: 'busy',
+      isWorking: true,
+      isBusy: true,
+      isCooldown: false,
+    };
+  }
+
+  return getSessionActivityResult(status);
+}
+
 export function getVisualStreamingState(
   status?: string | null,
   transportState: StreamingState = 'idle',
+  streamPhase?: StreamPhase | null,
 ): StreamingState {
-  if (isRunningSessionStatus(status)) {
+  if (streamPhase === 'streaming' || streamPhase === 'cooldown' || isRunningSessionStatus(status)) {
     return 'streaming';
   }
 
