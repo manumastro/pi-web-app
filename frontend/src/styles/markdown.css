@@ -1,0 +1,276 @@
+/* =============================================
+   MARKDOWN BODY
+   ============================================= */
+
+.markdown-body {
+  font-size: 0.9375rem;
+  line-height: 1.18;
+  color: var(--foreground);
+}
+
+.markdown-body p {
+  margin: 0;
+}
+
+.markdown-body p + p {
+  margin-top: 0;
+}
+
+.markdown-body p:first-child {
+  margin-top: 0;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body strong {
+  font-weight: 600;
+}
+
+.markdown-body em {
+  font-style: italic;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.04em 0;
+  padding-inline-start: 1.5rem;
+  list-style-position: outside;
+}
+
+.markdown-body ul {
+  list-style-type: disc;
+}
+
+.markdown-body ol {
+  list-style-type: decimal;
+}
+
+.markdown-body li {
+  margin: 0;
+  padding-inline-start: 0.2rem;
+}
+
+.markdown-body li > p {
+  display: inline;
+}
+
+.markdown-body blockquote {
+  margin: 0.2em 0;
+  padding: 0.12em 0.55em;
+  border-left: 3px solid var(--border);
+  color: color-mix(in oklab, var(--foreground) 75%, transparent);
+}
+
+.markdown-body hr {
+  margin: 0.45em 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.markdown-body .link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.markdown-body .link:hover {
+  text-decoration: underline;
+}
+
+.markdown-body .link-external::after {
+  content: '';
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  margin-left: 0.25em;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'/%3E%3Cpolyline points='15 3 21 3 21 9'/%3E%3Cline x1='10' y1='14' x2='21' y2='3'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  vertical-align: middle;
+  opacity: 0.6;
+}
+
+.markdown-body .inline-code {
+  padding: 0.125em 0.375em;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: color-mix(in oklab, var(--surface-3) 60%, transparent);
+  border-radius: 0.25rem;
+  color: color-mix(in oklab, var(--foreground) 90%, transparent);
+}
+
+.markdown-body .code-block {
+  margin: 0.6rem 0;
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.markdown-body .code-language {
+  margin-bottom: 0.4rem;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.markdown-body .markdown-code-shell {
+  margin: 0.6rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.markdown-body .markdown-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface-3) 72%, transparent);
+}
+
+.markdown-body .markdown-code-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.markdown-body .markdown-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+}
+
+.markdown-body .markdown-toolbar-button:hover {
+  color: var(--foreground);
+  border-color: var(--border-hover);
+  background: color-mix(in oklab, var(--surface-2) 80%, transparent);
+}
+
+.markdown-body .markdown-code-virtual-scroll {
+  max-height: min(60vh, 34rem);
+  overflow: auto;
+}
+
+.markdown-body .markdown-code-row {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  min-height: 22px;
+  padding-inline: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.markdown-body .markdown-code-line-number {
+  color: var(--muted);
+  text-align: right;
+  user-select: none;
+}
+
+.markdown-body .markdown-mermaid-block {
+  margin: 0.6rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.markdown-body .markdown-mermaid-output {
+  padding: 0.85rem;
+  overflow: auto;
+}
+
+.markdown-body .markdown-mermaid-output svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body .markdown-assistant {
+  color: var(--foreground);
+}
+
+.markdown-body .markdown-reasoning {
+  color: color-mix(in oklab, var(--foreground) 88%, transparent);
+}
+
+.markdown-body .markdown-tool {
+  color: color-mix(in oklab, var(--foreground) 92%, transparent);
+}
+
+.markdown-body .katex-display {
+  margin: 0.6rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.content-settling {
+  will-change: contents;
+}
+
+.content-settled {
+  will-change: auto;
+}
+
+.markdown-body .markdown-table-wrap {
+  margin: 0.6rem 0;
+  overflow-x: auto;
+}
+
+.markdown-body .markdown-table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.markdown-body .markdown-th,
+.markdown-body .markdown-td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-body .markdown-th:last-child,
+.markdown-body .markdown-td:last-child {
+  border-right: none;
+}
+
+.markdown-body .markdown-thead .markdown-th {
+  background: color-mix(in oklab, var(--surface-3) 70%, transparent);
+  font-weight: 600;
+}
+
+.markdown-body .markdown-tbody .markdown-tr:last-child .markdown-td {
+  border-bottom: none;
+}
+
