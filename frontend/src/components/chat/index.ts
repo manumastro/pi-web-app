@@ -3,7 +3,6 @@ export { ChatContainer } from './ChatContainer';
 export { ChatEmptyState } from './ChatEmptyState';
 export { ConversationPanel } from './ConversationPanel';
 export { ComposerPanel } from './ComposerPanel';
-export { StatusRow } from './StatusRow';
 export { StatusChip } from './StatusChip';
 export { FadeInOnReveal } from './message/FadeInOnReveal';
 export { MessageBody } from './message/MessageBody';

@@ -9,7 +9,6 @@ import { ChatView } from './components/views/ChatView';
 import { ChatEmptyState } from './components/chat/ChatEmptyState';
 import { ConversationPanel } from './components/chat/ConversationPanel';
 import { ComposerPanel } from './components/chat/ComposerPanel';
-import { StatusRow } from './components/chat/StatusRow';
 import { Toaster } from './components/ui';
 
 function ConnectionBanner({ state, message, error }: { state: StreamingState; message: string; error?: string }) {
@@ -107,7 +106,6 @@ export default function App() {
         isWorking={interactionStreaming === 'streaming' || interactionStreaming === 'connecting'}
         workingLabel={interactionStreaming === 'connecting' ? 'Connecting...' : 'Working...'}
       />
-      <StatusRow state={interactionStreaming} statusMessage={statusMessage} onAbort={handleAbort} />
       <ComposerPanel
         prompt={prompt}
         streaming={interactionStreaming}
