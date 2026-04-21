@@ -14,6 +14,7 @@ import { ReasoningPart } from './message/parts/ReasoningPart';
 import { ToolPart } from './message/parts/ToolPart';
 import { ScrollToBottomButton } from './components/ScrollToBottomButton';
 import { WorkingPlaceholder } from './components/WorkingPlaceholder';
+import type { StreamPhase } from '@/sync/streaming';
 
 interface ConversationPanelProps {
   items: ConversationItem[];
@@ -21,6 +22,8 @@ interface ConversationPanelProps {
   showReasoningTraces?: boolean;
   isWorking?: boolean;
   workingLabel?: string;
+  activeStreamingMessageId?: string;
+  activeStreamingPhase?: StreamPhase;
 }
 
 type AssistantMessageItem = MessageItem & { role: 'assistant' };
@@ -311,7 +314,15 @@ function hasStreamingTurnEntry(entry: ToolTurnEntry): boolean {
   return !entry.result;
 }
 
-function isStreamingRecord(record: RenderRecord | undefined): boolean {
+function isStreamingRecord(record: RenderRecord | undefined, activeStreamingMessageId?: string, activeStreamingPhase?: StreamPhase): boolean {
+  if (activeStreamingMessageId && (activeStreamingPhase === 'streaming' || activeStreamingPhase === 'cooldown')) {
+    if (record?.kind === 'turn') {
+      return record.turnId === activeStreamingMessageId;
+    }
+    if (record?.kind === 'standalone' && record.item.role === 'assistant') {
+      return (record.item.messageId ?? record.item.id) === activeStreamingMessageId;
+    }
+  }
   if (!record) {
     return false;
   }
@@ -625,7 +636,7 @@ const StreamingTailContent = React.memo(function StreamingTailContent({
     && prev.record === next.record;
 });
 
-export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...' }: ConversationPanelProps) {
+export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...', activeStreamingMessageId, activeStreamingPhase }: ConversationPanelProps) {
   const records = React.useMemo(() => buildRenderRecords(items), [items]);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const bottomAnchorRef = React.useRef<HTMLDivElement | null>(null);
@@ -694,15 +705,22 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
   }, [scrollToBottom]);
 
   const trailingStreamingRecord = React.useMemo(() => {
+    if (activeStreamingMessageId && (activeStreamingPhase === 'streaming' || activeStreamingPhase === 'cooldown')) {
+      const matched = records.find((record) => isStreamingRecord(record, activeStreamingMessageId, activeStreamingPhase));
+      if (matched) {
+        return matched;
+      }
+    }
+
     const lastRecord = records.at(-1);
-    return isStreamingRecord(lastRecord) ? lastRecord : undefined;
-  }, [records]);
+    return isStreamingRecord(lastRecord, activeStreamingMessageId, activeStreamingPhase) ? lastRecord : undefined;
+  }, [activeStreamingMessageId, activeStreamingPhase, records]);
 
   const historyRecords = React.useMemo(() => {
     if (!trailingStreamingRecord) {
       return records;
     }
-    return records.slice(0, -1);
+    return records.filter((record) => record !== trailingStreamingRecord);
   }, [records, trailingStreamingRecord]);
 
   return (

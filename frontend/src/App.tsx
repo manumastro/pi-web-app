@@ -40,6 +40,8 @@ export default function App() {
     visibleSessions,
     homeDirectory,
     interactionStreaming,
+    activeStreamingMessageId,
+    activeStreamingPhase,
     handleSend,
     handleAbort,
     handleCreateSession,
@@ -105,6 +107,8 @@ export default function App() {
         showReasoningTraces={showReasoningTraces}
         isWorking={interactionStreaming === 'streaming' || interactionStreaming === 'connecting'}
         workingLabel={interactionStreaming === 'connecting' ? 'Connecting...' : 'Working...'}
+        activeStreamingMessageId={activeStreamingMessageId}
+        activeStreamingPhase={activeStreamingPhase}
       />
       <ComposerPanel
         prompt={prompt}

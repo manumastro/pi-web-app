@@ -6,6 +6,7 @@ import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation, r
 import { reduceSessionLifecyclePayload } from './event-reducer';
 import { markSessionViewed } from './notification-store';
 import { useCurrentSessionActivity, setSyncDirectory } from './sync-context';
+import { useStreamingSession, type StreamPhase } from './streaming';
 import { isRunningSessionStatus } from './sessionActivity';
 import { useInputStore } from './input-store';
 import { useSync } from './use-sync';
@@ -58,6 +59,8 @@ export type AppController = {
   homeDirectory: string;
   currentSessionActivity: ReturnType<typeof useCurrentSessionActivity>;
   interactionStreaming: StreamingState;
+  activeStreamingMessageId?: string;
+  activeStreamingPhase?: StreamPhase;
   handleSend: () => Promise<void>;
   handleAbort: () => Promise<void>;
   handleCreateSession: () => Promise<void>;
@@ -173,6 +176,7 @@ export function useAppController(): AppController {
   const currentDirectory = currentSession?.cwd ?? selectedDirectory;
   const currentDirectoryLabel = formatDirectoryLabel(currentDirectory, homeDirectory);
   const currentSessionActivity = useCurrentSessionActivity();
+  const streamingSession = useStreamingSession(selectedSessionId || undefined);
   const interactionStreaming = isRunningSessionStatus(currentSession?.status) || currentSessionActivity.isWorking
     ? 'streaming'
     : streaming;
@@ -545,6 +549,8 @@ export function useAppController(): AppController {
     homeDirectory,
     currentSessionActivity,
     interactionStreaming,
+    activeStreamingMessageId: streamingSession.activeMessageId ?? undefined,
+    activeStreamingPhase: streamingSession.phase ?? undefined,
     handleSend,
     handleAbort,
     handleCreateSession,

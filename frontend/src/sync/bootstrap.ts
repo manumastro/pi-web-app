@@ -1,5 +1,6 @@
 import type { SessionInfo } from '@/types';
 import { messagesToConversation, rehydrateConversationForSession } from '@/sync/conversation';
+import { hydrateStreamingSession } from './streaming';
 import { getSessionStatusType, isRunningSessionStatus } from './sessionActivity';
 import { getSyncChildStores } from './sync-refs';
 import type { SyncDirectoryState, SyncSessionStatus } from './types';
@@ -99,7 +100,9 @@ export function hydrateSelectedSessionSnapshot(
   deps: Pick<SessionBootstrapDeps, 'updateSession' | 'setConversation' | 'setSelectedSessionId' | 'setSelectedDirectory' | 'setStreaming' | 'setStatusMessage'>,
 ): void {
   deps.updateSession(session.id, session);
-  deps.setConversation(rehydrateConversationForSession(session.messages, getSessionStatusType(session.status)));
+  const conversation = rehydrateConversationForSession(session.messages, getSessionStatusType(session.status));
+  deps.setConversation(conversation);
+  hydrateStreamingSession(session.id, conversation, getSessionStatusType(session.status));
   deps.setSelectedSessionId(session.id);
   deps.setSelectedDirectory(session.cwd);
   deps.setStreaming(isRunningSessionStatus(session.status) ? 'streaming' : 'idle');

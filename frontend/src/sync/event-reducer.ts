@@ -1,5 +1,6 @@
 import type { SessionInfo, StreamingState } from '@/types';
 import { applySsePayload, type ConversationItem, type SsePayload } from '@/sync/conversation';
+import { applyStreamingPayloadState } from './streaming';
 import { appendNotification } from './notification-store';
 import { getSessionStatusType, isRunningSessionStatus } from './sessionActivity';
 import { getDirectoryState, getSyncChildStores } from './sync-refs';
@@ -79,6 +80,7 @@ export function reduceSessionLifecyclePayload(
 ): ConversationItem[] {
   const updatedConversation = applySsePayload(currentConversation, payload);
   deps.setConversation(updatedConversation);
+  applyStreamingPayloadState(payload.sessionId, payload, updatedConversation);
 
   const nextStatus = transitionStatusForPayload(payload);
   patchSessionStatus(deps.directory, payload.sessionId, nextStatus);
