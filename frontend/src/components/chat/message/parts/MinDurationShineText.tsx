@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
 
 interface MinDurationShineTextProps {
   text: string;
   minDuration?: number;
   className?: string;
+  renderMarkdown?: boolean;
 }
 
 export const MinDurationShineText: React.FC<MinDurationShineTextProps> = ({
   text,
   minDuration = 300,
   className,
+  renderMarkdown = false,
 }) => {
   const [isShining, setIsShining] = useState(false);
   const [showContent, setShowContent] = useState(false);
@@ -40,7 +43,11 @@ export const MinDurationShineText: React.FC<MinDurationShineTextProps> = ({
       )}
     >
       <div className={cn(isShining && 'shine-text-content')}>
-        {text}
+        {renderMarkdown ? (
+          <SimpleMarkdownRenderer content={text} />
+        ) : (
+          text
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 
 export type SessionMemoryState = {
   viewportAnchor: number;
@@ -40,3 +41,13 @@ export const useViewportStore = create<ViewportState>()((set) => ({
     return { sessionMemoryState: next };
   }),
 }));
+
+/**
+ * Hook to check if the current session is actively streaming.
+ * Returns true when session is in "streaming" state.
+ */
+export function useIsStreaming(): boolean {
+  const currentSessionId = useSessionUiStore((s) => s.selectedSessionId);
+  const sessionMemory = useViewportStore((s) => s.sessionMemoryState.get(currentSessionId ?? ''));
+  return sessionMemory?.isStreaming ?? false;
+}
