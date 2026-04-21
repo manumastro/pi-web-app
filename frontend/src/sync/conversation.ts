@@ -96,19 +96,10 @@ function splitAssistantContent(content: string): { reasoning: string; answer: st
     return { reasoning: '', answer: '' };
   }
 
-  const parts = trimmed
-    .split(/\n{2,}/u)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-
-  if (parts.length <= 1) {
-    return { reasoning: '', answer: trimmed };
-  }
-
-  return {
-    reasoning: parts.slice(0, -1).join('\n\n'),
-    answer: parts.at(-1) ?? '',
-  };
+  // Persisted assistant messages should stay user-visible by default.
+  // Reasoning traces are sourced from explicit thinking events, not inferred
+  // by splitting normal multi-paragraph assistant text.
+  return { reasoning: '', answer: trimmed };
 }
 
 function normalizeSessionRole(role: SessionMessage['role'] | string | undefined): 'user' | 'assistant' | 'system' | 'tool_call' | 'tool_result' | undefined {

@@ -427,7 +427,7 @@
 
 .message-content {
   font-size: var(--text-markdown);
-  line-height: 1.6;
+  line-height: 1.4;
   color: var(--foreground);
 }
 
@@ -1496,9 +1496,9 @@
 
   .message-content,
   .message-code-block {
-    margin: 0.6rem 0 0;
+    margin: 0.45rem 0 0;
     font-size: 0.9375rem;
-    line-height: 1.6;
+    line-height: 1.4;
     color: var(--foreground);
     white-space: pre-wrap;
     word-break: break-word;
@@ -1590,9 +1590,9 @@
 
 /* Text content */
 .message-text-content {
-  margin-top: 0.6rem;
+  margin-top: 0.45rem;
   font-size: 0.9375rem;
-  line-height: 1.6;
+  line-height: 1.4;
   color: var(--foreground);
   white-space: pre-wrap;
   word-break: break-word;
@@ -1937,12 +1937,16 @@
 
 .markdown-body {
   font-size: 0.9375rem;
-  line-height: 1.6;
+  line-height: 1.4;
   color: var(--foreground);
 }
 
 .markdown-body p {
-  margin: 0.3em 0;
+  margin: 0;
+}
+
+.markdown-body p + p {
+  margin-top: 0.2em;
 }
 
 .markdown-body p:first-child {
@@ -1963,8 +1967,8 @@
 
 .markdown-body ul,
 .markdown-body ol {
-  padding-left: 1.25em;
-  margin: 0.35em 0;
+  padding-left: 1.2em;
+  margin: 0.2em 0;
 }
 
 .markdown-body ul {
@@ -1976,7 +1980,7 @@
 }
 
 .markdown-body li {
-  margin: 0.15em 0;
+  margin: 0.1em 0;
 }
 
 .markdown-body blockquote {

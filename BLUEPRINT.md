@@ -1632,6 +1632,7 @@ NODE_PATH=/usr/bin/node
 - Removed Tailwind `prose` class from chat markdown and normalized excessive blank lines (3+ newlines collapsed to 2) in `frontend/src/components/chat/MarkdownRenderer.tsx` to prevent oversized vertical spacing in assistant answers after refresh.
 - Aligned markdown output behavior with OpenChamber patterns by tightening paragraph/list/code spacing in `frontend/src/styles.css` and adding explicit GFM table rendering/styling (wrapper + bordered cells) in `frontend/src/components/chat/MarkdownRenderer.tsx`.
 - Added explicit OpenChamber-style tool output card styling for the new tool renderer classes (`tool-block`, `tool-content`, `tool-input`, `tool-output`, `tool-timestamp`) so expanded tool payloads no longer inherit browser `pre` defaults that caused large vertical whitespace.
+- Disabled inferred assistant-content splitting into pseudo-thinking on rehydration (`frontend/src/sync/conversation.ts`), so normal multi-paragraph assistant replies are no longer misclassified as reasoning blocks after refresh.
 - Frontend localStorage cache persistence is now disabled by default (project/ui/model/theme + sync metadata), with an explicit opt-in flag `VITE_ENABLE_FRONTEND_CACHE=true`; startup clears stale `pi-web-app:*` and `pi.dir.*` keys when cache is disabled.
 - Backend static hosting now disables HTTP caching for frontend assets + `index.html` by default via `PI_WEB_DISABLE_FRONTEND_HTTP_CACHE=true` (no-store/no-cache headers), with explicit opt-out by setting it to `false`.
 
