@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ToolRevealOnMount } from '../../ToolRevealOnMount';
 import { formatTimestampForDisplay } from '../timeFormat';
+import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
 
 export type ToolStatus = 'running' | 'success' | 'error' | 'pending';
 
@@ -222,18 +223,30 @@ export const ToolPart: React.FC<ToolPartProps> = ({
             {input?.trim().length ? (
               <div className="tool-section">
                 <div className="tool-section-label">Input</div>
-                <pre className={cn('tool-input', parsedInput.isJson && 'is-json')}>
-                  {parsedInput.display}
-                </pre>
+                {parsedInput.isJson ? (
+                  <pre className={cn('tool-input', 'is-json')}>
+                    {parsedInput.display}
+                  </pre>
+                ) : (
+                  <div className="tool-input">
+                    <SimpleMarkdownRenderer content={parsedInput.display} variant="tool" />
+                  </div>
+                )}
               </div>
             ) : null}
 
             {output?.trim().length ? (
               <div className="tool-section">
                 <div className="tool-section-label">Output</div>
-                <pre className={cn('tool-output', status === 'success' && 'success', status === 'error' && 'error', parsedOutput?.isJson && 'is-json')}>
-                  {parsedOutput?.display || output}
-                </pre>
+                {parsedOutput?.isJson ? (
+                  <pre className={cn('tool-output', status === 'success' && 'success', status === 'error' && 'error', 'is-json')}>
+                    {parsedOutput.display}
+                  </pre>
+                ) : (
+                  <div className={cn('tool-output', status === 'success' && 'success', status === 'error' && 'error')}>
+                    <SimpleMarkdownRenderer content={parsedOutput?.display || output} variant="tool" />
+                  </div>
+                )}
               </div>
             ) : null}
           </div>

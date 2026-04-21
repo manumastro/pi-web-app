@@ -2058,6 +2058,114 @@
   letter-spacing: 0.05em;
 }
 
+.markdown-body .markdown-code-shell {
+  margin: 0.6rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.markdown-body .markdown-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface-3) 72%, transparent);
+}
+
+.markdown-body .markdown-code-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.markdown-body .markdown-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+}
+
+.markdown-body .markdown-toolbar-button:hover {
+  color: var(--foreground);
+  border-color: var(--border-hover);
+  background: color-mix(in oklab, var(--surface-2) 80%, transparent);
+}
+
+.markdown-body .markdown-code-virtual-scroll {
+  max-height: min(60vh, 34rem);
+  overflow: auto;
+}
+
+.markdown-body .markdown-code-row {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  min-height: 22px;
+  padding-inline: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.markdown-body .markdown-code-line-number {
+  color: var(--muted);
+  text-align: right;
+  user-select: none;
+}
+
+.markdown-body .markdown-mermaid-block {
+  margin: 0.6rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.markdown-body .markdown-mermaid-output {
+  padding: 0.85rem;
+  overflow: auto;
+}
+
+.markdown-body .markdown-mermaid-output svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body .markdown-assistant {
+  color: var(--foreground);
+}
+
+.markdown-body .markdown-reasoning {
+  color: color-mix(in oklab, var(--foreground) 88%, transparent);
+}
+
+.markdown-body .markdown-tool {
+  color: color-mix(in oklab, var(--foreground) 92%, transparent);
+}
+
+.markdown-body .katex-display {
+  margin: 0.6rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.content-settling {
+  will-change: contents;
+}
+
+.content-settled {
+  will-change: auto;
+}
+
 .markdown-body .markdown-table-wrap {
   margin: 0.6rem 0;
   overflow-x: auto;

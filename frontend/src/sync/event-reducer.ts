@@ -60,6 +60,22 @@ function patchSessionMessages(directory: string | undefined, sessionId: string, 
   }));
 }
 
+function patchSessionAttention(directory: string | undefined, sessionId: string, kind: 'permission' | 'question', payload: SsePayload): void {
+  if (!directory) {
+    return;
+  }
+
+  const childStores = getSyncChildStores();
+  childStores.ensureChild(directory, { bootstrap: false });
+  childStores.update(directory, (state) => ({
+    ...state,
+    [kind]: {
+      ...state[kind],
+      [sessionId]: [...(state[kind][sessionId] ?? []), payload],
+    },
+  }));
+}
+
 function transitionStatusForPayload(payload: SsePayload): SyncSessionStatus {
   if (payload.type === 'done') {
     return { type: 'idle', timestamp: Date.now() };
@@ -69,6 +85,15 @@ function transitionStatusForPayload(payload: SsePayload): SyncSessionStatus {
   }
   if (payload.type === 'text_chunk' || payload.type === 'thinking' || payload.type === 'tool_call' || payload.type === 'tool_result') {
     return { type: 'busy', timestamp: Date.now() };
+  }
+  if (payload.type === 'permission') {
+    return { type: 'waiting_permission', timestamp: Date.now(), message: payload.message };
+  }
+  if (payload.type === 'question') {
+    return { type: 'waiting_question', timestamp: Date.now(), message: payload.message };
+  }
+  if (payload.type === 'status') {
+    return { type: payload.status ?? 'busy', timestamp: Date.now(), message: payload.message, metadata: payload.metadata };
   }
   return { type: 'idle', timestamp: Date.now() };
 }
@@ -102,7 +127,16 @@ export function reduceSessionLifecyclePayloads(
   const nextStatus = transitionStatusForPayload(finalPayload);
   patchSessionStatus(deps.directory, finalPayload.sessionId, nextStatus);
 
-  if (finalPayload.type === 'done') {
+  if (finalPayload.type === 'permission' || finalPayload.type === 'question') {
+    patchSessionAttention(deps.directory, finalPayload.sessionId, finalPayload.type, finalPayload);
+    deps.setStreaming('streaming');
+    deps.setStatusMessage(finalPayload.message ?? (finalPayload.type === 'permission' ? 'Permission needed' : 'Question pending'));
+  } else if (finalPayload.type === 'status') {
+    deps.setStatusMessage(finalPayload.message ?? finalPayload.status ?? 'Working');
+    if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
+      deps.setStreaming('streaming');
+    }
+  } else if (finalPayload.type === 'done') {
     deps.updateSession(finalPayload.sessionId, { status: 'idle' });
     deps.setStreaming('idle');
     deps.setStatusMessage(finalPayload.aborted ? 'Stopped' : 'Connected');

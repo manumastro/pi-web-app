@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useAppController } from './sync/use-app-controller';
+import { useAssistantStatus } from './hooks/useAssistantStatus';
 import type { StreamingState } from './types';
 
 import { MainLayout } from './components/layout/MainLayout';
@@ -17,6 +18,8 @@ function ConnectionBanner({ state, message, error }: { state: StreamingState; me
 }
 
 export default function App() {
+  const assistantStatus = useAssistantStatus();
+
   const {
     conversation,
     streaming,
@@ -106,7 +109,9 @@ export default function App() {
         error={error}
         showReasoningTraces={showReasoningTraces}
         isWorking={interactionStreaming === 'streaming' || interactionStreaming === 'connecting'}
-        workingLabel={interactionStreaming === 'connecting' ? 'Connecting...' : 'Working...'}
+        workingLabel={interactionStreaming === 'connecting' ? 'Connecting...' : assistantStatus.label}
+        workingStatusText={interactionStreaming === 'connecting' ? 'Connecting...' : assistantStatus.statusText}
+        workingActivity={assistantStatus.activity}
         activeStreamingMessageId={activeStreamingMessageId}
         activeStreamingPhase={activeStreamingPhase}
       />

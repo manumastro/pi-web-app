@@ -1,4 +1,5 @@
 import React from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
 import type {
   ConversationItem,
@@ -22,6 +23,8 @@ interface ConversationPanelProps {
   showReasoningTraces?: boolean;
   isWorking?: boolean;
   workingLabel?: string;
+  workingStatusText?: string | null;
+  workingActivity?: 'idle' | 'streaming' | 'tooling' | 'permission' | 'retry' | 'cooldown' | 'complete';
   activeStreamingMessageId?: string;
   activeStreamingPhase?: StreamPhase;
 }
@@ -36,6 +39,9 @@ type ToolTurnEntry =
   | { kind: 'assistant'; item: AssistantMessageItem }
   | { kind: 'thinking'; item: ThinkingItem }
   | { kind: 'tool'; call?: ToolCallItem; result?: ToolResultItem };
+
+const HISTORY_VIRTUALIZE_THRESHOLD = 40;
+const HISTORY_OVERSCAN = 6;
 
 type RenderRecord =
   | { kind: 'user'; item: UserMessageItem; consumed: boolean }
@@ -402,6 +408,8 @@ const AssistantTurn = React.memo(function AssistantTurn({
   showReasoningTraces,
   showWorkingPlaceholder,
   workingLabel,
+  workingStatusText,
+  workingActivity,
 }: {
   turnId: string;
   userMessage?: UserMessageItem;
@@ -410,6 +418,8 @@ const AssistantTurn = React.memo(function AssistantTurn({
   showReasoningTraces: boolean;
   showWorkingPlaceholder: boolean;
   workingLabel: string;
+  workingStatusText?: string | null;
+  workingActivity?: 'idle' | 'streaming' | 'tooling' | 'permission' | 'retry' | 'cooldown' | 'complete';
 }) {
   const assistantTimestamp = entries.find((entry): entry is Extract<ToolTurnEntry, { kind: 'assistant' }> => entry.kind === 'assistant')?.item.timestamp ?? firstTimestamp;
   const hasStreamingEntry = entries.some(hasStreamingTurnEntry);
@@ -438,7 +448,7 @@ const AssistantTurn = React.memo(function AssistantTurn({
             <MessageHeader role="assistant" timestamp={formatTimestamp(assistantTimestamp)} />
 
             {showWorkingPlaceholder ? (
-              <WorkingPlaceholder label={workingLabel} className="mt-1" />
+              <WorkingPlaceholder label={workingLabel} statusText={workingStatusText} activity={workingActivity} className="mt-1" />
             ) : null}
 
             {orderedEntries.length > 0 ? (
@@ -458,6 +468,8 @@ const AssistantTurn = React.memo(function AssistantTurn({
   if (prev.showReasoningTraces !== next.showReasoningTraces) return false;
   if (prev.showWorkingPlaceholder !== next.showWorkingPlaceholder) return false;
   if (prev.workingLabel !== next.workingLabel) return false;
+  if (prev.workingStatusText !== next.workingStatusText) return false;
+  if (prev.workingActivity !== next.workingActivity) return false;
   if (prev.userMessage !== next.userMessage) return false;
   if (prev.entries.length !== next.entries.length) return false;
 
@@ -476,6 +488,17 @@ const AssistantTurn = React.memo(function AssistantTurn({
     return false;
   });
 });
+
+function estimateRecordHeight(record: RenderRecord | undefined): number {
+  if (!record) return 180;
+  if (record.kind === 'turn') {
+    return 180 + Math.min(record.entries.length, 5) * 96;
+  }
+  if (record.kind === 'user' || record.kind === 'standalone') {
+    return 140;
+  }
+  return 120;
+}
 
 function wrapStaticHistoryNode(key: string, node: React.ReactElement): React.ReactElement {
   return (
@@ -531,13 +554,27 @@ const StaticHistoryList = React.memo(function StaticHistoryList({
   showReasoningTraces,
   isWorking,
   workingLabel,
+  workingStatusText,
+  workingActivity,
+  scrollParentRef,
 }: {
   records: RenderRecord[];
   showReasoningTraces: boolean;
   isWorking: boolean;
   workingLabel: string;
+  workingStatusText?: string | null;
+  workingActivity?: 'idle' | 'streaming' | 'tooling' | 'permission' | 'retry' | 'cooldown' | 'complete';
+  scrollParentRef?: React.RefObject<HTMLDivElement | null>;
 }) {
-  return records.flatMap((record) => {
+  const shouldVirtualize = records.length >= HISTORY_VIRTUALIZE_THRESHOLD && Boolean(scrollParentRef?.current);
+  const virtualizer = useVirtualizer({
+    count: shouldVirtualize ? records.length : 0,
+    getScrollElement: () => scrollParentRef?.current ?? null,
+    estimateSize: (index) => estimateRecordHeight(records[index]),
+    overscan: HISTORY_OVERSCAN,
+  });
+
+  const renderRecord = (record: RenderRecord) => {
     if (record.kind === 'user') {
       if (record.consumed) {
         return [];
@@ -572,6 +609,8 @@ const StaticHistoryList = React.memo(function StaticHistoryList({
               && !record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0)
             }
             workingLabel={workingLabel}
+            workingStatusText={workingStatusText}
+            workingActivity={workingActivity}
           />,
         ),
       ];
@@ -625,11 +664,41 @@ const StaticHistoryList = React.memo(function StaticHistoryList({
     }
 
     return [wrapStaticHistoryNode(record.item.id, renderStandaloneMessage(record.item, showReasoningTraces))];
-  });
+  };
+
+  if (!shouldVirtualize) {
+    return records.flatMap((record) => renderRecord(record));
+  }
+
+  const virtualRows = virtualizer.getVirtualItems();
+  const paddingTop = virtualRows.length > 0 ? (virtualRows[0]?.start ?? 0) : 0;
+  const paddingBottom = virtualRows.length > 0
+    ? Math.max(0, virtualizer.getTotalSize() - (virtualRows[virtualRows.length - 1]?.end ?? 0))
+    : 0;
+
+  return (
+    <div className="virtualized-history-list">
+      {paddingTop > 0 ? <div aria-hidden="true" style={{ height: `${paddingTop}px` }} /> : null}
+      {virtualRows.map((row) => {
+        const record = records[row.index];
+        if (!record) {
+          return null;
+        }
+        return (
+          <div key={row.key} ref={virtualizer.measureElement} data-index={row.index}>
+            {renderRecord(record)}
+          </div>
+        );
+      })}
+      {paddingBottom > 0 ? <div aria-hidden="true" style={{ height: `${paddingBottom}px` }} /> : null}
+    </div>
+  );
 }, (prev, next) => {
   return prev.showReasoningTraces === next.showReasoningTraces
     && prev.isWorking === next.isWorking
     && prev.workingLabel === next.workingLabel
+    && prev.workingStatusText === next.workingStatusText
+    && prev.workingActivity === next.workingActivity
     && areRenderRecordsEquivalent(prev.records, next.records);
 });
 
@@ -638,28 +707,90 @@ const StreamingTailContent = React.memo(function StreamingTailContent({
   showReasoningTraces,
   isWorking,
   workingLabel,
+  workingStatusText,
+  workingActivity,
 }: {
   record: RenderRecord;
   showReasoningTraces: boolean;
   isWorking: boolean;
   workingLabel: string;
+  workingStatusText?: string | null;
+  workingActivity?: 'idle' | 'streaming' | 'tooling' | 'permission' | 'retry' | 'cooldown' | 'complete';
 }) {
-  return (
-    <StaticHistoryList
-      records={[record]}
-      showReasoningTraces={showReasoningTraces}
-      isWorking={isWorking}
-      workingLabel={workingLabel}
-    />
-  );
+  if (record.kind === 'user') {
+    if (record.consumed) {
+      return null;
+    }
+
+    return (
+      <div className="streaming-tail-content" data-streaming-tail="user">
+        <FadeInOnReveal animate>
+          <article className={cn('message', 'message-user')}>
+            <MessageHeader role="user" timestamp={formatTimestamp(record.item.timestamp)} />
+            <MessageBody item={record.item} showReasoningTraces={showReasoningTraces} />
+          </article>
+        </FadeInOnReveal>
+      </div>
+    );
+  }
+
+  if (record.kind === 'turn') {
+    return (
+      <div className="streaming-tail-content" data-streaming-tail="turn">
+        <AssistantTurn
+          turnId={record.turnId}
+          userMessage={record.userMessage}
+          entries={record.entries}
+          firstTimestamp={record.firstTimestamp}
+          showReasoningTraces={showReasoningTraces}
+          showWorkingPlaceholder={
+            isWorking
+            && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming')
+            && !record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0)
+          }
+          workingLabel={workingLabel}
+          workingStatusText={workingStatusText}
+          workingActivity={workingActivity}
+        />
+      </div>
+    );
+  }
+
+  if (record.kind === 'orphan') {
+    if (record.item.kind === 'thinking') {
+      return showReasoningTraces ? (
+        <div className="streaming-tail-content" data-streaming-tail="thinking">
+          <ReasoningPart text={record.item.content} variant="thinking" blockId={record.item.id} done={record.item.done} isStreaming={!record.item.done} />
+        </div>
+      ) : null;
+    }
+
+    if (record.item.kind === 'tool_call') {
+      return (
+        <div className="streaming-tail-content" data-streaming-tail="tool">
+          <ToolPart toolId={record.item.toolCallId} toolName={record.item.toolName} input={record.item.input} status="pending" timestamp={formatTimestamp(record.item.timestamp)} />
+        </div>
+      );
+    }
+
+    return (
+      <div className="streaming-tail-content" data-streaming-tail="tool-result">
+        <ToolPart toolId={record.item.toolCallId} toolName="result" output={record.item.result} status={record.item.success ? 'success' : 'error'} timestamp={formatTimestamp(record.item.timestamp)} />
+      </div>
+    );
+  }
+
+  return <div className="streaming-tail-content" data-streaming-tail="standalone">{renderStandaloneMessage(record.item, showReasoningTraces)}</div>;
 }, (prev, next) => {
   return prev.showReasoningTraces === next.showReasoningTraces
     && prev.isWorking === next.isWorking
     && prev.workingLabel === next.workingLabel
+    && prev.workingStatusText === next.workingStatusText
+    && prev.workingActivity === next.workingActivity
     && prev.record === next.record;
 });
 
-export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...', activeStreamingMessageId, activeStreamingPhase }: ConversationPanelProps) {
+export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...', workingStatusText, workingActivity = 'streaming', activeStreamingMessageId, activeStreamingPhase }: ConversationPanelProps) {
   const records = React.useMemo(() => buildRenderRecords(items), [items]);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const bottomAnchorRef = React.useRef<HTMLDivElement | null>(null);
@@ -761,7 +892,7 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
         isWorking ? (
           <div className="conversation-empty" aria-hidden="true">
             <div className="conversation-empty-state">
-              <WorkingPlaceholder label={workingLabel} className="mt-1" />
+              <WorkingPlaceholder label={workingLabel} statusText={workingStatusText} activity={workingActivity} className="mt-1" />
             </div>
           </div>
         ) : (
@@ -774,6 +905,9 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
         showReasoningTraces={showReasoningTraces}
         isWorking={isWorking}
         workingLabel={workingLabel}
+        workingStatusText={workingStatusText}
+        workingActivity={workingActivity}
+        scrollParentRef={panelRef}
       />
 
       {trailingStreamingRecord ? (
@@ -782,6 +916,8 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
           showReasoningTraces={showReasoningTraces}
           isWorking={isWorking}
           workingLabel={workingLabel}
+          workingStatusText={workingStatusText}
+          workingActivity={workingActivity}
         />
       ) : null}
 

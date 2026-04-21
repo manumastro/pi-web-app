@@ -72,12 +72,24 @@ export function useSessionMessages(sessionID: string, directory?: string) {
   return store.message[sessionID] ?? EMPTY_MESSAGE_LIST;
 }
 
-export function useSessionPermissions(): unknown[] {
-  return EMPTY_MESSAGE_LIST;
+export function useSessionPermissions(sessionID?: string, directory?: string): unknown[] {
+  const selectedSessionId = useSessionUiStore((state) => state.selectedSessionId);
+  const store = useDirectoryStore(directory);
+  const effectiveSessionId = sessionID ?? selectedSessionId;
+  if (!effectiveSessionId) {
+    return EMPTY_MESSAGE_LIST;
+  }
+  return store.permission[effectiveSessionId] ?? EMPTY_MESSAGE_LIST;
 }
 
-export function useSessionQuestions(): unknown[] {
-  return EMPTY_MESSAGE_LIST;
+export function useSessionQuestions(sessionID?: string, directory?: string): unknown[] {
+  const selectedSessionId = useSessionUiStore((state) => state.selectedSessionId);
+  const store = useDirectoryStore(directory);
+  const effectiveSessionId = sessionID ?? selectedSessionId;
+  if (!effectiveSessionId) {
+    return EMPTY_MESSAGE_LIST;
+  }
+  return store.question[effectiveSessionId] ?? EMPTY_MESSAGE_LIST;
 }
 
 export function useSessions(directory?: string) {

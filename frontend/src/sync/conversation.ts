@@ -52,7 +52,7 @@ export interface ErrorItem {
 export type ConversationItem = MessageItem | ThinkingItem | ToolCallItem | ToolResultItem | ErrorItem;
 
 export interface SsePayload {
-  type: 'text_chunk' | 'thinking' | 'tool_call' | 'tool_result' | 'error' | 'done';
+  type: 'text_chunk' | 'thinking' | 'tool_call' | 'tool_result' | 'question' | 'permission' | 'status' | 'error' | 'done';
   sessionId: string;
   messageId?: string;
   content?: string;
@@ -67,6 +67,9 @@ export interface SsePayload {
   category?: string;
   recoverable?: boolean;
   timestamp?: string;
+  status?: string;
+  title?: string;
+  metadata?: Record<string, unknown>;
 }
 
 function randomId(prefix: string): string {

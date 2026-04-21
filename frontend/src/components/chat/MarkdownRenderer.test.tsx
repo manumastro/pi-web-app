@@ -28,4 +28,31 @@ describe('MarkdownRenderer', () => {
     expect(screen.getByText('Name')).toBeInTheDocument();
     expect(screen.getByText('/home/manu/pi-web-app')).toBeInTheDocument();
   });
+
+  it('renders math and marks external links', () => {
+    render(
+      <SimpleMarkdownRenderer
+        content={'Formula: $E=mc^2$\n\n[Docs](https://example.com)'}
+        variant="assistant"
+      />,
+    );
+
+    expect(document.querySelector('.katex')).not.toBeNull();
+    const link = screen.getByRole('link', { name: /Docs/i });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('data-external-link', 'true');
+    expect(document.querySelector('.markdown-assistant')).not.toBeNull();
+  });
+
+  it('renders code block toolbars for fenced code blocks', () => {
+    render(
+      <SimpleMarkdownRenderer
+        content={'```js\nconsole.log("hi")\n```'}
+      />,
+    );
+
+    expect(screen.getByLabelText('Copy code')).toBeInTheDocument();
+    expect(screen.getByLabelText('Download code')).toBeInTheDocument();
+    expect(document.querySelector('.markdown-code-toolbar')).not.toBeNull();
+  });
 });

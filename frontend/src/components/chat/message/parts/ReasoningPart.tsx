@@ -3,6 +3,7 @@ import { Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
 import { useStreamingTextThrottle } from '../../hooks/useStreamingTextThrottle';
+import { useContentSettled } from '../../hooks/useContentSettled';
 
 type ReasoningVariant = 'thinking' | 'justification';
 
@@ -77,6 +78,7 @@ export const ReasoningPart: React.FC<ReasoningPartProps> = ({
     identityKey: blockId,
   });
   const summary = React.useMemo(() => getReasoningSummary(throttledText), [throttledText]);
+  const isSettled = useContentSettled(throttledText, isStreaming ? 160 : 60);
   const timeStart = typeof time?.start === 'number' && Number.isFinite(time.start) ? time.start : undefined;
   const timeEnd = typeof time?.end === 'number' && Number.isFinite(time.end) ? time.end : undefined;
   const isEmpty = !throttledText || throttledText.length === 0;
@@ -94,7 +96,7 @@ export const ReasoningPart: React.FC<ReasoningPartProps> = ({
 
   return (
     <div
-      className={cn('reasoning-timeline-block', isMounted && 'is-mounted', className)}
+      className={cn('reasoning-timeline-block', isMounted && 'is-mounted', !isSettled && 'content-settling', isSettled && 'content-settled', className)}
       data-reasoning-block-id={blockId}
       data-expanded={isExpanded}
     >
@@ -120,7 +122,7 @@ export const ReasoningPart: React.FC<ReasoningPartProps> = ({
       </button>
 
       <div className="reasoning-expanded-body" aria-hidden={!isExpanded}>
-        <SimpleMarkdownRenderer content={throttledText} className="reasoning-content-markdown" />
+        <SimpleMarkdownRenderer content={throttledText} className="reasoning-content-markdown" variant="reasoning" />
       </div>
     </div>
   );
