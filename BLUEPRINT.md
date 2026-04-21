@@ -1645,7 +1645,7 @@ NODE_PATH=/usr/bin/node
 - Disabled inferred assistant-content splitting into pseudo-thinking on rehydration (`frontend/src/sync/conversation.ts`), so normal multi-paragraph assistant replies are no longer misclassified as reasoning blocks after refresh.
 - Frontend localStorage cache persistence is now disabled by default (project/ui/model/theme + sync metadata), with an explicit opt-in flag `VITE_ENABLE_FRONTEND_CACHE=true`; startup clears stale `pi-web-app:*` and `pi.dir.*` keys when cache is disabled.
 - Backend static hosting now disables HTTP caching for frontend assets + `index.html` by default via `PI_WEB_DISABLE_FRONTEND_HTTP_CACHE=true` (no-store/no-cache headers), with explicit opt-out by setting it to `false`.
-- Frontend stylesheet architecture now mirrors OpenChamber 1:1: single CSS entrypoint `frontend/src/index.css` importing `styles/design-system.css`, `styles/typography.css`, and `styles/mobile.css`; `frontend/src/styles.css` removed.
+- Frontend stylesheet architecture uses a single CSS entrypoint `frontend/src/index.css` importing `styles/design-system.css`, `styles/typography.css`, and `styles/mobile.css`, with project-specific compatibility/layout rules preserved in the entrypoint so existing UI classnames remain styled.
 
 #### Deferred
 - Light theme, virtualization for long conversations, slash commands, todo system, shell mode.
@@ -1711,7 +1711,7 @@ NODE_PATH=/usr/bin/node
 - [ ] Virtualized message list (for long sessions) - deferred
 - [x] Keyboard shortcuts (Enter to send)
 - [x] OpenChamber-aligned working indicator placement and compact message spacing in chat rendering
-- [x] OpenChamber 1:1 stylesheet structure (`index.css` entrypoint + semantic tokens/typography/mobile split)
+- [x] OpenChamber-inspired stylesheet structure (`index.css` entrypoint + semantic tokens/typography/mobile split) with project compatibility rules
 - [ ] Accessibility (ARIA labels, keyboard nav) - partial
 - [ ] Favicon, meta tags
 - [ ] **Gate**: Full user journey works smoothly - partial

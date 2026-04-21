@@ -7,4 +7,4 @@ Frontend: React + Vite with URL-driven state and reusable components/hooks.
 Add or update tests for every meaningful change; keep builds green.
 Use npm workspaces; verify with build/test before handoff.
 After each significant change, update BOTH current-state references: `BLUEPRINT.md` (section **15.0 Status Snapshot**, plus feature matrix/checklists when impacted) and `AGENTS.md` (`Current state` line in this file).
-Current state (2026-04-21): See `BLUEPRINT.md` (sections **15.0 Status Snapshot**, **5.1 Feature Matrix**, and phase checklists **15.1–15.6**) as the single up-to-date source of project status; latest significant change includes OpenChamber 1:1 frontend stylesheet structure (`frontend/src/index.css` + `styles/*`).
+Current state (2026-04-21): See `BLUEPRINT.md` (sections **15.0 Status Snapshot**, **5.1 Feature Matrix**, and phase checklists **15.1–15.6**) as the single up-to-date source of project status; latest significant change includes single-entrypoint frontend stylesheet structure (`frontend/src/index.css` + `styles/*`) with project compatibility rules preserved.
