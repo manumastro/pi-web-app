@@ -1,5 +1,6 @@
 import React from 'react';
 import { SidebarPanel } from '@/components/session/SidebarPanel';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { DirectoryInfo, SessionInfo } from '@/types';
 
 interface SidebarProps {
@@ -35,6 +36,8 @@ export function Sidebar({
   onNewSession,
   onToggleSidebar,
 }: SidebarProps) {
+  const isCompactLayout = useMediaQuery('(max-width: 1024px)');
+
   return (
     <SidebarPanel
       projects={projects}
@@ -51,6 +54,7 @@ export function Sidebar({
       onSessionRename={onSessionRename}
       onNewSession={onNewSession}
       onToggleSidebar={onToggleSidebar}
+      mobileVariant={isCompactLayout}
     />
   );
 }

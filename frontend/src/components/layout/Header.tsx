@@ -1,5 +1,6 @@
 import React from 'react';
-import { Layers3, PanelLeft, Plus, SquareTerminal, PanelRightClose } from 'lucide-react';
+import { Layers3, Menu, Plus, SquareTerminal, PanelRightClose } from 'lucide-react';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface HeaderProps {
   sessionName: string;
@@ -37,9 +38,45 @@ function IconButton({
 
 export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSession, onToggleSidebar }: HeaderProps) {
   const title = sessionName.trim().length > 0 ? sessionName : 'Untitled Session';
+  const isCompactLayout = useMediaQuery('(max-width: 1024px)');
+
+  if (isCompactLayout) {
+    return (
+      <header className="app-header app-header-mobile header-safe-area">
+        <div className="app-header-mobile-left">
+          <IconButton
+            title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+            label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+            onClick={onToggleSidebar}
+            className="btn btn-ghost btn-icon btn-sm header-mobile-icon-button"
+          >
+            {sidebarOpen ? <PanelRightClose size={18} /> : <Menu size={18} />}
+          </IconButton>
+        </div>
+
+        <div className="app-header-mobile-center">
+          <div className="header-title-group">
+            <div className="header-title">{title}</div>
+            <div className="header-subtitle">{projectLabel}</div>
+          </div>
+        </div>
+
+        <div className="app-header-mobile-right">
+          <IconButton
+            title="New session"
+            label="New session"
+            onClick={onNewSession}
+            className="btn btn-primary btn-icon btn-sm header-mobile-icon-button header-mobile-primary-button"
+          >
+            <Plus size={18} />
+          </IconButton>
+        </div>
+      </header>
+    );
+  }
 
   return (
-    <header className="app-header">
+    <header className="app-header header-safe-area">
       <div className="app-header-left">
         <button
           type="button"
@@ -85,7 +122,7 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
           onClick={onToggleSidebar}
           className="btn btn-ghost btn-icon btn-sm header-action-button"
         >
-          {sidebarOpen ? <PanelRightClose size={16} /> : <PanelLeft size={16} />}
+          {sidebarOpen ? <PanelRightClose size={16} /> : <Menu size={16} />}
         </IconButton>
       </div>
     </header>

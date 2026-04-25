@@ -1,6 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAppController } from './sync/use-app-controller';
 import { useAssistantStatus } from './hooks/useAssistantStatus';
+import { useMobileRuntime } from './hooks/useMobileRuntime';
+import { useMediaQuery } from './hooks/useMediaQuery';
+import { useUIStore } from './stores/uiStore';
 import type { StreamingState } from './types';
 
 import { MainLayout } from './components/layout/MainLayout';
@@ -18,7 +21,26 @@ function ConnectionBanner({ state, message, error }: { state: StreamingState; me
 }
 
 export default function App() {
+  useMobileRuntime();
   const assistantStatus = useAssistantStatus();
+  const isCompactLayout = useMediaQuery('(max-width: 1024px)');
+  const setSidebarOpen = useUIStore((state) => state.setSidebarOpen);
+  const previousCompactLayoutRef = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (previousCompactLayoutRef.current === null) {
+      previousCompactLayoutRef.current = isCompactLayout;
+      if (isCompactLayout) {
+        setSidebarOpen(false);
+      }
+      return;
+    }
+
+    if (previousCompactLayoutRef.current !== isCompactLayout) {
+      previousCompactLayoutRef.current = isCompactLayout;
+      setSidebarOpen(!isCompactLayout);
+    }
+  }, [isCompactLayout, setSidebarOpen]);
 
   const {
     conversation,

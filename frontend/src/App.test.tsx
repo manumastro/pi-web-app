@@ -14,6 +14,19 @@ const useSessionStreamMock = vi.fn();
 const apiGetMock = vi.fn();
 const apiRequestMock = vi.fn();
 
+function mockMatchMedia(matches: boolean) {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
+    matches,
+    media: '(max-width: 1024px)',
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
+
 vi.mock('@/hooks/useSessionStream', () => ({
   useSessionStream: (...args: unknown[]) => useSessionStreamMock(...args),
 }));
@@ -35,6 +48,8 @@ const session: SessionInfo = {
 };
 
 beforeEach(() => {
+  vi.unstubAllGlobals();
+  mockMatchMedia(false);
   useSessionStreamMock.mockReset();
   apiGetMock.mockReset();
   apiRequestMock.mockReset();
@@ -158,6 +173,17 @@ beforeEach(() => {
 });
 
 describe('App', () => {
+  it('closes the sidebar on initial compact layouts', async () => {
+    mockMatchMedia(true);
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Search sessions' })).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeInTheDocument();
+  });
+
   it('renders and can send a prompt', async () => {
     render(<App />);
 

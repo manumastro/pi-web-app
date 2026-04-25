@@ -54,6 +54,7 @@ interface SidebarPanelProps {
   selectedSessionId: string;
   homeDirectory: string;
   sidebarOpen?: boolean;
+  mobileVariant?: boolean;
   onDirectorySelect: (cwd: string) => void;
   onProjectAdd: (path: string) => boolean;
   onProjectRemove: (cwd: string) => void;
@@ -137,6 +138,7 @@ export function SidebarPanel({
   selectedSessionId,
   homeDirectory,
   sidebarOpen = true,
+  mobileVariant = false,
   onDirectorySelect,
   onProjectAdd,
   onProjectRemove,
@@ -208,54 +210,91 @@ export function SidebarPanel({
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
-      <div className="sidebar-shell">
-        <div className="sidebar-toolbar">
-          <SidebarIconButton
-            label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-            title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-            onClick={onToggleSidebar}
-          >
-            {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
-          </SidebarIconButton>
-
-          <div className="sidebar-toolbar-group">
-            <SidebarIconButton label="Add project" title="Add project" onClick={() => setAddProjectOpen(true)}>
-              <Plus size={16} />
-            </SidebarIconButton>
-            <SidebarIconButton label="New session" title="New session" onClick={onNewSession}>
-              <MessageSquareText size={16} />
-            </SidebarIconButton>
-            <SidebarIconButton
-              label="Search sessions"
-              title="Search sessions"
-              onClick={() => setIsSessionSearchOpen((value) => !value)}
-            >
-              <Search size={16} />
-            </SidebarIconButton>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-icon btn-sm"
-                  aria-label="Session display mode"
-                  title="Session display mode"
+      <div className={cn('sidebar-shell drawer-safe-area', mobileVariant && 'sidebar-shell-mobile')}>
+        <div className={cn('sidebar-toolbar', mobileVariant && 'sidebar-toolbar-mobile')}>
+          {mobileVariant ? (
+            <>
+              <div className="sidebar-mobile-title-group">
+                <div className="sidebar-mobile-eyebrow">Workspace</div>
+                <div className="sidebar-mobile-title">Sessions</div>
+              </div>
+              <div className="sidebar-toolbar-group">
+                <SidebarIconButton
+                  label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                  title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                  onClick={onToggleSidebar}
                 >
-                  <SlidersHorizontal size={16} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[160px]">
-                <DropdownMenuItem onClick={() => setCompactSessions(false)} className="flex items-center justify-between">
-                  <span>Default</span>
-                  {!compactSessions ? <Check className="h-4 w-4 text-primary" /> : null}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCompactSessions(true)} className="flex items-center justify-between">
-                  <span>Minimal</span>
-                  {compactSessions ? <Check className="h-4 w-4 text-primary" /> : null}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                  {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
+                </SidebarIconButton>
+              </div>
+            </>
+          ) : (
+            <>
+              <SidebarIconButton
+                label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                onClick={onToggleSidebar}
+              >
+                {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
+              </SidebarIconButton>
+
+              <div className="sidebar-toolbar-group">
+                <SidebarIconButton label="Add project" title="Add project" onClick={() => setAddProjectOpen(true)}>
+                  <Plus size={16} />
+                </SidebarIconButton>
+                <SidebarIconButton label="New session" title="New session" onClick={onNewSession}>
+                  <MessageSquareText size={16} />
+                </SidebarIconButton>
+                <SidebarIconButton
+                  label="Search sessions"
+                  title="Search sessions"
+                  onClick={() => setIsSessionSearchOpen((value) => !value)}
+                >
+                  <Search size={16} />
+                </SidebarIconButton>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-icon btn-sm"
+                      aria-label="Session display mode"
+                      title="Session display mode"
+                    >
+                      <SlidersHorizontal size={16} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[160px]">
+                    <DropdownMenuItem onClick={() => setCompactSessions(false)} className="flex items-center justify-between">
+                      <span>Default</span>
+                      {!compactSessions ? <Check className="h-4 w-4 text-primary" /> : null}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setCompactSessions(true)} className="flex items-center justify-between">
+                      <span>Minimal</span>
+                      {compactSessions ? <Check className="h-4 w-4 text-primary" /> : null}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </>
+          )}
         </div>
+
+        {mobileVariant ? (
+          <div className="sidebar-mobile-actions">
+            <button type="button" className="sidebar-mobile-action" onClick={onNewSession}>
+              <MessageSquareText size={15} />
+              <span>New session</span>
+            </button>
+            <button type="button" className="sidebar-mobile-action" onClick={() => setIsSessionSearchOpen((value) => !value)}>
+              <Search size={15} />
+              <span>Search</span>
+            </button>
+            <button type="button" className="sidebar-mobile-action" onClick={() => setAddProjectOpen(true)}>
+              <Plus size={15} />
+              <span>Add project</span>
+            </button>
+          </div>
+        ) : null}
 
         {isSessionSearchOpen ? (
           <div className="px-1 pb-2">

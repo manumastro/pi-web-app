@@ -15,6 +15,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cacheGetItem, cacheSetItem } from '@/lib/frontend-cache';
 import { cn } from '@/lib/utils';
 import type { ModelInfo, StreamingState, ThinkingLevel } from '@/types';
@@ -210,12 +212,15 @@ export function ComposerPanel({
   const [recentModels, setRecentModels] = useState<string[]>(() => readStoredList(RECENTS_STORAGE_KEY));
   const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(() => new Set(readStoredList(COLLAPSED_PROVIDERS_STORAGE_KEY)));
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [mobileControlsPanel, setMobileControlsPanel] = useState<'overview' | 'model' | 'thinking'>('overview');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const isStreaming = streaming === 'streaming';
+  const isCompactLayout = useMediaQuery('(max-width: 1024px)');
   const isEmpty = prompt.trim().length === 0;
   const canSelectThinkingLevel = availableThinkingLevels.length > 0 && typeof onThinkingLevelSelect === 'function';
   const selectedThinkingLevel = activeThinkingLevel && availableThinkingLevels.includes(activeThinkingLevel)
@@ -363,6 +368,18 @@ export function ComposerPanel({
     setHighlightedIndex(0);
   }, []);
 
+  const openMobileControls = useCallback((panel: 'overview' | 'model' | 'thinking' = 'overview') => {
+    setMobileControlsPanel(panel);
+    setMobileControlsOpen(true);
+  }, []);
+
+  const closeMobileControls = useCallback(() => {
+    setMobileControlsOpen(false);
+    setMobileControlsPanel('overview');
+    setSearchQuery('');
+    setHighlightedIndex(0);
+  }, []);
+
   const scrollItemIntoView = useCallback((index: number) => {
     const item = itemRefs.current[index];
     if (item && typeof item.scrollIntoView === 'function') {
@@ -408,6 +425,16 @@ export function ComposerPanel({
 
     scrollItemIntoView(highlightedIndex);
   }, [highlightedIndex, flatModelItems.length, menuOpen, scrollItemIntoView]);
+
+  useEffect(() => {
+    if (!mobileControlsOpen || mobileControlsPanel !== 'model') {
+      return;
+    }
+
+    window.setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 0);
+  }, [mobileControlsOpen, mobileControlsPanel]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -521,7 +548,10 @@ export function ComposerPanel({
         <button
           type="button"
           aria-label={modelLabel}
-          onClick={() => selectModel(item.model.key)}
+          onClick={() => {
+            selectModel(item.model.key);
+            closeMobileControls();
+          }}
           className={cn(
             'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             isSelected ? 'text-foreground' : 'text-foreground',
@@ -556,8 +586,163 @@ export function ComposerPanel({
     );
   }
 
+  function renderModelPickerContent(maxHeightClassName = 'max-h-[min(400px,calc(100dvh-12rem))]') {
+    return (
+      <>
+        <div className="border-b border-border/60 p-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search models"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setHighlightedIndex(0);
+              }}
+              onKeyDown={handleSearchKeyDown}
+              className="h-8 pl-8 text-sm"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              aria-label="Search models"
+            />
+          </div>
+        </div>
+
+        <div className={cn(maxHeightClassName, 'overflow-y-auto overscroll-contain')}>
+          <div className="p-1">
+            {!hasResults ? (
+              <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                No models found
+              </div>
+            ) : null}
+
+            {favoriteModels.length > 0 ? (
+              <div>
+                <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  <Star className="h-3.5 w-3.5 fill-current text-primary" />
+                  Favorites
+                </div>
+                <div className="flex flex-col gap-1">
+                  {favoriteModels.map((model) => {
+                    const item: FlatModelItem = {
+                      key: `favorites:${model.key}`,
+                      model,
+                      providerKey: model.provider?.trim() || 'other',
+                      providerLabel: formatProviderLabel(model.provider),
+                      section: 'favorites',
+                    };
+                    const index = flatModelItems.findIndex((entry) => entry.key === item.key);
+                    if (index === -1) {
+                      return null;
+                    }
+                    return renderModelRow(item, index);
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {favoriteModels.length > 0 && recentModelItems.length > 0 ? <Separator className="my-2" /> : null}
+
+            {recentModelItems.length > 0 ? (
+              <div>
+                <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  <Clock3 className="h-3.5 w-3.5" />
+                  Recent
+                </div>
+                <div className="flex flex-col gap-1">
+                  {recentModelItems.map((model) => {
+                    const item: FlatModelItem = {
+                      key: `recent:${model.key}`,
+                      model,
+                      providerKey: model.provider?.trim() || 'other',
+                      providerLabel: formatProviderLabel(model.provider),
+                      section: 'recent',
+                    };
+                    const index = flatModelItems.findIndex((entry) => entry.key === item.key);
+                    if (index === -1) {
+                      return null;
+                    }
+                    return renderModelRow(item, index);
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {(favoriteModels.length > 0 || recentModelItems.length > 0) && filteredProviderGroups.length > 0 ? (
+              <Separator className="my-2" />
+            ) : null}
+
+            <div className="flex flex-col gap-1">
+              {filteredProviderGroups.map((group) => {
+                const isExpanded = forceExpandProviders || !collapsedProviders.has(group.providerKey);
+
+                return (
+                  <Collapsible key={group.providerKey} open={isExpanded}>
+                    <div className="rounded-lg">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            'flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors',
+                            forceExpandProviders ? 'cursor-default' : 'cursor-pointer hover:bg-accent/60',
+                          )}
+                          aria-expanded={isExpanded}
+                          aria-disabled={forceExpandProviders}
+                          disabled={forceExpandProviders}
+                          onClick={() => {
+                            if (!forceExpandProviders) {
+                              toggleCollapsedProvider(group.providerKey);
+                            }
+                          }}
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background text-[10px] font-medium text-muted-foreground">
+                              {group.providerLabel.slice(0, 1)}
+                            </span>
+                            <span className="truncate">{group.providerLabel}</span>
+                          </span>
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 shrink-0" />
+                          )}
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-1">
+                        <div className="flex flex-col gap-1">
+                          {group.models.map((model) => {
+                            const item: FlatModelItem = {
+                              key: `provider:${group.providerKey}:${model.key}`,
+                              model,
+                              providerKey: group.providerKey,
+                              providerLabel: group.providerLabel,
+                              section: 'provider',
+                            };
+                            const index = flatModelItems.findIndex((entry) => entry.key === item.key);
+                            if (index === -1) {
+                              return null;
+                            }
+                            return renderModelRow(item, index);
+                          })}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
-    <div className="composer-panel">
+    <div className="composer-panel bottom-safe-area ios-keyboard-safe-area">
       <div className="composer-form">
         <textarea
           id="prompt-textarea"
@@ -575,289 +760,300 @@ export function ComposerPanel({
           spellCheck={false}
         />
 
-        <div className="composer-actions">
-          <div className="composer-actions-left">
-            <button
-              type="button"
-              className="btn btn-ghost btn-icon btn-sm"
-              aria-label="Add attachment"
-              title="Add attachment"
-              onClick={() => {
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.multiple = true;
-                fileInput.click();
-              }}
-            >
-              <Plus size={16} />
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-icon btn-sm"
-              aria-label="Toggle focus mode"
-              title="Toggle focus mode"
-              onClick={() => {
-                document.documentElement.classList.toggle('focus-mode');
-              }}
-            >
-              <Maximize2 size={16} />
-            </button>
-          </div>
-
-          <div className="composer-actions-right">
-            <button
-              type="button"
-              className="composer-preset"
-              aria-label="Default preset"
-              title="Default preset"
-              onClick={() => {
-                // Placeholder for preset selection
-              }}
-            >
-              <Settings2 size={14} />
-              <span>Default</span>
-            </button>
-
-            {canSelectThinkingLevel ? (
-              <div className="composer-thinking-field">
-                <label className="composer-thinking-wrap" aria-label="Thinking level">
-                  <select
-                    className="composer-thinking-select"
-                    value={selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium'}
-                    onChange={(event) => onThinkingLevelSelect?.(event.target.value as ThinkingLevel)}
-                    disabled={isStreaming}
-                    aria-invalid={Boolean(thinkingLevelError)}
-                  >
-                    {availableThinkingLevels.map((level) => (
-                      <option key={level} value={level}>
-                        {formatThinkingLabel(level)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {thinkingLevelError ? (
-                  <p className="composer-thinking-error" role="alert">
-                    {thinkingLevelError}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="relative flex min-w-0">
+        {!isCompactLayout ? (
+          <div className="composer-actions">
+            <div className="composer-actions-left">
               <button
-                ref={menuTriggerRef}
                 type="button"
-                className={cn(
-                  'inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-popover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
-                  'max-w-[min(240px,40vw)]',
-                )}
-                disabled={isStreaming}
-                aria-label={selectedModelLabel}
-                title="Select model"
-                aria-expanded={menuOpen}
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label="Add attachment"
+                title="Add attachment"
                 onClick={() => {
-                  if (menuOpen) {
-                    closeMenu();
-                    return;
-                  }
-
-                  setMenuOpen(true);
-                  setSearchQuery('');
-                  window.setTimeout(() => {
-                    searchInputRef.current?.focus();
-                  }, 0);
+                  const fileInput = document.createElement('input');
+                  fileInput.type = 'file';
+                  fileInput.multiple = true;
+                  fileInput.click();
                 }}
               >
-                <span className="min-w-0 truncate text-left">
-                  {selectedModelLabel}
-                </span>
-                <ChevronDown size={12} className="shrink-0 opacity-70" />
+                <Plus size={16} />
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-icon btn-sm"
+                aria-label="Toggle focus mode"
+                title="Toggle focus mode"
+                onClick={() => {
+                  document.documentElement.classList.toggle('focus-mode');
+                }}
+              >
+                <Maximize2 size={16} />
+              </button>
+            </div>
+
+            <div className="composer-actions-right">
+              <button
+                type="button"
+                className="composer-preset"
+                aria-label="Default preset"
+                title="Default preset"
+                onClick={() => {
+                  // Placeholder for preset selection
+                }}
+              >
+                <Settings2 size={14} />
+                <span>Default</span>
               </button>
 
-              {menuOpen ? (
-                <div
-                  ref={menuPanelRef}
-                  className="absolute bottom-full right-0 z-50 mb-2 w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
-                >
-                  <div className="border-b border-border/60 p-2">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder="Search models"
-                        value={searchQuery}
-                        onChange={(event) => {
-                          setSearchQuery(event.target.value);
-                          setHighlightedIndex(0);
-                        }}
-                        onKeyDown={handleSearchKeyDown}
-                        className="h-8 pl-8 text-sm"
-                        autoComplete="off"
-                        autoCorrect="off"
-                        autoCapitalize="off"
-                        spellCheck={false}
-                        aria-label="Search models"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="max-h-[min(400px,calc(100dvh-12rem))] overflow-y-auto overscroll-contain">
-                    <div className="p-1">
-                      {!hasResults ? (
-                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                          No models found
-                        </div>
-                      ) : null}
-
-                      {favoriteModels.length > 0 ? (
-                        <div>
-                          <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                            <Star className="h-3.5 w-3.5 fill-current text-primary" />
-                            Favorites
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            {favoriteModels.map((model) => {
-                              const item: FlatModelItem = {
-                                key: `favorites:${model.key}`,
-                                model,
-                                providerKey: model.provider?.trim() || 'other',
-                                providerLabel: formatProviderLabel(model.provider),
-                                section: 'favorites',
-                              };
-                              const index = flatModelItems.findIndex((entry) => entry.key === item.key);
-                              if (index === -1) {
-                                return null;
-                              }
-                              return renderModelRow(item, index);
-                            })}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {favoriteModels.length > 0 && recentModelItems.length > 0 ? <Separator className="my-2" /> : null}
-
-                      {recentModelItems.length > 0 ? (
-                        <div>
-                          <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                            <Clock3 className="h-3.5 w-3.5" />
-                            Recent
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            {recentModelItems.map((model) => {
-                              const item: FlatModelItem = {
-                                key: `recent:${model.key}`,
-                                model,
-                                providerKey: model.provider?.trim() || 'other',
-                                providerLabel: formatProviderLabel(model.provider),
-                                section: 'recent',
-                              };
-                              const index = flatModelItems.findIndex((entry) => entry.key === item.key);
-                              if (index === -1) {
-                                return null;
-                              }
-                              return renderModelRow(item, index);
-                            })}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {(favoriteModels.length > 0 || recentModelItems.length > 0) && filteredProviderGroups.length > 0 ? (
-                        <Separator className="my-2" />
-                      ) : null}
-
-                      <div className="flex flex-col gap-1">
-                        {filteredProviderGroups.map((group) => {
-                          const isExpanded = forceExpandProviders || !collapsedProviders.has(group.providerKey);
-
-                          return (
-                            <Collapsible key={group.providerKey} open={isExpanded}>
-                              <div className="rounded-lg">
-                                <CollapsibleTrigger asChild>
-                                  <button
-                                    type="button"
-                                    className={cn(
-                                      'flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors',
-                                      forceExpandProviders ? 'cursor-default' : 'cursor-pointer hover:bg-accent/60',
-                                    )}
-                                    aria-expanded={isExpanded}
-                                    aria-disabled={forceExpandProviders}
-                                    disabled={forceExpandProviders}
-                                    onClick={() => {
-                                      if (!forceExpandProviders) {
-                                        toggleCollapsedProvider(group.providerKey);
-                                      }
-                                    }}
-                                  >
-                                    <span className="flex min-w-0 items-center gap-2">
-                                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background text-[10px] font-medium text-muted-foreground">
-                                        {group.providerLabel.slice(0, 1)}
-                                      </span>
-                                      <span className="truncate">{group.providerLabel}</span>
-                                    </span>
-                                    {isExpanded ? (
-                                      <ChevronDown className="h-4 w-4 shrink-0" />
-                                    ) : (
-                                      <ChevronRight className="h-4 w-4 shrink-0" />
-                                    )}
-                                  </button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent className="pt-1">
-                                  <div className="flex flex-col gap-1">
-                                    {group.models.map((model) => {
-                                      const item: FlatModelItem = {
-                                        key: `provider:${group.providerKey}:${model.key}`,
-                                        model,
-                                        providerKey: group.providerKey,
-                                        providerLabel: group.providerLabel,
-                                        section: 'provider',
-                                      };
-                                      const index = flatModelItems.findIndex((entry) => entry.key === item.key);
-                                      if (index === -1) {
-                                        return null;
-                                      }
-                                      return renderModelRow(item, index);
-                                    })}
-                                  </div>
-                                </CollapsibleContent>
-                              </div>
-                            </Collapsible>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+              {canSelectThinkingLevel ? (
+                <div className="composer-thinking-field">
+                  <label className="composer-thinking-wrap" aria-label="Thinking level">
+                    <select
+                      className="composer-thinking-select"
+                      value={selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium'}
+                      onChange={(event) => onThinkingLevelSelect?.(event.target.value as ThinkingLevel)}
+                      disabled={isStreaming}
+                      aria-invalid={Boolean(thinkingLevelError)}
+                    >
+                      {availableThinkingLevels.map((level) => (
+                        <option key={level} value={level}>
+                          {formatThinkingLabel(level)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {thinkingLevelError ? (
+                    <p className="composer-thinking-error" role="alert">
+                      {thinkingLevelError}
+                    </p>
+                  ) : null}
                 </div>
+              ) : null}
+
+              <div className="relative flex min-w-0">
+                <button
+                  ref={menuTriggerRef}
+                  type="button"
+                  className={cn(
+                    'inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-popover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
+                    'max-w-[min(240px,40vw)]',
+                  )}
+                  disabled={isStreaming}
+                  aria-label={selectedModelLabel}
+                  title="Select model"
+                  aria-expanded={menuOpen}
+                  onClick={() => {
+                    if (menuOpen) {
+                      closeMenu();
+                      return;
+                    }
+
+                    setMenuOpen(true);
+                    setSearchQuery('');
+                    window.setTimeout(() => {
+                      searchInputRef.current?.focus();
+                    }, 0);
+                  }}
+                >
+                  <span className="min-w-0 truncate text-left">
+                    {selectedModelLabel}
+                  </span>
+                  <ChevronDown size={12} className="shrink-0 opacity-70" />
+                </button>
+
+                {menuOpen ? (
+                  <div
+                    ref={menuPanelRef}
+                    className="absolute bottom-full right-0 z-50 mb-2 w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
+                  >
+                    {renderModelPickerContent()}
+                  </div>
+                ) : null}
+              </div>
+
+              <span className="composer-build-chip">Build</span>
+
+              {isStreaming ? (
+                <button
+                  type="button"
+                  className="composer-send-button"
+                  onClick={() => void onAbort()}
+                  aria-label="Stop"
+                  title="Stop"
+                >
+                  <Square size={14} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="composer-send-button"
+                  onClick={() => void onSend()}
+                  disabled={isEmpty}
+                  aria-label="Send"
+                  title="Send"
+                >
+                  <SendHorizontal size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mobile-session-status-bar">
+              <button type="button" className="mobile-session-status-chip" onClick={() => openMobileControls('model')}>
+                <span className="mobile-session-status-label">Model</span>
+                <span className="mobile-session-status-value">{selectedModelLabel}</span>
+              </button>
+              {canSelectThinkingLevel ? (
+                <button type="button" className="mobile-session-status-chip" onClick={() => openMobileControls('thinking')}>
+                  <span className="mobile-session-status-label">Thinking</span>
+                  <span className="mobile-session-status-value">{formatThinkingLabel(selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium')}</span>
+                </button>
               ) : null}
             </div>
 
-            <span className="composer-build-chip">Build</span>
+            <div className="composer-actions composer-actions-mobile">
+              <div className="composer-actions-left composer-actions-left-mobile">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-icon btn-sm"
+                  aria-label="Add attachment"
+                  title="Add attachment"
+                  onClick={() => {
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.multiple = true;
+                    fileInput.click();
+                  }}
+                >
+                  <Plus size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="composer-mobile-pill"
+                  onClick={() => openMobileControls('overview')}
+                >
+                  <Settings2 size={14} />
+                  <span>Controls</span>
+                </button>
+              </div>
 
-            {isStreaming ? (
-              <button
-                type="button"
-                className="composer-send-button"
-                onClick={() => void onAbort()}
-                aria-label="Stop"
-                title="Stop"
-              >
-                <Square size={14} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="composer-send-button"
-                onClick={() => void onSend()}
-                disabled={isEmpty}
-                aria-label="Send"
-                title="Send"
-              >
-                <SendHorizontal size={14} />
-              </button>
-            )}
-          </div>
-        </div>
+              <div className="composer-actions-right composer-actions-right-mobile">
+                <button type="button" className="composer-mobile-pill" onClick={() => openMobileControls('model')}>
+                  <span className="truncate">{selectedModelLabel}</span>
+                  <ChevronDown size={12} />
+                </button>
+                {canSelectThinkingLevel ? (
+                  <button type="button" className="composer-mobile-pill" onClick={() => openMobileControls('thinking')}>
+                    {formatThinkingLabel(selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium')}
+                  </button>
+                ) : null}
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    className="composer-send-button"
+                    onClick={() => void onAbort()}
+                    aria-label="Stop"
+                    title="Stop"
+                  >
+                    <Square size={14} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="composer-send-button"
+                    onClick={() => void onSend()}
+                    disabled={isEmpty}
+                    aria-label="Send"
+                    title="Send"
+                  >
+                    <SendHorizontal size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
+
+      <Dialog open={mobileControlsOpen} onOpenChange={(nextOpen) => (nextOpen ? setMobileControlsOpen(true) : closeMobileControls())}>
+        <DialogContent className="mobile-controls-sheet pwa-dialog-content pwa-compact gap-0 border-border bg-background p-0 sm:max-w-[min(560px,100vw-2rem)]">
+          <DialogHeader className="mobile-controls-sheet-header px-4 pb-3 pt-4 text-left">
+            <DialogTitle className="text-base font-semibold">Controls</DialogTitle>
+            <DialogDescription>
+              OpenChamber-style mobile controls: compact footer, status chips, and a bottom sheet for advanced options.
+            </DialogDescription>
+          </DialogHeader>
+
+          {mobileControlsPanel === 'overview' ? (
+            <div className="mobile-controls-sheet-body p-4 pt-0">
+              <button type="button" className="mobile-controls-card" onClick={() => setMobileControlsPanel('model')}>
+                <div>
+                  <div className="mobile-controls-card-label">Model</div>
+                  <div className="mobile-controls-card-value">{selectedModelLabel}</div>
+                </div>
+                <ChevronRight size={16} />
+              </button>
+              {canSelectThinkingLevel ? (
+                <button type="button" className="mobile-controls-card" onClick={() => setMobileControlsPanel('thinking')}>
+                  <div>
+                    <div className="mobile-controls-card-label">Thinking</div>
+                    <div className="mobile-controls-card-value">{formatThinkingLabel(selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium')}</div>
+                  </div>
+                  <ChevronRight size={16} />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {mobileControlsPanel === 'model' ? (
+            <div className="mobile-controls-sheet-panel">
+              <div className="mobile-controls-sheet-subheader">
+                <button type="button" className="mobile-controls-back" onClick={() => setMobileControlsPanel('overview')}>
+                  <ChevronRight size={14} className="rotate-180" />
+                  <span>Back</span>
+                </button>
+                <span className="mobile-controls-sheet-heading">Choose model</span>
+              </div>
+              {renderModelPickerContent('max-h-[min(56dvh,30rem)]')}
+            </div>
+          ) : null}
+
+          {mobileControlsPanel === 'thinking' ? (
+            <div className="mobile-controls-sheet-body p-4 pt-1">
+              <div className="mobile-controls-sheet-subheader mobile-controls-sheet-subheader-inline">
+                <button type="button" className="mobile-controls-back" onClick={() => setMobileControlsPanel('overview')}>
+                  <ChevronRight size={14} className="rotate-180" />
+                  <span>Back</span>
+                </button>
+                <span className="mobile-controls-sheet-heading">Thinking level</span>
+              </div>
+              <div className="mobile-thinking-grid">
+                {availableThinkingLevels.map((level) => {
+                  const isActive = level === (selectedThinkingLevel ?? availableThinkingLevels[0]);
+                  return (
+                    <button
+                      key={level}
+                      type="button"
+                      className={cn('mobile-thinking-chip', isActive && 'active')}
+                      onClick={() => {
+                        onThinkingLevelSelect?.(level);
+                        closeMobileControls();
+                      }}
+                    >
+                      {formatThinkingLabel(level)}
+                    </button>
+                  );
+                })}
+              </div>
+              {thinkingLevelError ? (
+                <p className="composer-thinking-error mt-3" role="alert">
+                  {thinkingLevelError}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

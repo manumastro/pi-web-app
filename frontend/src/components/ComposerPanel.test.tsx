@@ -1,6 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import ComposerPanel from './chat/ComposerPanel';
+
+function mockMatchMedia(matches: boolean) {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
+    matches,
+    media: '(max-width: 1024px)',
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
 
 const mockModels = [
   { key: 'anthropic/claude-3-5-sonnet', id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', available: true, active: false, provider: 'anthropic', reasoning: true },
@@ -9,6 +22,8 @@ const mockModels = [
 ];
 
 beforeEach(() => {
+  vi.unstubAllGlobals();
+  mockMatchMedia(false);
   localStorage.clear();
 });
 
@@ -97,6 +112,35 @@ describe('ComposerPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'GPT-4o' }));
 
     expect(onModelSelect).toHaveBeenCalledWith('openai/gpt-4o');
+  });
+
+  it('opens mobile controls in a bottom sheet on compact layouts', async () => {
+    mockMatchMedia(true);
+
+    render(
+      <ComposerPanel
+        prompt="hello world"
+        streaming="idle"
+        models={mockModels}
+        activeModelKey="google-gemini/gemini-pro"
+        availableThinkingLevels={['minimal', 'medium', 'high']}
+        activeThinkingLevel="medium"
+        onPromptChange={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+        onModelSelect={vi.fn()}
+        onThinkingLevelSelect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Controls/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    const dialogScope = within(dialog);
+    expect(dialog).toBeInTheDocument();
+    expect(dialogScope.getByText('Controls')).toBeInTheDocument();
+    expect(dialogScope.getByText('Model')).toBeInTheDocument();
+    expect(dialogScope.getByText('Thinking')).toBeInTheDocument();
   });
 
   it('marks favourites in-memory when cache persistence is disabled', async () => {
