@@ -100,6 +100,24 @@ export function createRunnerOrchestrator(params: {
       timestamp: now(),
     });
   });
+  runner.on('exit', ({ code, signal }: { code: number | null; signal: NodeJS.Signals | null }) => {
+    const message = `Pi runner exited with code ${String(code)} signal ${String(signal)}`;
+    const affectedSessions = activeTurns.size > 0 ? Array.from(activeTurns.keys()) : ['runner'];
+    for (const sessionId of affectedSessions) {
+      if (sessionId !== 'runner') {
+        sessionStore.updateSession(sessionId, { status: 'error' });
+        activeTurns.delete(sessionId);
+      }
+      emit(sseManager, {
+        type: 'error',
+        sessionId,
+        message,
+        category: 'sdk',
+        recoverable: true,
+        timestamp: now(),
+      });
+    }
+  });
   runner.start();
 
   function requestId(): string {

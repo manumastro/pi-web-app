@@ -1621,19 +1621,21 @@ NODE_PATH=/usr/bin/node
 - Legacy interaction panels removed from the frontend; no inline question/permission cards are rendered in the current UI.
 - SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
 - Server binds to `0.0.0.0:3210` (accessible from public IP).
-- Build green, 74 backend tests + 21 frontend tests passing, `pi-web.service` active.
+- Build green, 89 backend tests + 70 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
 - Final polish: markdown rendering in messages, syntax highlighting for code blocks, keyboard shortcuts.
-- Runner/orchestrator migration: replace backend-owned Pi SDK sessions with a dedicated child-process Pi runner that owns the Pi runtime/model registry and streams structured JSONL events back to the Express web orchestrator.
+- Final polish: runner crash/restart UX messaging beyond the current recoverable SSE error state, if needed after field use.
 
-#### Done (2026-04-25)
+#### Done (2026-04-26)
 - Added `docs/PI_RUNNER_ORCHESTRATOR_MIGRATION.md` as the one-shot migration plan for replacing the in-process SDK backend with a PizzaPi-like runner/orchestrator architecture.
 - Introduced the first concrete runner/orchestrator implementation: `backend/src/runner/protocol.ts` defines the JSONL command/event contract, `backend/src/runner/child-process.ts` manages the child runner process, `backend/src/runner-process/main.ts` owns Pi runtime sessions/model registry in a separate process, and `backend/src/runner/orchestrator.ts` adapts runner events back into the existing REST/SSE/session-store contract.
 - Swapped the server bootstrap to create the runner orchestrator instead of directly creating the SDK bridge, so new prompt/model/thinking/abort flows are routed through the local runner process while preserving the existing API surface.
 - Backend TypeScript lint, backend tests, and backend build are green after the runner migration bootstrap.
 - Fixed the production/dev runner spawn path so systemd/tsx source runs launch `backend/src/runner-process/main.ts` with the active tsx loader while compiled builds launch `dist/runner-process/main.js`; `/api/models` now returns runner-owned available models again after restart, and REST prompt E2E verified through the runner with a persisted assistant response.
 - Aligned runner model capabilities with CLI `/model` scope: the runner now warms cwd-bound Pi services/extensions before listing models and filters `availableModels` through `SettingsManager.getEnabledModels()` in configured order instead of exposing the full authenticated registry; current service verification returns 15 resolvable scoped models, with the stale configured `openai-codex-2/gpt-5.5` pattern absent from the live registry.
+- Completed the remaining runner migration cleanup: removed legacy `backend/src/sdk/bridge.ts` and its tests, verified no `AgentSession`/`ModelRegistry`/`createAgentSession` imports remain outside `backend/src/runner-process/*`, added protocol/client/orchestrator/fake-runner/route-failure test coverage, added `backend/scripts/e2e-runner-smoke.mjs` plus `npm run test:e2e:runner --workspace=backend`, and hardened runner exit handling so active turns emit recoverable SSE errors and mark affected sessions as `error`.
+- Verification after cleanup: `npm run lint --workspace=backend`, `npm run test --workspace=backend` (89 passed), `npm run build --workspace=backend`, `npm run build --workspace=frontend`, `npm run test --workspace=frontend` (70 passed), service restart, and `npm run test:e2e:runner --workspace=backend` all pass.
 
 #### Done (2026-04-21)
 - Fixed optimistic session merge ordering to sort messages chronologically by timestamp (with id fallback), preventing lexicographic-id reordering when multiple messages arrive.
@@ -1680,7 +1682,7 @@ NODE_PATH=/usr/bin/node
 
 - [x] Implement `config.ts` with Zod validation
 - [x] Implement `jsonl.ts` parser (single source of truth)
-- [x] Implement `sdk/bridge.ts` wrapping AgentSession
+- [x] Replace legacy `sdk/bridge.ts` AgentSession wrapper with runner/orchestrator process architecture
 - [x] Implement `sdk/factory.ts` for per-CWD session creation
 - [x] Implement `sdk/events.ts` event mapping (SDK → SSE)
 - [x] Implement `sessions/store.ts` in-memory session store

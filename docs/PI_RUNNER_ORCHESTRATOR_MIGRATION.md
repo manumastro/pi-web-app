@@ -398,7 +398,7 @@ Test:
 - [x] Add build/runtime support for runner process output. Compiled builds use `dist/runner-process/main.js`; systemd/tsx source runs use `backend/src/runner-process/main.ts` with the active tsx loader.
 - [x] Replace `createSdkBridge()` usage in `backend/src/server.ts` with `createRunnerOrchestrator()`.
 - [x] Update API route dependencies to use `RunnerOrchestrator` while preserving the current REST route contract.
-- [ ] Remove or archive old `backend/src/sdk/bridge.ts` after test parity cleanup. It is no longer used by server bootstrap, but remains as legacy code/tests.
+- [x] Remove old `backend/src/sdk/bridge.ts` and `backend/src/sdk/bridge.test.ts` after replacing coverage with runner/orchestrator tests.
 
 ### Models
 
@@ -421,8 +421,8 @@ Test:
 
 ### Tests/build
 
-- [ ] Add dedicated unit tests for runner protocol/client/orchestrator modules.
-- [ ] Add fake-runner integration tests for route/orchestrator behavior.
+- [x] Add dedicated unit tests for runner protocol/client/orchestrator modules.
+- [x] Add fake-runner integration tests for route/orchestrator behavior.
 - [~] Frontend behavior continues to pass against the preserved REST/SSE contract; dedicated available-only model picker tests are deferred.
 - [x] `npm run build --workspace=backend` green.
 - [x] `npm run build --workspace=frontend` green.
@@ -430,6 +430,7 @@ Test:
 - [x] `npm run test --workspace=frontend` green.
 - [x] Manual REST E2E prompt through runner verified.
 - [x] Manual `/api/models` verification returns CLI-scoped runner models instead of the full registry.
+- [x] Add repeatable runner smoke E2E script: `npm run test:e2e:runner --workspace=backend`.
 
 ### Docs/status
 
@@ -437,35 +438,32 @@ Test:
 - [x] Update feature matrix/checklists where impacted.
 - [x] Update `AGENTS.md` Current state line.
 
-## 9. What is still missing
+## 9. Remaining scope after completion
 
-This migration milestone deliberately completes the backend runner/orchestrator replacement while preserving the current frontend REST/SSE UX. The following items remain before the migration can be considered fully cleaned up and production-hardened.
+This migration milestone now completes the backend runner/orchestrator replacement while preserving the current frontend REST/SSE UX.
 
-### 9.1 Required cleanup before declaring the migration fully complete
+### 9.1 Completed cleanup/hardening
 
-1. **Remove or archive legacy SDK bridge code**
-   - `backend/src/sdk/bridge.ts` is no longer used by the server bootstrap.
-   - Its old tests still exist and should either be migrated to runner/orchestrator coverage or moved to a legacy fixture.
-   - Goal: outside `backend/src/runner-process/*`, the backend should not import or instantiate Pi `AgentSession`/`ModelRegistry` execution code.
+1. **Legacy SDK bridge removed**
+   - Removed `backend/src/sdk/bridge.ts` and `backend/src/sdk/bridge.test.ts`.
+   - `grep` verification shows no `AgentSession`/`ModelRegistry`/`createAgentSession` imports outside `backend/src/runner-process/*`.
 
-2. **Add dedicated runner tests**
-   - Unit tests for `backend/src/runner/protocol.ts` validation and serialization.
-   - Unit tests for `backend/src/runner/child-process.ts` request correlation, timeout, invalid JSONL handling, stderr handling, and child exit behavior.
-   - Unit tests for `backend/src/runner/orchestrator.ts` event adaptation and session-store persistence.
+2. **Dedicated runner tests added**
+   - `backend/src/runner/protocol.test.ts` covers validation, serialization, and event parsing errors.
+   - `backend/src/runner/child-process.test.ts` covers request correlation, invalid JSONL, stderr forwarding, child exit rejection, and request timeout.
+   - `backend/src/runner/orchestrator.test.ts` uses a deterministic fake JSONL runner for prompt dispatch, event adaptation, persistence, model switch success/failure, thinking-level change, and abort.
+   - `backend/src/api/runner-routes.test.ts` verifies route-level JSON error responses for runner failures.
 
-3. **Add fake-runner integration tests**
-   - Use a deterministic fake JSONL runner process.
-   - Cover prompt dispatch, text/thinking/tool/done event forwarding, model switch success/failure, thinking-level changes, abort, runner exit, and route error responses.
+3. **Repeatable E2E smoke script added and verified**
+   - `backend/scripts/e2e-runner-smoke.mjs`.
+   - NPM entrypoint: `npm run test:e2e:runner --workspace=backend`.
+   - Covers health, model listing, session creation, SSE streaming, prompt completion, model switch, thinking-level switch, abort, and persisted assistant message verification.
 
-4. **Formalize E2E smoke script**
-   - Create a repeatable script/test that starts the service or dev backend, opens SSE, sends a prompt, verifies streamed chunks, switches model, changes thinking level, aborts a run, and reloads session history.
-   - Current E2E is manually verified via REST and browser smoke, not yet automated.
+4. **Runner crash/error handling hardened**
+   - Active-turn runner exits now emit SSE error events, mark affected sessions as `error`, clear active turn state, and remain recoverable.
+   - Future commands respawn the child runner via `RunnerProcessClient.start()`.
 
-5. **Runner crash/restart recovery**
-   - Current behavior surfaces runner errors and route failures cleanly.
-   - Missing: supervised automatic respawn, session rebind/restart policy, and explicit UI-visible degraded state if the runner dies during an active turn.
-
-### 9.2 Deliberately deferred, not required now
+### 9.2 Deferred future scope, not required for this milestone
 
 1. **PizzaPi-like frontend UX parity**
    - Native visible `model_set_result` UI.
@@ -487,8 +485,7 @@ This migration milestone deliberately completes the backend runner/orchestrator 
 
 ### 9.3 Current migration status summary
 
-- **Done for active runtime path:** backend orchestrator, child-process runner, JSONL protocol, prompt/model/thinking/abort routes through runner, CLI-scoped model listing, SSE adaptation, persistence, systemd/tsx spawn compatibility.
-- **Still missing:** legacy bridge cleanup, dedicated runner/fake-runner tests, automated E2E script, robust runner respawn/rebind.
+- **Done:** backend orchestrator, child-process runner, JSONL protocol, prompt/model/thinking/abort routes through runner, CLI-scoped model listing, SSE adaptation, persistence, systemd/tsx spawn compatibility, legacy bridge removal, runner/fake-runner tests, route failure tests, automated smoke E2E, and recoverable runner-exit handling.
 - **Not a goal for now:** matching PizzaPi UX.
 
 ## 10. Risks
@@ -513,4 +510,4 @@ The migration is complete when:
 5. Build and tests pass.
 6. `BLUEPRINT.md` and `AGENTS.md` are updated.
 
-Current status after this commit: criteria 2–6 are functionally satisfied for the active server path. Criterion 1 is satisfied for server bootstrap/runtime, but legacy `backend/src/sdk/bridge.ts` still exists and should be removed or archived in a cleanup pass.
+Current status: all acceptance criteria are satisfied for the local runner/orchestrator milestone. PizzaPi-like UX parity, multi-runner support, and alternate transports remain future scope, not blockers for this migration.
