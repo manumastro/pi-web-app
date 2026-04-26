@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { SsePayload } from '../sync/conversation';
+import { coalesceSsePayloads, createSeenEventIdWindow } from '../sync/event-coalescing';
 
 interface UseSessionStreamOptions {
   sessionId: string | undefined;
@@ -30,6 +31,10 @@ export function useSessionStream({
   const queuedPayloadsRef = useRef<SsePayload[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
   const generationRef = useRef(0);
+  const lastEventIdRef = useRef('');
+  const lastPayloadAtRef = useRef(0);
+  const seenEventIdsRef = useRef(createSeenEventIdWindow());
+  const staleTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     callbacksRef.current = { onPayload, onPayloadBatch, onConnected, onConnectionLost };
@@ -49,8 +54,11 @@ export function useSessionStream({
         return;
       }
 
-      const batch = queuedPayloadsRef.current;
+      const batch = coalesceSsePayloads(queuedPayloadsRef.current, seenEventIdsRef.current);
       queuedPayloadsRef.current = [];
+      if (batch.length === 0) {
+        return;
+      }
       if (callbacksRef.current.onPayloadBatch) {
         callbacksRef.current.onPayloadBatch(batch);
         return;
@@ -76,7 +84,14 @@ export function useSessionStream({
       window.clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
+    if (staleTimerRef.current !== null) {
+      window.clearInterval(staleTimerRef.current);
+      staleTimerRef.current = null;
+    }
     queuedPayloadsRef.current = [];
+    lastEventIdRef.current = '';
+    lastPayloadAtRef.current = 0;
+    seenEventIdsRef.current = createSeenEventIdWindow();
 
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
@@ -90,10 +105,20 @@ export function useSessionStream({
         return;
       }
 
-      const source = new EventSource(`/api/events?sessionId=${encodeURIComponent(sessionId)}`);
+      if (staleTimerRef.current !== null) {
+        window.clearInterval(staleTimerRef.current);
+        staleTimerRef.current = null;
+      }
+
+      const params = new URLSearchParams({ sessionId });
+      if (lastEventIdRef.current) {
+        params.set('lastEventId', lastEventIdRef.current);
+      }
+      const source = new EventSource(`/api/events?${params.toString()}`);
       eventSourceRef.current = source;
 
       source.onopen = () => {
+        lastPayloadAtRef.current = Date.now();
         callbacksRef.current.onConnected?.();
       };
 
@@ -105,6 +130,12 @@ export function useSessionStream({
         const payload = parsePayload(event.data);
         if (!payload || payload.sessionId !== sessionId) {
           return;
+        }
+
+        lastPayloadAtRef.current = Date.now();
+        if (event.lastEventId) {
+          lastEventIdRef.current = event.lastEventId;
+          payload.__eventId = event.lastEventId;
         }
 
         enqueuePayload(payload);
@@ -119,6 +150,29 @@ export function useSessionStream({
       source.addEventListener('done', handlePayload);
       source.addEventListener('error', handlePayload);
 
+      staleTimerRef.current = window.setInterval(() => {
+        if (generationRef.current !== generation || eventSourceRef.current !== source) {
+          return;
+        }
+        if (lastPayloadAtRef.current > 0 && Date.now() - lastPayloadAtRef.current > 60_000) {
+          callbacksRef.current.onConnectionLost?.();
+          source.close();
+          eventSourceRef.current = null;
+          if (staleTimerRef.current !== null) {
+            window.clearInterval(staleTimerRef.current);
+            staleTimerRef.current = null;
+          }
+          if (reconnectTimerRef.current !== null) {
+            window.clearTimeout(reconnectTimerRef.current);
+          }
+          reconnectTimerRef.current = window.setTimeout(() => {
+            if (generationRef.current === generation) {
+              openSource();
+            }
+          }, 1000);
+        }
+      }, 15_000);
+
       source.onerror = (event) => {
         if (generationRef.current !== generation) {
           return;
@@ -127,6 +181,11 @@ export function useSessionStream({
         if (event instanceof MessageEvent && typeof event.data === 'string') {
           const payload = parsePayload(event.data);
           if (payload && payload.sessionId === sessionId) {
+            lastPayloadAtRef.current = Date.now();
+            if (event.lastEventId) {
+              lastEventIdRef.current = event.lastEventId;
+              payload.__eventId = event.lastEventId;
+            }
             enqueuePayload(payload);
             flushQueuedPayloads();
             return;
@@ -157,6 +216,10 @@ export function useSessionStream({
       if (flushTimerRef.current !== null) {
         window.clearTimeout(flushTimerRef.current);
         flushTimerRef.current = null;
+      }
+      if (staleTimerRef.current !== null) {
+        window.clearInterval(staleTimerRef.current);
+        staleTimerRef.current = null;
       }
       queuedPayloadsRef.current = [];
       eventSourceRef.current?.close();

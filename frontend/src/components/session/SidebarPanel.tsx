@@ -93,6 +93,25 @@ function formatProjectLabel(project: DirectoryInfo, homeDirectory: string): stri
   return project.cwd === homeDirectory ? '~' : project.label;
 }
 
+function getSessionStatusBadge(status: string): { label: string; className: string } | null {
+  switch (status) {
+    case 'busy':
+    case 'prompting':
+    case 'answering':
+      return { label: 'Working', className: 'working' };
+    case 'retry':
+      return { label: 'Retry', className: 'retry' };
+    case 'waiting_question':
+      return { label: 'Question', className: 'attention' };
+    case 'waiting_permission':
+      return { label: 'Permission', className: 'attention' };
+    case 'error':
+      return { label: 'Error', className: 'error' };
+    default:
+      return null;
+  }
+}
+
 function ProjectMenu({
   project,
   isHomeProject,
@@ -397,6 +416,7 @@ export function SidebarPanel({
             <div className="space-y-0.5">
               {filteredSessions.map((session) => {
                 const isEditing = editingSessionId === session.id;
+                const statusBadge = getSessionStatusBadge(session.status);
                 return (
                   <div key={session.id} className="group relative">
                     {isEditing ? (
@@ -452,7 +472,12 @@ export function SidebarPanel({
                         <span className="truncate flex-1 text-left">
                           {session.title || 'Untitled Session'}
                         </span>
-                        {!compactSessions ? <span className="session-item-time">{formatSessionTime(session.updatedAt)}</span> : null}
+                        {statusBadge ? (
+                          <span className={cn('session-status-badge', statusBadge.className)} title={statusBadge.label}>
+                            <span className="session-status-dot" />
+                            {!compactSessions ? <span>{statusBadge.label}</span> : null}
+                          </span>
+                        ) : !compactSessions ? <span className="session-item-time">{formatSessionTime(session.updatedAt)}</span> : null}
                       </button>
                     )}
 

@@ -125,19 +125,22 @@ export function reduceSessionLifecyclePayloads(
 
   const finalPayload = payloads[payloads.length - 1]!;
   const nextStatus = transitionStatusForPayload(finalPayload);
+  const nextStatusType = getSessionStatusType(nextStatus) ?? 'idle';
   patchSessionStatus(deps.directory, finalPayload.sessionId, nextStatus);
 
   if (finalPayload.type === 'permission' || finalPayload.type === 'question') {
+    deps.updateSession(finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     patchSessionAttention(deps.directory, finalPayload.sessionId, finalPayload.type, finalPayload);
     deps.setStreaming('streaming');
     deps.setStatusMessage(finalPayload.message ?? (finalPayload.type === 'permission' ? 'Permission needed' : 'Question pending'));
   } else if (finalPayload.type === 'status') {
+    deps.updateSession(finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStatusMessage(finalPayload.message ?? finalPayload.status ?? 'Working');
     if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
       deps.setStreaming('streaming');
     }
   } else if (finalPayload.type === 'done') {
-    deps.updateSession(finalPayload.sessionId, { status: 'idle' });
+    deps.updateSession(finalPayload.sessionId, { status: 'idle', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('idle');
     deps.setStatusMessage(finalPayload.aborted ? 'Stopped' : 'Connected');
     appendNotification({
@@ -148,7 +151,7 @@ export function reduceSessionLifecyclePayloads(
       viewed: false,
     });
   } else if (finalPayload.type === 'error') {
-    deps.updateSession(finalPayload.sessionId, { status: 'error' });
+    deps.updateSession(finalPayload.sessionId, { status: 'error', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('error');
     deps.setStatusMessage('Error');
     appendNotification({
@@ -161,7 +164,8 @@ export function reduceSessionLifecyclePayloads(
         message: finalPayload.message,
       },
     });
-  } else if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
+  } else if (isRunningSessionStatus(nextStatusType)) {
+    deps.updateSession(finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('streaming');
   }
 

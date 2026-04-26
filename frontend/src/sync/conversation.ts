@@ -70,6 +70,8 @@ export interface SsePayload {
   status?: string;
   title?: string;
   metadata?: Record<string, unknown>;
+  /** Internal transport event id used for replay/reconnect deduplication. */
+  __eventId?: string;
 }
 
 function randomId(prefix: string): string {

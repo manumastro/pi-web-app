@@ -32,8 +32,8 @@ class MockEventSource {
     this.closed = true;
   }
 
-  emit(type: string, payload: SsePayload): void {
-    const event = new MessageEvent(type, { data: JSON.stringify(payload) });
+  emit(type: string, payload: SsePayload, lastEventId?: string): void {
+    const event = new MessageEvent(type, { data: JSON.stringify(payload), lastEventId });
     this.listeners.get(type)?.forEach((listener) => listener(event));
   }
 
@@ -144,9 +144,39 @@ describe('useSessionStream', () => {
     expect(onPayloadBatch).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(16);
     expect(onPayloadBatch).toHaveBeenCalledWith([
-      expect.objectContaining({ content: 'Hel' }),
-      expect.objectContaining({ content: 'lo' }),
+      expect.objectContaining({ content: 'Hello' }),
     ]);
     expect(onPayload).not.toHaveBeenCalled();
+  });
+
+  it('reconnects with the last received event id', async () => {
+    const onPayload = vi.fn();
+    const onConnected = vi.fn();
+    const onConnectionLost = vi.fn();
+
+    render(
+      React.createElement(Harness, {
+        sessionId: 'session-1',
+        onPayload,
+        onConnected,
+        onConnectionLost,
+      }),
+    );
+
+    const instance = MockEventSource.instances[0]!;
+    instance.emit('text_chunk', {
+      type: 'text_chunk',
+      sessionId: 'session-1',
+      messageId: 'm1',
+      content: 'Hello',
+      timestamp: '2026-04-15T10:00:00.000Z',
+    }, '42');
+    await vi.advanceTimersByTimeAsync(16);
+
+    instance.fail();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(MockEventSource.instances).toHaveLength(2);
+    expect(MockEventSource.instances[1]!.url).toContain('lastEventId=42');
   });
 });

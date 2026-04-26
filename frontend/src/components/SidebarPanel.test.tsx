@@ -77,6 +77,29 @@ describe('SidebarPanel', () => {
     expect(screen.getAllByRole('button', { name: 'Session menu' }).length).toBeGreaterThan(0);
   });
 
+  it('shows live status badges for active sessions', () => {
+    render(
+      <SidebarPanel
+        projects={directories}
+        sessions={[{ ...sessions[0]!, status: 'busy' }, { ...sessions[1]!, status: 'waiting_permission' }]}
+        selectedDirectory="/tmp"
+        selectedSessionId="s1"
+        homeDirectory="/tmp"
+        onDirectorySelect={vi.fn()}
+        onProjectAdd={vi.fn()}
+        onProjectRemove={vi.fn()}
+        onSessionSelect={vi.fn()}
+        onSessionDelete={vi.fn()}
+        onSessionRename={vi.fn()}
+        onNewSession={vi.fn()}
+        onToggleSidebar={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Working')).toBeInTheDocument();
+    expect(screen.getByText('Permission')).toBeInTheDocument();
+  });
+
   it('shows empty state when no sessions', () => {
     render(
       <SidebarPanel
