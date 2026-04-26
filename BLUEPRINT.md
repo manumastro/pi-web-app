@@ -1642,6 +1642,7 @@ NODE_PATH=/usr/bin/node
 - Verification after UX reliability increment: `npm run lint --workspace=frontend` and `npm run test --workspace=frontend` (75 passed) are green.
 - Continued PizzaPi UX parity with first product-navigation/chat polish: added a `Cmd/Ctrl+K` command palette for new-session/session/project/model commands and upgraded tool cards with explicit status pills plus copy input/output controls.
 - Verification after command palette/tool-card increment: `npm run lint --workspace=frontend` and `npm run test --workspace=frontend` (79 passed) are green.
+- Fixed a runner rehydration regression that caused `/api/messages/prompt` to return 500 (`Cannot read properties of undefined (reading 'totalTokens')`) for sessions with persisted assistant history: runner-process history rehydration now restores assistant messages as valid Pi AI assistant messages with zeroed usage/cost metadata. Verified direct prompt returns 202, runner E2E, relay E2E, and backend tests pass.
 
 #### Done (2026-04-21)
 - Fixed optimistic session merge ordering to sort messages chronologically by timestamp (with id fallback), preventing lexicographic-id reordering when multiple messages arrive.

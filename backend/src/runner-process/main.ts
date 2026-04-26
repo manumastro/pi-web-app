@@ -139,14 +139,51 @@ function normalizeInput(input: unknown): unknown {
   return { value: input };
 }
 
-function toAgentMessages(messages: Array<{ role: string; content: string; timestamp?: string | undefined }>): unknown[] {
+function emptyUsage() {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      total: 0,
+    },
+  };
+}
+
+function toAgentMessages(
+  messages: Array<{ role: string; content: string; timestamp?: string | undefined }>,
+  active: AgentSession,
+): unknown[] {
+  const activeModel = currentModel({ session: active } as RunnerSession);
   return messages
     .filter((message) => message.role === 'user' || message.role === 'assistant')
-    .map((message) => ({
-      role: message.role,
-      content: message.content,
-      timestamp: message.timestamp ? Date.parse(message.timestamp) : Date.now(),
-    }));
+    .map((message) => {
+      const timestamp = message.timestamp ? Date.parse(message.timestamp) : Date.now();
+      if (message.role === 'assistant') {
+        return {
+          role: 'assistant',
+          content: [{ type: 'text', text: message.content }],
+          api: 'unknown',
+          provider: activeModel?.provider ?? 'unknown',
+          model: activeModel?.id ?? 'unknown',
+          usage: emptyUsage(),
+          stopReason: 'stop',
+          timestamp,
+        };
+      }
+
+      return {
+        role: 'user',
+        content: message.content,
+        timestamp,
+      };
+    });
 }
 
 type ExtendedAgentSessionEvent = AgentSessionEvent | {
@@ -268,7 +305,7 @@ async function ensureSession(command: Extract<RunnerCommand, { type: 'start_sess
     unsubscribe: () => undefined,
   };
   if (command.history && command.history.length > 0) {
-    session.agent.state.messages = toAgentMessages(command.history) as never;
+    session.agent.state.messages = toAgentMessages(command.history, session) as never;
   }
 
   active.unsubscribe = session.subscribe((event) => handleAgentEvent(active, event as ExtendedAgentSessionEvent));
