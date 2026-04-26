@@ -1,10 +1,10 @@
 import type { Router, Request, Response } from 'express';
 import express from 'express';
 import type { ThinkingLevel } from '@mariozechner/pi-ai';
-import type { SdkBridge } from '../sdk/bridge.js';
-import type { PromptRequest } from '../sdk/bridge.js';
+import type { RunnerOrchestrator } from '../runner/orchestrator.js';
+import type { PromptRequest } from '../runner/orchestrator.js';
 
-export function createMessagesRouter(bridge: SdkBridge): Router {
+export function createMessagesRouter(bridge: RunnerOrchestrator): Router {
   const router = express.Router();
 
   router.post('/prompt', async (req: Request, res: Response) => {
@@ -47,8 +47,13 @@ export function createMessagesRouter(bridge: SdkBridge): Router {
       return;
     }
 
-    await bridge.abort(sessionId);
-    res.json({ ok: true });
+    try {
+      await bridge.abort(sessionId);
+      res.json({ ok: true });
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      res.status(503).json({ error });
+    }
   });
 
   return router;

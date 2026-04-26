@@ -2,17 +2,22 @@ import type { Router, Request, Response } from 'express';
 import express from 'express';
 import type { ThinkingLevel } from '@mariozechner/pi-ai';
 import type { SessionStore } from '../sessions/store.js';
-import type { SdkBridge } from '../sdk/bridge.js';
+import type { RunnerOrchestrator } from '../runner/orchestrator.js';
 
-export function createModelsRouter(params: { bridge: SdkBridge; sessionStore: SessionStore }): Router {
+export function createModelsRouter(params: { bridge: RunnerOrchestrator; sessionStore: SessionStore }): Router {
   const { bridge, sessionStore } = params;
   const router = express.Router();
 
   router.get('/', async (req: Request, res: Response) => {
     const sessionId = typeof req.query.sessionId === 'string' ? req.query.sessionId : '';
     const currentSessionModel = sessionId ? sessionStore.getSession(sessionId)?.model : undefined;
-    const models = await bridge.listModels(currentSessionModel);
-    res.json({ models });
+    try {
+      const models = await bridge.listModels(currentSessionModel);
+      res.json({ models });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      res.status(503).json({ error: message });
+    }
   });
 
   router.get('/session/thinking', async (req: Request, res: Response) => {

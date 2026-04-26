@@ -7,7 +7,7 @@ import { loadConfig } from './config/index.js';
 import { createPersistentSessionStore } from './sessions/persistent-store.js';
 import { createSseManager } from './sse/manager.js';
 import { createSseRouter } from './sse/handler.js';
-import { createSdkBridge } from './sdk/bridge.js';
+import { createRunnerOrchestrator } from './runner/orchestrator.js';
 import { registerApiRoutes } from './api/index.js';
 
 export function createApp() {
@@ -16,7 +16,7 @@ export function createApp() {
   const sessionStore = createPersistentSessionStore(config.sessionsDir);
   sessionStore.hydrateSync();
   const sseManager = createSseManager(path.join(config.sessionsDir, '.sse-history'));
-  const bridge = createSdkBridge({ config, sessionStore, sseManager });
+  const bridge = createRunnerOrchestrator({ config, sessionStore, sseManager });
 
   const app = express();
   app.use(express.json({ limit: '2mb' }));
