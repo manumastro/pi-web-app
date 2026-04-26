@@ -437,7 +437,61 @@ Test:
 - [x] Update feature matrix/checklists where impacted.
 - [x] Update `AGENTS.md` Current state line.
 
-## 9. Risks
+## 9. What is still missing
+
+This migration milestone deliberately completes the backend runner/orchestrator replacement while preserving the current frontend REST/SSE UX. The following items remain before the migration can be considered fully cleaned up and production-hardened.
+
+### 9.1 Required cleanup before declaring the migration fully complete
+
+1. **Remove or archive legacy SDK bridge code**
+   - `backend/src/sdk/bridge.ts` is no longer used by the server bootstrap.
+   - Its old tests still exist and should either be migrated to runner/orchestrator coverage or moved to a legacy fixture.
+   - Goal: outside `backend/src/runner-process/*`, the backend should not import or instantiate Pi `AgentSession`/`ModelRegistry` execution code.
+
+2. **Add dedicated runner tests**
+   - Unit tests for `backend/src/runner/protocol.ts` validation and serialization.
+   - Unit tests for `backend/src/runner/child-process.ts` request correlation, timeout, invalid JSONL handling, stderr handling, and child exit behavior.
+   - Unit tests for `backend/src/runner/orchestrator.ts` event adaptation and session-store persistence.
+
+3. **Add fake-runner integration tests**
+   - Use a deterministic fake JSONL runner process.
+   - Cover prompt dispatch, text/thinking/tool/done event forwarding, model switch success/failure, thinking-level changes, abort, runner exit, and route error responses.
+
+4. **Formalize E2E smoke script**
+   - Create a repeatable script/test that starts the service or dev backend, opens SSE, sends a prompt, verifies streamed chunks, switches model, changes thinking level, aborts a run, and reloads session history.
+   - Current E2E is manually verified via REST and browser smoke, not yet automated.
+
+5. **Runner crash/restart recovery**
+   - Current behavior surfaces runner errors and route failures cleanly.
+   - Missing: supervised automatic respawn, session rebind/restart policy, and explicit UI-visible degraded state if the runner dies during an active turn.
+
+### 9.2 Deliberately deferred, not required now
+
+1. **PizzaPi-like frontend UX parity**
+   - Native visible `model_set_result` UI.
+   - Realtime presence/rooms/collab semantics.
+   - PizzaPi-style runner management UI.
+   - WebSocket relay UX.
+
+2. **Transport replacement**
+   - Current transport is local child-process stdio JSONL.
+   - Unix socket/WebSocket/TCP runner transports can be added later without changing the frontend contract.
+
+3. **Multi-runner / remote-runner support**
+   - The current implementation targets one local runner process.
+   - Multi-runner routing, auth, runner registration, and remote control remain future scope.
+
+4. **Public native runner event protocol in the frontend**
+   - The orchestrator currently adapts runner events back to the existing SSE event schema.
+   - Exposing `session_active`, `session_metadata_update`, and `model_set_result` as first-class frontend events is deferred until needed.
+
+### 9.3 Current migration status summary
+
+- **Done for active runtime path:** backend orchestrator, child-process runner, JSONL protocol, prompt/model/thinking/abort routes through runner, CLI-scoped model listing, SSE adaptation, persistence, systemd/tsx spawn compatibility.
+- **Still missing:** legacy bridge cleanup, dedicated runner/fake-runner tests, automated E2E script, robust runner respawn/rebind.
+- **Not a goal for now:** matching PizzaPi UX.
+
+## 10. Risks
 
 | Risk | Impact | Mitigation |
 |---|---:|---|
@@ -448,7 +502,7 @@ Test:
 | Build packaging misses runner output | Medium | explicit tsconfig/build verification |
 | Large migration breaks tests | High | keep REST/SSE route contract stable while replacing internals |
 
-## 10. Acceptance criteria
+## 11. Acceptance criteria
 
 The migration is complete when:
 
