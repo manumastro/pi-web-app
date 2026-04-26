@@ -1621,11 +1621,11 @@ NODE_PATH=/usr/bin/node
 - Legacy interaction panels removed from the frontend; no inline question/permission cards are rendered in the current UI.
 - SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
 - Server binds to `0.0.0.0:3210` (accessible from public IP).
-- Build green, 89 backend tests + 70 frontend tests passing, `pi-web.service` active.
+- Build green, 95 backend tests + 70 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
 - Final polish: markdown rendering in messages, syntax highlighting for code blocks, keyboard shortcuts.
-- Final polish: runner crash/restart UX messaging beyond the current recoverable SSE error state, if needed after field use.
+- Final polish: runner/relay UX messaging beyond the current recoverable SSE/WebSocket error state, if needed after field use.
 
 #### Done (2026-04-26)
 - Added `docs/PI_RUNNER_ORCHESTRATOR_MIGRATION.md` as the one-shot migration plan for replacing the in-process SDK backend with a PizzaPi-like runner/orchestrator architecture.
@@ -1636,6 +1636,8 @@ NODE_PATH=/usr/bin/node
 - Aligned runner model capabilities with CLI `/model` scope: the runner now warms cwd-bound Pi services/extensions before listing models and filters `availableModels` through `SettingsManager.getEnabledModels()` in configured order instead of exposing the full authenticated registry; current service verification returns 15 resolvable scoped models, with the stale configured `openai-codex-2/gpt-5.5` pattern absent from the live registry.
 - Completed the remaining runner migration cleanup: removed legacy `backend/src/sdk/bridge.ts` and its tests, verified no `AgentSession`/`ModelRegistry`/`createAgentSession` imports remain outside `backend/src/runner-process/*`, added protocol/client/orchestrator/fake-runner/route-failure test coverage, added `backend/scripts/e2e-runner-smoke.mjs` plus `npm run test:e2e:runner --workspace=backend`, and hardened runner exit handling so active turns emit recoverable SSE errors and mark affected sessions as `error`.
 - Verification after cleanup: `npm run lint --workspace=backend`, `npm run test --workspace=backend` (89 passed), `npm run build --workspace=backend`, `npm run build --workspace=frontend`, `npm run test --workspace=frontend` (70 passed), service restart, and `npm run test:e2e:runner --workspace=backend` all pass.
+- Completed the same-server PizzaPi-like relay layer: added `backend/src/relay/protocol.ts` and `backend/src/relay/server.ts`, installed `/api/relay` WebSocket upgrade handling plus `/api/relay/status` on the same HTTP server, updated the root `src/server.ts` systemd entrypoint to boot `createHttpServer()`, forwarded canonical SSE events to subscribed relay viewers, and added relay protocol/server tests plus `backend/scripts/e2e-relay-smoke.mjs` / `npm run test:e2e:relay --workspace=backend`.
+- Verification after same-server relay completion: `npm run lint --workspace=backend`, `npm run test --workspace=backend` (95 passed), `npm run build --workspace=backend`, `npm run build --workspace=frontend`, `npm run test --workspace=frontend` (70 passed), service restart, `npm run test:e2e:relay --workspace=backend`, and `npm run test:e2e:runner --workspace=backend` all pass.
 
 #### Done (2026-04-21)
 - Fixed optimistic session merge ordering to sort messages chronologically by timestamp (with id fallback), preventing lexicographic-id reordering when multiple messages arrive.

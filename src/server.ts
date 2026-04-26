@@ -1,4 +1,4 @@
-import { createApp } from '../backend/src/server.ts';
+import { createHttpServer } from '../backend/src/server.ts';
 
 function applyServiceEnvironment(): void {
   if (process.env.PI_WEB_PORT && !process.env.PORT) {
@@ -20,8 +20,8 @@ function applyServiceEnvironment(): void {
 
 applyServiceEnvironment();
 
-const { app, config, logger } = createApp();
+const { server, config, logger } = createHttpServer();
 const host = process.env.HOST || '0.0.0.0';
-app.listen(config.port, host, () => {
+server.listen(config.port, host, () => {
   logger.info({ port: config.port, host }, 'pi-web backend listening');
 });

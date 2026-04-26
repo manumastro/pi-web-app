@@ -431,6 +431,7 @@ Test:
 - [x] Manual REST E2E prompt through runner verified.
 - [x] Manual `/api/models` verification returns CLI-scoped runner models instead of the full registry.
 - [x] Add repeatable runner smoke E2E script: `npm run test:e2e:runner --workspace=backend`.
+- [x] Add same-server WebSocket relay smoke E2E script: `npm run test:e2e:relay --workspace=backend`.
 
 ### Docs/status
 
@@ -438,9 +439,9 @@ Test:
 - [x] Update feature matrix/checklists where impacted.
 - [x] Update `AGENTS.md` Current state line.
 
-## 9. Remaining scope after completion
+## 9. Same-server PizzaPi-like technical completion
 
-This migration milestone now completes the backend runner/orchestrator replacement while preserving the current frontend REST/SSE UX.
+This migration now completes the local/same-server technical equivalent of the PizzaPi architecture: the web server contains the relay/orchestrator, controls a dedicated local runner process, and exposes both the preserved REST/SSE compatibility API and a WebSocket relay endpoint for realtime viewer-style transport.
 
 ### 9.1 Completed cleanup/hardening
 
@@ -463,30 +464,44 @@ This migration milestone now completes the backend runner/orchestrator replaceme
    - Active-turn runner exits now emit SSE error events, mark affected sessions as `error`, clear active turn state, and remain recoverable.
    - Future commands respawn the child runner via `RunnerProcessClient.start()`.
 
-### 9.2 Deferred future scope, not required for this milestone
+5. **Same-server relay layer added**
+   - `backend/src/relay/protocol.ts` defines viewer WebSocket commands/events.
+   - `backend/src/relay/server.ts` installs `/api/relay` on the same HTTP server; no external relay service is required.
+   - Relay supports viewer hello/presence, subscribe/unsubscribe, ping/pong, list models, prompt, abort, model switching, thinking-level switching, and forwarding adapted SSE events as `sse_event` messages.
+   - `/api/relay/status` exposes local relay state.
+   - `src/server.ts` now boots `createHttpServer()` so systemd/source mode includes WebSocket upgrade handling.
 
-1. **PizzaPi-like frontend UX parity**
-   - Native visible `model_set_result` UI.
-   - Realtime presence/rooms/collab semantics.
-   - PizzaPi-style runner management UI.
-   - WebSocket relay UX.
+6. **Relay tests and E2E added**
+   - `backend/src/relay/protocol.test.ts` covers viewer protocol validation/serialization.
+   - `backend/src/relay/server.test.ts` covers WebSocket connection, subscription, presence/session counts, command dispatch, invalid command errors, and forwarding session events.
+   - `backend/scripts/e2e-relay-smoke.mjs` verifies `/api/relay` against the running service.
 
-2. **Transport replacement**
-   - Current transport is local child-process stdio JSONL.
-   - Unix socket/WebSocket/TCP runner transports can be added later without changing the frontend contract.
+### 9.2 Deliberately retained compatibility surface
 
-3. **Multi-runner / remote-runner support**
-   - The current implementation targets one local runner process.
-   - Multi-runner routing, auth, runner registration, and remote control remain future scope.
+The following pieces are intentionally kept because they are still useful compatibility APIs, not incomplete migration leftovers:
 
-4. **Public native runner event protocol in the frontend**
-   - The orchestrator currently adapts runner events back to the existing SSE event schema.
-   - Exposing `session_active`, `session_metadata_update`, and `model_set_result` as first-class frontend events is deferred until needed.
+1. **REST command routes**
+   - Existing frontend and scripts continue to use REST for prompt/model/thinking/abort.
+   - Internally these routes still go through the runner orchestrator.
 
-### 9.3 Current migration status summary
+2. **SSE event route**
+   - Existing frontend streaming keeps working over `/api/events`.
+   - The new WebSocket relay observes the same canonical SSE event stream and forwards it to subscribed relay viewers.
 
-- **Done:** backend orchestrator, child-process runner, JSONL protocol, prompt/model/thinking/abort routes through runner, CLI-scoped model listing, SSE adaptation, persistence, systemd/tsx spawn compatibility, legacy bridge removal, runner/fake-runner tests, route failure tests, automated smoke E2E, and recoverable runner-exit handling.
-- **Not a goal for now:** matching PizzaPi UX.
+3. **Local child-process runner transport**
+   - Because the requirement is that everything lives in the same server deployment, runner transport remains local stdio JSONL instead of remote runner registration/auth.
+   - This preserves PizzaPi's separation of concerns without adding an unnecessary separate deployable runner service.
+
+### 9.3 Out of scope by product decision, not technical blockers
+
+- Matching PizzaPi's exact frontend UX/chrome.
+- Remote runner registration/auth across machines.
+- Multi-machine relay topology.
+
+### 9.4 Current migration status summary
+
+- **Done:** same-server relay/orchestrator, child-process runner, JSONL runner protocol, WebSocket viewer relay protocol, prompt/model/thinking/abort through runner, CLI-scoped model listing, SSE + WebSocket event forwarding, persistence, systemd/tsx spawn compatibility, legacy bridge removal, runner/fake-runner/relay/route tests, automated runner and relay smoke E2E, and recoverable runner-exit handling.
+- **No known migration cleanup leftovers:** obsolete SDK bridge code has been removed; REST/SSE remain intentionally as compatibility APIs.
 
 ## 10. Risks
 
@@ -510,4 +525,4 @@ The migration is complete when:
 5. Build and tests pass.
 6. `BLUEPRINT.md` and `AGENTS.md` are updated.
 
-Current status: all acceptance criteria are satisfied for the local runner/orchestrator milestone. PizzaPi-like UX parity, multi-runner support, and alternate transports remain future scope, not blockers for this migration.
+Current status: all acceptance criteria are satisfied for the same-server PizzaPi-like technical milestone. The exact PizzaPi UX and remote multi-machine deployment model are intentionally out of scope because this app keeps relay, orchestrator, and local runner supervision in one server deployment.

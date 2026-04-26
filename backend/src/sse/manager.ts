@@ -14,6 +14,7 @@ export interface SseManager {
   unsubscribe: (clientId: string) => void;
   broadcast: (event: SseEvent) => void;
   broadcastToSession: (sessionId: string, event: SseEvent) => void;
+  observe: (listener: (event: SseEvent) => void) => () => void;
   clientCount: () => number;
 }
 
@@ -43,6 +44,7 @@ export function createSseManager(historyDir?: string): SseManager {
   const clients = new Map<string, SseClient>();
   const histories = historyDir ? loadSseHistoriesSync(historyDir) : new Map<string, StoredEvent[]>();
   const counters = new Map<string, number>();
+  const observers = new Set<(event: SseEvent) => void>();
 
   for (const [sessionId, history] of histories.entries()) {
     const last = history.at(-1);
@@ -113,6 +115,7 @@ export function createSseManager(historyDir?: string): SseManager {
 
     broadcast(event: SseEvent): void {
       const id = recordEvent(event.sessionId, event);
+      for (const observer of observers) observer(event);
       for (const client of clients.values()) {
         if (client.sessionId === event.sessionId) {
           sendToClient(client, id, event);
@@ -121,12 +124,19 @@ export function createSseManager(historyDir?: string): SseManager {
     },
 
     broadcastToSession(sessionId: string, event: SseEvent): void {
-      const id = recordEvent(sessionId, { ...event, sessionId });
+      const normalized = { ...event, sessionId };
+      const id = recordEvent(sessionId, normalized);
+      for (const observer of observers) observer(normalized);
       for (const client of clients.values()) {
         if (client.sessionId === sessionId) {
-          sendToClient(client, id, { ...event, sessionId });
+          sendToClient(client, id, normalized);
         }
       }
+    },
+
+    observe(listener: (event: SseEvent) => void): () => void {
+      observers.add(listener);
+      return () => observers.delete(listener);
     },
 
     clientCount(): number {

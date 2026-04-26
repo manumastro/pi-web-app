@@ -81,6 +81,7 @@ function createCapturingSseManager(events: SseEvent[]): SseManager {
     unsubscribe: () => undefined,
     broadcast: (event) => { events.push(event); },
     broadcastToSession: (_sessionId, event) => { events.push(event); },
+    observe: () => () => undefined,
     clientCount: () => 0,
   };
 }

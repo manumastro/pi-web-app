@@ -3,11 +3,13 @@ import cors from 'cors';
 import pino from 'pino';
 import path from 'node:path';
 import fs from 'node:fs';
+import http from 'node:http';
 import { loadConfig } from './config/index.js';
 import { createPersistentSessionStore } from './sessions/persistent-store.js';
 import { createSseManager } from './sse/manager.js';
 import { createSseRouter } from './sse/handler.js';
 import { createRunnerOrchestrator } from './runner/orchestrator.js';
+import { installRelayServer } from './relay/server.js';
 import { registerApiRoutes } from './api/index.js';
 
 export function createApp() {
@@ -69,12 +71,34 @@ export function createApp() {
     });
   }
 
-  return { app, config, logger, sessionStore, sseManager };
+  return { app, config, logger, sessionStore, sseManager, orchestrator: bridge };
+}
+
+export function createHttpServer() {
+  const runtime = createApp();
+  const server = http.createServer(runtime.app);
+  const relay = installRelayServer({
+    server,
+    orchestrator: runtime.orchestrator,
+    sessionStore: runtime.sessionStore,
+    sseManager: runtime.sseManager,
+  });
+
+  runtime.app.get('/api/relay/status', (_req, res) => {
+    res.json({
+      viewers: relay.viewerCount(),
+      sessions: relay.sessionViewerCounts(),
+      transport: 'websocket',
+      path: '/api/relay',
+    });
+  });
+
+  return { ...runtime, server, relay };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { app, config, logger } = createApp();
-  app.listen(config.port, () => {
+  const { server, config, logger } = createHttpServer();
+  server.listen(config.port, () => {
     logger.info({ port: config.port }, 'pi-web backend listening');
   });
 }
