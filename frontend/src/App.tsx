@@ -15,6 +15,7 @@ import { ConversationPanel } from './components/chat/ConversationPanel';
 import { ComposerPanel } from './components/chat/ComposerPanel';
 import { Toaster } from './components/ui';
 import { CommandPalette } from './components/command/CommandPalette';
+import { PizzaPiWorkspace, type WorkspacePanel } from './components/workspace/PizzaPiWorkspace';
 
 function ConnectionBanner({ state, message, error }: { state: StreamingState; message: string; error?: string }) {
   if (state !== 'error') return null;
@@ -28,6 +29,7 @@ export default function App() {
   const setSidebarOpen = useUIStore((state) => state.setSidebarOpen);
   const previousCompactLayoutRef = useRef<boolean | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [workspacePanel, setWorkspacePanel] = useState<WorkspacePanel>(null);
 
   useEffect(() => {
     if (previousCompactLayoutRef.current === null) {
@@ -123,10 +125,14 @@ export default function App() {
       sidebarOpen={sidebarOpen}
       onNewSession={handleCreateSession}
       onToggleSidebar={toggleSidebar}
+      onToggleTerminal={() => setWorkspacePanel((panel) => (panel === 'terminal' ? null : 'terminal'))}
+      onToggleFiles={() => setWorkspacePanel((panel) => (panel === 'files' ? null : 'files'))}
+      onToggleGit={() => setWorkspacePanel((panel) => (panel === 'git' ? null : 'git'))}
+      onOpenCommandPalette={() => setCommandPaletteOpen(true)}
     />
   ), [currentDirectoryLabel, currentSession?.title, handleCreateSession, sidebarOpen, toggleSidebar]);
 
-  const content = selectedSessionId ? (
+  const chatContent = selectedSessionId ? (
     <ChatView sessionId={selectedSessionId}>
       <ConversationPanel
         items={conversation}
@@ -156,6 +162,12 @@ export default function App() {
     </ChatView>
   ) : (
     <ChatEmptyState onNewSession={handleCreateSession} />
+  );
+
+  const content = (
+    <PizzaPiWorkspace activePanel={workspacePanel} onPanelChange={setWorkspacePanel} cwd={selectedDirectory}>
+      {chatContent}
+    </PizzaPiWorkspace>
   );
 
   const connectionBanner = !selectedSessionId && streaming === 'error'

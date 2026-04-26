@@ -56,6 +56,7 @@ Out of scope for UX parity:
 
 ### Phase 4 — Workspace panels
 
+- [x] PizzaPi-like dock panel shell for Files/Terminal/Git buttons in the main app chrome.
 - [ ] File explorer with read-only file viewer.
 - [ ] Terminal panel scoped to CWD.
 - [ ] Git panel with branch/status/diff.
@@ -81,6 +82,7 @@ The first UX-parity increment completes the reliability foundation visible to us
 - Session rows now show live status badges for working/retry/question/permission/error.
 - Command palette opens with `Cmd/Ctrl+K` and runs new-session/session/project/model commands.
 - Tool cards now display explicit status and copy input/output content.
+- Cloned PizzaPi to `~/PizzaPi` for direct UI reference and began matching visible chrome 1:1: PizzaPi logo/brand, relay status header/sidebar, dark neutral PizzaPi tokens, session active chase border, header action cluster, and dock-panel shell for Files/Terminal/Git.
 
 Verification for this increment:
 

@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PizzaLogo } from '@/components/brand/PizzaLogo';
 
 function formatSessionTime(iso: string): string {
   const date = new Date(iso);
@@ -230,11 +231,27 @@ export function SidebarPanel({
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <div className={cn('sidebar-shell drawer-safe-area', mobileVariant && 'sidebar-shell-mobile')}>
+        <div className="pizzapi-sidebar-brand-row">
+          <div className="pizzapi-sidebar-brand">
+            <PizzaLogo className="pizza-logo-sidebar" />
+            <div>
+              <div className="pizzapi-sidebar-brand-title">PizzaPi</div>
+              <div className="pizzapi-sidebar-brand-subtitle"><span className="pizzapi-live-dot" /> Relay connected</div>
+            </div>
+          </div>
+          {!mobileVariant ? (
+            <button type="button" className="pizzapi-sidebar-runner-button" title="Runners">
+              <Settings2 size={14} />
+              <span>Runners</span>
+            </button>
+          ) : null}
+        </div>
+
         <div className={cn('sidebar-toolbar', mobileVariant && 'sidebar-toolbar-mobile')}>
           {mobileVariant ? (
             <>
               <div className="sidebar-mobile-title-group">
-                <div className="sidebar-mobile-eyebrow">Workspace</div>
+                <div className="sidebar-mobile-eyebrow">PizzaPi</div>
                 <div className="sidebar-mobile-title">Sessions</div>
               </div>
               <div className="sidebar-toolbar-group">

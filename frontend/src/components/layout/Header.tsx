@@ -1,6 +1,7 @@
 import React from 'react';
-import { Layers3, Menu, Plus, SquareTerminal, PanelRightClose } from 'lucide-react';
+import { Clock, FolderTree, GitBranch, HardDrive, Keyboard, Menu, Moon, Plus, Settings, SquareTerminal, PanelRightClose } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { PizzaLogo } from '@/components/brand/PizzaLogo';
 
 interface HeaderProps {
   sessionName: string;
@@ -8,6 +9,10 @@ interface HeaderProps {
   sidebarOpen?: boolean;
   onNewSession: () => void;
   onToggleSidebar: () => void;
+  onToggleTerminal?: () => void;
+  onToggleFiles?: () => void;
+  onToggleGit?: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 function IconButton({
@@ -36,7 +41,17 @@ function IconButton({
   );
 }
 
-export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSession, onToggleSidebar }: HeaderProps) {
+export function Header({
+  sessionName,
+  projectLabel,
+  sidebarOpen = true,
+  onNewSession,
+  onToggleSidebar,
+  onToggleTerminal,
+  onToggleFiles,
+  onToggleGit,
+  onOpenCommandPalette,
+}: HeaderProps) {
   const title = sessionName.trim().length > 0 ? sessionName : 'Untitled Session';
   const isCompactLayout = useMediaQuery('(max-width: 1024px)');
 
@@ -55,9 +70,12 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
         </div>
 
         <div className="app-header-mobile-center">
-          <div className="header-title-group">
-            <div className="header-title">{title}</div>
-            <div className="header-subtitle">{projectLabel}</div>
+          <div className="pizzapi-mobile-brand">
+            <PizzaLogo className="pizza-logo-mobile" />
+            <div className="header-title-group">
+              <div className="header-title">{title}</div>
+              <div className="header-subtitle">{projectLabel}</div>
+            </div>
           </div>
         </div>
 
@@ -77,7 +95,56 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
 
   return (
     <header className="app-header header-safe-area">
-      <div className="app-header-left">
+      <div className="app-header-left pizzapi-header-left">
+        <div className="pizzapi-brand-cluster">
+          <PizzaLogo />
+          <span className="pizzapi-brand-name">PizzaPi</span>
+        </div>
+        <span className="pizzapi-separator" />
+        <div className="pizzapi-relay-status">
+          <span className="pizzapi-live-dot" />
+          <span>Relay connected</span>
+        </div>
+        <span className="pizzapi-separator" />
+        <div className="header-title-group pizzapi-session-heading">
+          <div className="header-title">{title}</div>
+          <div className="header-subtitle">{projectLabel}</div>
+        </div>
+      </div>
+
+      <div className="app-header-right pizzapi-header-right">
+        <IconButton
+          title="Session history"
+          label="Session history"
+          onClick={onOpenCommandPalette}
+          className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
+        >
+          <Clock size={16} />
+        </IconButton>
+        <IconButton
+          title="Files"
+          label="Files"
+          onClick={onToggleFiles}
+          className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
+        >
+          <FolderTree size={16} />
+        </IconButton>
+        <IconButton
+          title="Terminal"
+          label="Terminal"
+          onClick={onToggleTerminal}
+          className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
+        >
+          <SquareTerminal size={16} />
+        </IconButton>
+        <IconButton
+          title="Git"
+          label="Git"
+          onClick={onToggleGit}
+          className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
+        >
+          <GitBranch size={16} />
+        </IconButton>
         <button
           type="button"
           className="btn btn-primary btn-sm header-action-button header-action-button-primary"
@@ -86,36 +153,12 @@ export function Header({ sessionName, projectLabel, sidebarOpen = true, onNewSes
           title="New session"
         >
           <Plus size={16} />
-          <span>New session</span>
+          <span>New</span>
         </button>
-
-        <div className="header-title-group">
-          <div className="header-title">{title}</div>
-          <div className="header-subtitle">{projectLabel}</div>
-        </div>
-      </div>
-
-      <div className="app-header-right">
-        <IconButton
-          title="Layers"
-          label="Layers"
-          onClick={() => {
-            alert('Layers panel coming soon');
-          }}
-          className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
-        >
-          <Layers3 size={16} />
-        </IconButton>
-        <IconButton
-          title="Terminal"
-          label="Terminal"
-          onClick={() => {
-            alert('Terminal coming soon');
-          }}
-          className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
-        >
-          <SquareTerminal size={16} />
-        </IconButton>
+        <IconButton title="Theme" label="Theme" className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"><Moon size={16} /></IconButton>
+        <IconButton title="API keys" label="API keys" className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"><HardDrive size={16} /></IconButton>
+        <IconButton title="Keyboard shortcuts" label="Keyboard shortcuts" onClick={onOpenCommandPalette} className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"><Keyboard size={16} /></IconButton>
+        <IconButton title="Preferences" label="Preferences" className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"><Settings size={16} /></IconButton>
         <IconButton
           title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
           label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}

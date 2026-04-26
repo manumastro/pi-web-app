@@ -1624,7 +1624,7 @@ NODE_PATH=/usr/bin/node
 - Build green, 95 backend tests + 79 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
-- PizzaPi UX parity: continue from `docs/UX_PARITY_ROADMAP.md`; next largest user-visible gaps are full gap repair, pending question/permission UI, richer per-tool metadata/diff previews, and workspace panels.
+- PizzaPi UX parity: continue from `docs/UX_PARITY_ROADMAP.md`; PizzaPi is cloned at `~/PizzaPi` for direct visual/reference parity. Next largest user-visible gaps are real file/terminal/git panel data, pending question/permission UI, full gap repair, richer per-tool metadata/diff previews, and dock layout persistence.
 - Final polish: runner/relay UX messaging beyond the current recoverable SSE/WebSocket error state, if needed after field use.
 
 #### Done (2026-04-26)
@@ -1643,6 +1643,7 @@ NODE_PATH=/usr/bin/node
 - Continued PizzaPi UX parity with first product-navigation/chat polish: added a `Cmd/Ctrl+K` command palette for new-session/session/project/model commands and upgraded tool cards with explicit status pills plus copy input/output controls.
 - Verification after command palette/tool-card increment: `npm run lint --workspace=frontend` and `npm run test --workspace=frontend` (79 passed) are green.
 - Fixed a runner rehydration regression that caused `/api/messages/prompt` to return 500 (`Cannot read properties of undefined (reading 'totalTokens')`) for sessions with persisted assistant history: runner-process history rehydration now restores assistant messages as valid Pi AI assistant messages with zeroed usage/cost metadata. Verified direct prompt returns 202, runner E2E, relay E2E, and backend tests pass.
+- Began strict PizzaPi visual/UX replication from the cloned `~/PizzaPi` UI: replaced the visible app chrome with PizzaPi logo/brand, relay-connected status in header/sidebar, dark neutral PizzaPi tokens, PizzaPi-like header action cluster, active-session conic chase border, and a dock-panel shell opened by Files/Terminal/Git header buttons.
 
 #### Done (2026-04-21)
 - Fixed optimistic session merge ordering to sort messages chronologically by timestamp (with id fallback), preventing lexicographic-id reordering when multiple messages arrive.
