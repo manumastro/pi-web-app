@@ -1621,10 +1621,10 @@ NODE_PATH=/usr/bin/node
 - Legacy interaction panels removed from the frontend; no inline question/permission cards are rendered in the current UI.
 - SSE: reconnect backoff (3s), session existence check (404), generation counter to prevent stale reconnects.
 - Server binds to `0.0.0.0:3210` (accessible from public IP).
-- Build green, 95 backend tests + 75 frontend tests passing, `pi-web.service` active.
+- Build green, 95 backend tests + 79 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
-- PizzaPi UX parity: continue from `docs/UX_PARITY_ROADMAP.md`; next largest user-visible gaps are full gap repair, command palette, richer tool cards, pending question/permission UI, and workspace panels.
+- PizzaPi UX parity: continue from `docs/UX_PARITY_ROADMAP.md`; next largest user-visible gaps are full gap repair, pending question/permission UI, richer per-tool metadata/diff previews, and workspace panels.
 - Final polish: runner/relay UX messaging beyond the current recoverable SSE/WebSocket error state, if needed after field use.
 
 #### Done (2026-04-26)
@@ -1640,6 +1640,8 @@ NODE_PATH=/usr/bin/node
 - Verification after same-server relay completion: `npm run lint --workspace=backend`, `npm run test --workspace=backend` (95 passed), `npm run build --workspace=backend`, `npm run build --workspace=frontend`, `npm run test --workspace=frontend` (70 passed), service restart, `npm run test:e2e:relay --workspace=backend`, and `npm run test:e2e:runner --workspace=backend` all pass.
 - Started PizzaPi UX parity with a reliability-first increment and checklist in `docs/UX_PARITY_ROADMAP.md`: frontend SSE now tracks `lastEventId` across manual reconnects, deduplicates replayed SSE events with a bounded event-id window, coalesces adjacent text chunks per frame, forces reconnect on stale payload silence, and sidebar session rows now show live status badges for working/retry/question/permission/error states.
 - Verification after UX reliability increment: `npm run lint --workspace=frontend` and `npm run test --workspace=frontend` (75 passed) are green.
+- Continued PizzaPi UX parity with first product-navigation/chat polish: added a `Cmd/Ctrl+K` command palette for new-session/session/project/model commands and upgraded tool cards with explicit status pills plus copy input/output controls.
+- Verification after command palette/tool-card increment: `npm run lint --workspace=frontend` and `npm run test --workspace=frontend` (79 passed) are green.
 
 #### Done (2026-04-21)
 - Fixed optimistic session merge ordering to sort messages chronologically by timestamp (with id fallback), preventing lexicographic-id reordering when multiple messages arrive.
@@ -1740,7 +1742,7 @@ NODE_PATH=/usr/bin/node
 - [x] Assistant status heuristics for streaming/tooling/permission/retry/cooldown/complete
 - [x] Markdown feature parity upgrades (math, mermaid, richer code blocks, copy/download, explicit variants)
 - [x] OpenChamber-inspired stylesheet structure (`index.css` entrypoint + semantic tokens/typography/mobile/markdown/chat split) with project compatibility rules
-- [ ] Accessibility (ARIA labels, keyboard nav) - partial
+- [ ] Accessibility (ARIA labels, keyboard nav) - partial; command palette now supports keyboard open/search/navigation/enter
 - [ ] Favicon, meta tags
 - [ ] **Gate**: Full user journey works smoothly - partial
 

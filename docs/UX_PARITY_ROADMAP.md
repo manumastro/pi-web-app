@@ -40,14 +40,15 @@ Out of scope for UX parity:
 - [ ] Project-grouped session sections across all projects.
 - [ ] Copy session link / fork session.
 - [ ] Cached instant session switching with stale-while-revalidate.
-- [ ] Command palette for sessions/projects/actions/models.
+- [x] Command palette for sessions/projects/actions/models (`Cmd/Ctrl+K`).
 
 ### Phase 3 — Chat/runtime UX
 
 - [x] Thinking stream rendering.
 - [x] Expandable tool call/result blocks.
 - [x] Visible abort/stop control.
-- [ ] PizzaPi-level tool cards with status, type-specific icons, copy output, and formatted args.
+- [x] Tool cards expose status, type-specific icons, expandable formatted args/output, and copy controls.
+- [ ] Tool cards still need richer per-tool metadata, duration/progress, and write/diff previews.
 - [ ] Pending question UI.
 - [ ] Permission approve/deny UI.
 - [ ] Busy queue/follow-up state.
@@ -78,8 +79,10 @@ The first UX-parity increment completes the reliability foundation visible to us
 - Rapid text chunks are coalesced per animation frame.
 - A stale stream forces a reconnect and surfaces degraded connection state.
 - Session rows now show live status badges for working/retry/question/permission/error.
+- Command palette opens with `Cmd/Ctrl+K` and runs new-session/session/project/model commands.
+- Tool cards now display explicit status and copy input/output content.
 
 Verification for this increment:
 
 - `npm run lint --workspace=frontend`
-- `npm run test --workspace=frontend` → 75 tests passing
+- `npm run test --workspace=frontend` → 79 tests passing

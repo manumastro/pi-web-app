@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppController } from './sync/use-app-controller';
 import { useAssistantStatus } from './hooks/useAssistantStatus';
 import { useMobileRuntime } from './hooks/useMobileRuntime';
@@ -14,6 +14,7 @@ import { ChatEmptyState } from './components/chat/ChatEmptyState';
 import { ConversationPanel } from './components/chat/ConversationPanel';
 import { ComposerPanel } from './components/chat/ComposerPanel';
 import { Toaster } from './components/ui';
+import { CommandPalette } from './components/command/CommandPalette';
 
 function ConnectionBanner({ state, message, error }: { state: StreamingState; message: string; error?: string }) {
   if (state !== 'error') return null;
@@ -26,6 +27,7 @@ export default function App() {
   const isCompactLayout = useMediaQuery('(max-width: 1024px)');
   const setSidebarOpen = useUIStore((state) => state.setSidebarOpen);
   const previousCompactLayoutRef = useRef<boolean | null>(null);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   useEffect(() => {
     if (previousCompactLayoutRef.current === null) {
@@ -169,6 +171,19 @@ export default function App() {
         connectionBanner={connectionBanner}
         sidebarOpen={sidebarOpen}
         onSidebarClose={toggleSidebar}
+      />
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        sessions={visibleSessions}
+        projects={projectDirectories}
+        models={models}
+        selectedSessionId={selectedSessionId}
+        selectedDirectory={selectedDirectory}
+        onNewSession={handleCreateSession}
+        onSessionSelect={handleSessionSelect}
+        onDirectorySelect={handleDirectorySelect}
+        onModelSelect={handleModelSelect}
       />
       <Toaster />
     </>

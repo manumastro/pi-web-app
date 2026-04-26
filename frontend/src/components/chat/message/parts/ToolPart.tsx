@@ -8,6 +8,8 @@ import {
   XCircle,
   ChevronRight,
   ChevronDown,
+  Clipboard,
+  Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ToolRevealOnMount } from '../../ToolRevealOnMount';
@@ -167,6 +169,7 @@ export const ToolPart: React.FC<ToolPartProps> = ({
   className,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [copiedSection, setCopiedSection] = useState<'input' | 'output' | null>(null);
 
   const Icon = getToolIcon(toolName, status);
   const parsedInput = useMemo(() => {
@@ -185,6 +188,15 @@ export const ToolPart: React.FC<ToolPartProps> = ({
 
   const isError = status === 'error';
   const isSuccess = status === 'success';
+  const copyText = async (section: 'input' | 'output', text: string): Promise<void> => {
+    try {
+      await navigator.clipboard?.writeText(text);
+      setCopiedSection(section);
+      window.setTimeout(() => setCopiedSection((current) => (current === section ? null : current)), 1200);
+    } catch {
+      // Clipboard can be unavailable in insecure/test contexts; keep the UI stable.
+    }
+  };
   const displayName = toolName;
   const summaryText = input?.trim().length ? parsedInput.summary : (parsedOutput?.summary ?? parsedInput.summary);
 
@@ -214,6 +226,7 @@ export const ToolPart: React.FC<ToolPartProps> = ({
           <span className={cn('tool-badge', isSuccess && 'tool-badge-success', isError && 'tool-badge-error')}>
             {displayName}
           </span>
+          <span className={cn('tool-status-pill', status)}>{status}</span>
           {!isExpanded && summaryText ? <span className="tool-summary-text">{summaryText}</span> : null}
           {timestamp ? <span className="tool-timestamp">{formatTimestampForDisplay(timestamp)}</span> : null}
         </div>
@@ -222,7 +235,18 @@ export const ToolPart: React.FC<ToolPartProps> = ({
           <div className="tool-content">
             {input?.trim().length ? (
               <div className="tool-section">
-                <div className="tool-section-label">Input</div>
+                <div className="tool-section-heading">
+                  <div className="tool-section-label">Input</div>
+                  <button
+                    type="button"
+                    className="tool-copy-button"
+                    onClick={() => void copyText('input', parsedInput.display)}
+                    aria-label="Copy tool input"
+                  >
+                    {copiedSection === 'input' ? <Check size={12} /> : <Clipboard size={12} />}
+                    <span>{copiedSection === 'input' ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
                 {parsedInput.isJson ? (
                   <pre className={cn('tool-input', 'is-json')}>
                     {parsedInput.display}
@@ -237,7 +261,18 @@ export const ToolPart: React.FC<ToolPartProps> = ({
 
             {output?.trim().length ? (
               <div className="tool-section">
-                <div className="tool-section-label">Output</div>
+                <div className="tool-section-heading">
+                  <div className="tool-section-label">Output</div>
+                  <button
+                    type="button"
+                    className="tool-copy-button"
+                    onClick={() => void copyText('output', parsedOutput?.display || output)}
+                    aria-label="Copy tool output"
+                  >
+                    {copiedSection === 'output' ? <Check size={12} /> : <Clipboard size={12} />}
+                    <span>{copiedSection === 'output' ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
                 {parsedOutput?.isJson ? (
                   <pre className={cn('tool-output', status === 'success' && 'success', status === 'error' && 'error', 'is-json')}>
                     {parsedOutput.display}
