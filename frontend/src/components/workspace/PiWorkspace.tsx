@@ -3,7 +3,7 @@ import { ChevronRight, FileText, Folder, FolderTree, GitBranch, RefreshCw, Termi
 import { apiGet, apiRequest } from '@/api';
 import { cn } from '@/lib/utils';
 type WorkspacePanel = 'terminal' | 'files' | 'git' | null;
-interface PizzaPiWorkspaceProps {
+interface PiWorkspaceProps {
   children: React.ReactNode;
   activePanel: WorkspacePanel;
   onPanelChange: (panel: WorkspacePanel) => void;
@@ -65,31 +65,31 @@ function FilesPanel({ cwd }: { cwd: string }) {
   const crumbs = useMemo(() => path ? path.split('/').filter(Boolean) : [], [path]);
 
   return (
-    <div className="pizzapi-panel-stack">
-      <div className="pizzapi-panel-toolbar">
-        <button type="button" onClick={() => void load('')} className="pizzapi-mini-button">root</button>
+    <div className="piweb-panel-stack">
+      <div className="piweb-panel-toolbar">
+        <button type="button" onClick={() => void load('')} className="piweb-mini-button">root</button>
         {crumbs.map((crumb, index) => {
           const crumbPath = crumbs.slice(0, index + 1).join('/');
-          return <button key={crumbPath} type="button" onClick={() => void load(crumbPath)} className="pizzapi-crumb"><ChevronRight size={12} />{crumb}</button>;
+          return <button key={crumbPath} type="button" onClick={() => void load(crumbPath)} className="piweb-crumb"><ChevronRight size={12} />{crumb}</button>;
         })}
-        <button type="button" onClick={() => void load()} className="pizzapi-icon-button ml-auto" aria-label="Refresh files"><RefreshCw size={14} /></button>
+        <button type="button" onClick={() => void load()} className="piweb-icon-button ml-auto" aria-label="Refresh files"><RefreshCw size={14} /></button>
       </div>
-      {error ? <div className="pizzapi-panel-error">{error}</div> : null}
-      <div className="pizzapi-file-list">
+      {error ? <div className="piweb-panel-error">{error}</div> : null}
+      <div className="piweb-file-list">
         {entries.map((entry) => {
           const Icon = entry.type === 'directory' ? Folder : FileText;
           return (
-            <button key={entry.path} type="button" className={cn('pizzapi-file-row', selectedFile?.path === entry.path && 'active')} onClick={() => void openFile(entry)}>
+            <button key={entry.path} type="button" className={cn('piweb-file-row', selectedFile?.path === entry.path && 'active')} onClick={() => void openFile(entry)}>
               <Icon size={14} />
               <span className="truncate">{entry.name}</span>
-              <span className="pizzapi-file-meta">{formatSize(entry.size)}</span>
+              <span className="piweb-file-meta">{formatSize(entry.size)}</span>
             </button>
           );
         })}
       </div>
       {selectedFile ? (
-        <div className="pizzapi-file-viewer">
-          <div className="pizzapi-file-viewer-title">{selectedFile.path} · {formatSize(selectedFile.size)}</div>
+        <div className="piweb-file-viewer">
+          <div className="piweb-file-viewer-title">{selectedFile.path} · {formatSize(selectedFile.size)}</div>
           <pre>{selectedFile.content}</pre>
         </div>
       ) : null}
@@ -116,24 +116,24 @@ function GitPanel({ cwd }: { cwd: string }) {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <div className="pizzapi-panel-stack">
-      <div className="pizzapi-panel-toolbar">
-        <span className="pizzapi-branch-pill"><GitBranch size={13} /> {status?.branch ?? 'loading'}</span>
-        <button type="button" onClick={() => void load()} className="pizzapi-icon-button ml-auto" aria-label="Refresh git"><RefreshCw size={14} /></button>
+    <div className="piweb-panel-stack">
+      <div className="piweb-panel-toolbar">
+        <span className="piweb-branch-pill"><GitBranch size={13} /> {status?.branch ?? 'loading'}</span>
+        <button type="button" onClick={() => void load()} className="piweb-icon-button ml-auto" aria-label="Refresh git"><RefreshCw size={14} /></button>
       </div>
-      {error ? <div className="pizzapi-panel-error">{error}</div> : null}
-      <div className="pizzapi-file-list">
+      {error ? <div className="piweb-panel-error">{error}</div> : null}
+      <div className="piweb-file-list">
         {status?.files.length ? status.files.map((file) => (
-          <button key={`${file.index}${file.workingTree}${file.path}`} type="button" className="pizzapi-file-row" onClick={async () => {
+          <button key={`${file.index}${file.workingTree}${file.path}`} type="button" className="piweb-file-row" onClick={async () => {
             const result = await apiGet<GitDiffResponse>(`/api/workspace/git/diff?${query(cwd, file.path)}`);
             setDiff(result.diff || 'No unstaged diff for this file.');
           }}>
-            <span className="pizzapi-git-status">{file.index}{file.workingTree}</span>
+            <span className="piweb-git-status">{file.index}{file.workingTree}</span>
             <span className="truncate">{file.path}</span>
           </button>
-        )) : <div className="pizzapi-panel-muted">Working tree clean.</div>}
+        )) : <div className="piweb-panel-muted">Working tree clean.</div>}
       </div>
-      <div className="pizzapi-file-viewer"><pre>{diff || 'No diff.'}</pre></div>
+      <div className="piweb-file-viewer"><pre>{diff || 'No diff.'}</pre></div>
     </div>
   );
 }
@@ -186,31 +186,31 @@ function TerminalPanel({ cwd }: { cwd: string }) {
   };
 
   return (
-    <div className="pizzapi-panel-stack">
-      <div className="pizzapi-terminal-box"><pre>{output || `Terminal scoped to ${cwd}`}</pre></div>
-      <form className="pizzapi-terminal-form" onSubmit={(event) => { event.preventDefault(); run(); }}>
+    <div className="piweb-panel-stack">
+      <div className="piweb-terminal-box"><pre>{output || `Terminal scoped to ${cwd}`}</pre></div>
+      <form className="piweb-terminal-form" onSubmit={(event) => { event.preventDefault(); run(); }}>
         <input value={command} onChange={(event) => setCommand(event.target.value)} placeholder="Command" />
-        <button type="submit" className="pizzapi-mini-button" disabled={running}>{running ? 'Running…' : 'Run'}</button>
-        {running ? <button type="button" className="pizzapi-mini-button" onClick={() => void stop()}>Kill</button> : null}
+        <button type="submit" className="piweb-mini-button" disabled={running}>{running ? 'Running…' : 'Run'}</button>
+        {running ? <button type="button" className="piweb-mini-button" onClick={() => void stop()}>Kill</button> : null}
       </form>
     </div>
   );
 }
 
-export function PizzaPiWorkspace({ children, activePanel, onPanelChange, cwd }: PizzaPiWorkspaceProps) {
+export function PiWorkspace({ children, activePanel, onPanelChange, cwd }: PiWorkspaceProps) {
   const meta = activePanel ? PANEL_META[activePanel] : null;
   const Icon = meta?.icon;
 
   return (
-    <div className={cn('pizzapi-workspace', activePanel && 'with-panel')}>
-      <section className="pizzapi-workspace-main">{children}</section>
+    <div className={cn('piweb-workspace', activePanel && 'with-panel')}>
+      <section className="piweb-workspace-main">{children}</section>
       {meta && Icon ? (
-        <aside className="pizzapi-docked-panel" aria-label={`${meta.label} panel`}>
-          <div className="pizzapi-docked-panel-header">
-            <div className="pizzapi-docked-panel-title"><Icon size={15} /><span>{meta.label}</span></div>
-            <button type="button" className="pizzapi-icon-button" onClick={() => onPanelChange(null)} aria-label="Close panel"><X size={15} /></button>
+        <aside className="piweb-docked-panel" aria-label={`${meta.label} panel`}>
+          <div className="piweb-docked-panel-header">
+            <div className="piweb-docked-panel-title"><Icon size={15} /><span>{meta.label}</span></div>
+            <button type="button" className="piweb-icon-button" onClick={() => onPanelChange(null)} aria-label="Close panel"><X size={15} /></button>
           </div>
-          <div className="pizzapi-docked-panel-body">
+          <div className="piweb-docked-panel-body">
             {activePanel === 'files' ? <FilesPanel cwd={cwd} /> : null}
             {activePanel === 'git' ? <GitPanel cwd={cwd} /> : null}
             {activePanel === 'terminal' ? <TerminalPanel cwd={cwd} /> : null}

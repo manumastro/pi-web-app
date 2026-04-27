@@ -26,7 +26,7 @@ function parseHiddenModelKeys(raw: string | undefined): Set<string> {
 }
 
 export function getHiddenModelKeysFromEnv(): Set<string> {
-  return parseHiddenModelKeys(process.env.PIZZAPI_HIDDEN_MODELS ?? process.env.PI_WEB_HIDDEN_MODELS);
+  return parseHiddenModelKeys(process.env.PI_WEB_HIDDEN_MODELS);
 }
 
 export function isHiddenModelKey(key: string, hiddenKeys = getHiddenModelKeysFromEnv()): boolean {

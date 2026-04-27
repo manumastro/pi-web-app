@@ -1175,7 +1175,7 @@
   border-color: var(--destructive);
 }
 
-.pizzapi-session-error-banner {
+.piweb-session-error-banner {
   margin: 0.5rem 1rem 0;
   position: sticky;
   top: calc(var(--header-height) + 0.5rem);
@@ -1855,7 +1855,7 @@
     border-radius: 999px;
     border: 1px solid rgba(124, 158, 69, 0.3);
     background: rgba(124, 158, 69, 0.12);
-    color: #6f8c3c;
+    color: var(--success);
     font-size: 0.8125rem;
     font-weight: 600;
   }
@@ -1869,7 +1869,7 @@
     border: 1px solid rgba(137, 110, 76, 0.18);
     border-radius: 999px;
     background: color-mix(in oklab, var(--accent) 22%, var(--surface) 78%);
-    color: #35281c;
+    color: var(--foreground);
     transition: background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
   }
 
@@ -2500,7 +2500,7 @@
 
 
 /* =========================================================
-   PizzaPi parity shell overrides
+   Pi Web parity shell overrides
    ========================================================= */
 @property --chase-angle {
   syntax: '<angle>';
@@ -2550,25 +2550,25 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .pizzapi-header-left,
-  .pizzapi-header-right,
-  .pizzapi-brand-cluster,
-  .pizzapi-relay-status,
-  .pizzapi-mobile-brand {
+  .piweb-header-left,
+  .piweb-header-right,
+  .piweb-brand-cluster,
+  .piweb-relay-status,
+  .piweb-mobile-brand {
     display: flex;
     align-items: center;
   }
 
-  .pizzapi-header-left { gap: 0.75rem; min-width: 0; }
-  .pizzapi-header-right { gap: 0.35rem; }
-  .pizzapi-brand-cluster { gap: 0.6rem; flex-shrink: 0; }
-  .pizzapi-brand-name { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.01em; }
-  .pizzapi-separator { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
-  .pizzapi-relay-status { gap: 0.4rem; color: var(--muted-foreground); font-size: 0.75rem; white-space: nowrap; }
-  .pizzapi-session-heading { max-width: min(34vw, 32rem); }
-  .pizzapi-mobile-brand { gap: 0.5rem; justify-content: center; min-width: 0; }
+  .piweb-header-left { gap: 0.75rem; min-width: 0; }
+  .piweb-header-right { gap: 0.35rem; }
+  .piweb-brand-cluster { gap: 0.6rem; flex-shrink: 0; }
+  .piweb-brand-name { font-size: 0.9rem; font-weight: 700; letter-spacing: -0.01em; }
+  .piweb-separator { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+  .piweb-relay-status { gap: 0.4rem; color: var(--muted-foreground); font-size: 0.75rem; white-space: nowrap; }
+  .piweb-session-heading { max-width: min(34vw, 32rem); }
+  .piweb-mobile-brand { gap: 0.5rem; justify-content: center; min-width: 0; }
 
-  .pizza-logo {
+  .pi-logo {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2577,11 +2577,11 @@
     filter: drop-shadow(0 2px 4px rgb(0 0 0 / 0.35));
     flex: 0 0 auto;
   }
-  .pizza-logo svg { width: 100%; height: 100%; display: block; }
-  .pizza-logo-mobile { width: 1.75rem; height: 1.75rem; }
-  .pizza-logo-sidebar { width: 2rem; height: 2rem; }
+  .pi-logo svg { width: 100%; height: 100%; display: block; }
+  .pi-logo-mobile { width: 1.75rem; height: 1.75rem; }
+  .pi-logo-sidebar { width: 2rem; height: 2rem; }
 
-  .pizzapi-live-dot {
+  .piweb-live-dot {
     display: inline-block;
     width: 0.5rem;
     height: 0.5rem;
@@ -2602,7 +2602,7 @@
     gap: 0.5rem;
   }
 
-  .pizzapi-sidebar-brand-row {
+  .piweb-sidebar-brand-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2610,20 +2610,20 @@
     padding: 0.15rem 0.2rem 0.45rem;
   }
 
-  .pizzapi-sidebar-brand {
+  .piweb-sidebar-brand {
     display: flex;
     align-items: center;
     gap: 0.55rem;
     min-width: 0;
   }
 
-  .pizzapi-sidebar-brand-title {
+  .piweb-sidebar-brand-title {
     font-size: 0.86rem;
     font-weight: 700;
     line-height: 1.1;
   }
 
-  .pizzapi-sidebar-brand-subtitle {
+  .piweb-sidebar-brand-subtitle {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -2632,7 +2632,7 @@
     white-space: nowrap;
   }
 
-  .pizzapi-sidebar-runner-button {
+  .piweb-sidebar-runner-button {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
@@ -2713,7 +2713,7 @@
     border-color: var(--border-hover);
   }
 
-  .pizzapi-workspace {
+  .piweb-workspace {
     min-height: 0;
     flex: 1;
     display: grid;
@@ -2721,11 +2721,11 @@
     overflow: hidden;
   }
 
-  .pizzapi-workspace.with-panel {
+  .piweb-workspace.with-panel {
     grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   }
 
-  .pizzapi-workspace-main {
+  .piweb-workspace-main {
     min-width: 0;
     min-height: 0;
     display: flex;
@@ -2733,7 +2733,7 @@
     overflow: hidden;
   }
 
-  .pizzapi-docked-panel {
+  .piweb-docked-panel {
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -2741,7 +2741,7 @@
     background: var(--surface-2);
   }
 
-  .pizzapi-docked-panel-header {
+  .piweb-docked-panel-header {
     min-height: 42px;
     display: flex;
     align-items: center;
@@ -2750,7 +2750,7 @@
     padding: 0 0.55rem 0 0.75rem;
   }
 
-  .pizzapi-docked-panel-title {
+  .piweb-docked-panel-title {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
@@ -2758,7 +2758,7 @@
     font-weight: 700;
   }
 
-  .pizzapi-icon-button {
+  .piweb-icon-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2770,9 +2770,9 @@
     color: var(--muted-foreground);
   }
 
-  .pizzapi-icon-button:hover { background: var(--sidebar-accent); color: var(--foreground); }
+  .piweb-icon-button:hover { background: var(--sidebar-accent); color: var(--foreground); }
 
-  .pizzapi-docked-panel-body {
+  .piweb-docked-panel-body {
     padding: 0.75rem;
     display: flex;
     flex-direction: column;
@@ -2780,7 +2780,7 @@
     overflow: auto;
   }
 
-  .pizzapi-panel-card {
+  .piweb-panel-card {
     display: flex;
     align-items: flex-start;
     gap: 0.65rem;
@@ -2790,7 +2790,7 @@
     padding: 0.75rem;
   }
 
-  .pizzapi-panel-card-icon {
+  .piweb-panel-card-icon {
     width: 2rem;
     height: 2rem;
     display: inline-flex;
@@ -2802,30 +2802,30 @@
     flex: 0 0 auto;
   }
 
-  .pizzapi-panel-card-title { font-size: 0.82rem; font-weight: 700; }
-  .pizzapi-panel-card-subtitle { margin-top: 0.25rem; color: var(--muted-foreground); font-size: 0.72rem; word-break: break-all; }
-  .pizzapi-panel-placeholder-list { display: grid; gap: 0.45rem; color: var(--muted-foreground); font-size: 0.76rem; }
-  .pizzapi-panel-placeholder-list > div { display: flex; align-items: center; gap: 0.4rem; }
+  .piweb-panel-card-title { font-size: 0.82rem; font-weight: 700; }
+  .piweb-panel-card-subtitle { margin-top: 0.25rem; color: var(--muted-foreground); font-size: 0.72rem; word-break: break-all; }
+  .piweb-panel-placeholder-list { display: grid; gap: 0.45rem; color: var(--muted-foreground); font-size: 0.76rem; }
+  .piweb-panel-placeholder-list > div { display: flex; align-items: center; gap: 0.4rem; }
 
-  .pizzapi-panel-stack { display: flex; flex-direction: column; gap: 0.65rem; min-height: 0; height: 100%; }
-  .pizzapi-panel-toolbar, .pizzapi-terminal-form { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
-  .pizzapi-mini-button, .pizzapi-crumb, .pizzapi-branch-pill { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 1.8rem; border-radius: 0.55rem; border: 1px solid var(--border); background: var(--surface-2); color: var(--foreground); padding: 0 0.55rem; font-size: 0.72rem; white-space: nowrap; }
-  .pizzapi-crumb { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; color: var(--muted-foreground); }
-  .pizzapi-panel-error { border: 1px solid oklch(0.64 0.2 25 / 0.35); background: oklch(0.28 0.08 25 / 0.28); color: oklch(0.82 0.12 25); border-radius: 0.65rem; padding: 0.55rem 0.65rem; font-size: 0.76rem; }
-  .pizzapi-panel-muted { color: var(--muted-foreground); font-size: 0.78rem; padding: 0.5rem; }
-  .pizzapi-file-list { display: flex; flex-direction: column; gap: 0.18rem; min-height: 0; max-height: 42%; overflow: auto; }
-  .pizzapi-file-row { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; align-items: center; gap: 0.45rem; min-height: 2rem; width: 100%; border: 1px solid transparent; border-radius: 0.55rem; background: transparent; color: var(--muted-foreground); padding: 0 0.55rem; text-align: left; font-size: 0.78rem; }
-  .pizzapi-file-row:hover, .pizzapi-file-row.active { background: var(--sidebar-accent); border-color: var(--border); color: var(--foreground); }
-  .pizzapi-file-meta, .pizzapi-git-status { color: var(--muted-foreground); font-family: var(--font-mono); font-size: 0.68rem; }
-  .pizzapi-git-status { width: 1.8rem; }
-  .pizzapi-file-viewer, .pizzapi-terminal-box { min-height: 0; flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 0.75rem; background: oklch(0.13 0 0); }
-  .pizzapi-file-viewer-title { position: sticky; top: 0; border-bottom: 1px solid var(--border); background: oklch(0.16 0 0); color: var(--muted-foreground); padding: 0.45rem 0.6rem; font-size: 0.7rem; }
-  .pizzapi-file-viewer pre, .pizzapi-terminal-box pre { margin: 0; padding: 0.7rem; color: var(--foreground); font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
-  .pizzapi-terminal-form input { min-width: 0; flex: 1; height: 2rem; border-radius: 0.55rem; border: 1px solid var(--border); background: var(--surface-2); color: var(--foreground); padding: 0 0.6rem; font-family: var(--font-mono); font-size: 0.76rem; }
+  .piweb-panel-stack { display: flex; flex-direction: column; gap: 0.65rem; min-height: 0; height: 100%; }
+  .piweb-panel-toolbar, .piweb-terminal-form { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+  .piweb-mini-button, .piweb-crumb, .piweb-branch-pill { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 1.8rem; border-radius: 0.55rem; border: 1px solid var(--border); background: var(--surface-2); color: var(--foreground); padding: 0 0.55rem; font-size: 0.72rem; white-space: nowrap; }
+  .piweb-crumb { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; color: var(--muted-foreground); }
+  .piweb-panel-error { border: 1px solid oklch(0.64 0.2 25 / 0.35); background: oklch(0.28 0.08 25 / 0.28); color: oklch(0.82 0.12 25); border-radius: 0.65rem; padding: 0.55rem 0.65rem; font-size: 0.76rem; }
+  .piweb-panel-muted { color: var(--muted-foreground); font-size: 0.78rem; padding: 0.5rem; }
+  .piweb-file-list { display: flex; flex-direction: column; gap: 0.18rem; min-height: 0; max-height: 42%; overflow: auto; }
+  .piweb-file-row { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; align-items: center; gap: 0.45rem; min-height: 2rem; width: 100%; border: 1px solid transparent; border-radius: 0.55rem; background: transparent; color: var(--muted-foreground); padding: 0 0.55rem; text-align: left; font-size: 0.78rem; }
+  .piweb-file-row:hover, .piweb-file-row.active { background: var(--sidebar-accent); border-color: var(--border); color: var(--foreground); }
+  .piweb-file-meta, .piweb-git-status { color: var(--muted-foreground); font-family: var(--font-mono); font-size: 0.68rem; }
+  .piweb-git-status { width: 1.8rem; }
+  .piweb-file-viewer, .piweb-terminal-box { min-height: 0; flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 0.75rem; background: oklch(0.13 0 0); }
+  .piweb-file-viewer-title { position: sticky; top: 0; border-bottom: 1px solid var(--border); background: oklch(0.16 0 0); color: var(--muted-foreground); padding: 0.45rem 0.6rem; font-size: 0.7rem; }
+  .piweb-file-viewer pre, .piweb-terminal-box pre { margin: 0; padding: 0.7rem; color: var(--foreground); font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+  .piweb-terminal-form input { min-width: 0; flex: 1; height: 2rem; border-radius: 0.55rem; border: 1px solid var(--border); background: var(--surface-2); color: var(--foreground); padding: 0 0.6rem; font-family: var(--font-mono); font-size: 0.76rem; }
 
   @media (max-width: 1024px) {
-    .pizzapi-workspace.with-panel { grid-template-columns: minmax(0, 1fr); }
-    .pizzapi-docked-panel {
+    .piweb-workspace.with-panel { grid-template-columns: minmax(0, 1fr); }
+    .piweb-docked-panel {
       position: fixed;
       inset: auto 0 0 0;
       z-index: 45;
@@ -2836,10 +2836,10 @@
       border-top-right-radius: 1rem;
       box-shadow: 0 -18px 48px rgb(0 0 0 / 0.38);
     }
-    .pizzapi-relay-status,
-    .pizzapi-separator,
-    .pizzapi-session-heading,
-    .pizzapi-header-right .header-action-button--secondary:nth-of-type(n+5) { display: none; }
-    .pizzapi-header-right { gap: 0.25rem; }
+    .piweb-relay-status,
+    .piweb-separator,
+    .piweb-session-heading,
+    .piweb-header-right .header-action-button--secondary:nth-of-type(n+5) { display: none; }
+    .piweb-header-right { gap: 0.25rem; }
   }
 }

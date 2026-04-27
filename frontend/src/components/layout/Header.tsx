@@ -1,7 +1,7 @@
 import React from 'react';
 import { Clock, FolderTree, GitBranch, HardDrive, Keyboard, Menu, Moon, Plus, Settings, SquareTerminal, PanelRightClose } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { PizzaLogo } from '@/components/brand/PizzaLogo';
+import { PiLogo } from '@/components/brand/PiLogo';
 
 interface HeaderProps {
   sessionName: string;
@@ -74,8 +74,8 @@ export function Header({
         </div>
 
         <div className="app-header-mobile-center">
-          <div className="pizzapi-mobile-brand">
-            <PizzaLogo className="pizza-logo-mobile" />
+          <div className="piweb-mobile-brand">
+            <PiLogo className="pi-logo-mobile" />
             <div className="header-title-group">
               <div className="header-title">{title}</div>
               <div className="header-subtitle">{projectLabel}</div>
@@ -99,24 +99,24 @@ export function Header({
 
   return (
     <header className="app-header header-safe-area">
-      <div className="app-header-left pizzapi-header-left">
-        <div className="pizzapi-brand-cluster">
-          <PizzaLogo />
-          <span className="pizzapi-brand-name">PizzaPi</span>
+      <div className="app-header-left piweb-header-left">
+        <div className="piweb-brand-cluster">
+          <PiLogo />
+          <span className="piweb-brand-name">Pi Web</span>
         </div>
-        <span className="pizzapi-separator" />
-        <div className="pizzapi-relay-status" title={relayStatusMessage}>
-          <span className="pizzapi-live-dot" style={!relayConnected ? { opacity: 0.45 } : undefined} />
+        <span className="piweb-separator" />
+        <div className="piweb-relay-status" title={relayStatusMessage}>
+          <span className="piweb-live-dot" style={!relayConnected ? { opacity: 0.45 } : undefined} />
           <span>{relayStatusMessage}</span>
         </div>
-        <span className="pizzapi-separator" />
-        <div className="header-title-group pizzapi-session-heading">
+        <span className="piweb-separator" />
+        <div className="header-title-group piweb-session-heading">
           <div className="header-title">{title}</div>
           <div className="header-subtitle">{projectLabel}</div>
         </div>
       </div>
 
-      <div className="app-header-right pizzapi-header-right">
+      <div className="app-header-right piweb-header-right">
         <IconButton
           title="Session history"
           label="Session history"

@@ -64,10 +64,12 @@ function patchSessionMessages(directory: string | undefined, sessionId: string, 
 }
 
 function syncCurrentSession(sessionId: string): void {
-  const session = useSessionStore.getState().sessions.find((entry) => entry.id === sessionId);
+  const sessionState = useSessionStore.getState();
+  const session = sessionState.sessions.find((entry) => entry.id === sessionId);
   if (!session) return;
   useSessionUiStore.setState((state) => ({
     ...state,
+    visibleSessions: sessionState.sessions.filter((entry) => entry.cwd === state.selectedDirectory),
     currentSession: state.selectedSessionId === sessionId ? session : state.currentSession,
   }));
 }

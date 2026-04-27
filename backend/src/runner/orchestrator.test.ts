@@ -94,7 +94,7 @@ describe('RunnerOrchestrator', () => {
     orchestrators.length = 0;
   });
 
-  async function setup() {
+  async function setup(options: { homeDir?: string } = {}) {
     const script = await writeFakeRunner();
     const runner = new RunnerProcessClient({ command: process.execPath, args: [script], requestTimeoutMs: 1_000 });
     const sessionStore = createSessionStore();
@@ -103,7 +103,7 @@ describe('RunnerOrchestrator', () => {
       config: {
         port: 0,
         nodeEnv: 'test',
-        homeDir: '/tmp',
+        homeDir: options.homeDir ?? '/tmp',
         sessionsDir: '/tmp/pi-web-test/sessions',
         piCwd: '/tmp/project',
         model: 'p/a',
@@ -133,21 +133,55 @@ describe('RunnerOrchestrator', () => {
     expect(models.find((model) => model.key === 'p/a')?.available).toBe(true);
   });
 
+  it('honors configured enabled model order when listing capabilities', async () => {
+    const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-orchestrator-home-'));
+    await fs.mkdir(path.join(homeDir, '.pi', 'agent'), { recursive: true });
+    await fs.writeFile(path.join(homeDir, '.pi', 'agent', 'settings.json'), JSON.stringify({ enabledModels: ['p/b', 'p/a'] }));
+    const { orchestrator } = await setup({ homeDir });
+
+    const models = await orchestrator.listModels('p/a');
+
+    expect(models.map((model) => model.key)).toEqual(['p/b', 'p/a']);
+  });
+
   it('dispatches prompts, adapts events, and persists messages', async () => {
     const { orchestrator, sessionStore, events } = await setup();
 
     const result = await orchestrator.prompt({ sessionId: 'session-1', cwd: '/tmp/project', message: 'Say hello', messageId: 'message-1' });
 
     expect(result.sessionId).toBe('session-1');
-    expect(events.map((event) => event.type)).toEqual(['thinking', 'tool_call', 'tool_result', 'text_chunk', 'text_chunk', 'done']);
+    expect(events.map((event) => event.type)).toEqual(['session_name', 'thinking', 'tool_call', 'tool_result', 'text_chunk', 'text_chunk', 'done']);
     const session = sessionStore.getSession('session-1');
     expect(session?.status).toBe('idle');
+    expect(session?.title).toBe('Say hello');
     expect(session?.messages.map((message) => [message.role, message.content])).toEqual([
       ['user', 'Say hello'],
       ['tool_call', '{"path":"x"}'],
       ['tool_result', 'ok'],
       ['assistant', 'hello world'],
     ]);
+  });
+
+  it('backfills an untitled existing session from its first user message', async () => {
+    const { orchestrator, sessionStore, events } = await setup();
+    sessionStore.createSession('/tmp/project', 'p/a', 'session-1');
+    sessionStore.addMessage('session-1', { role: 'user', content: 'Original user request that should name the session', messageId: 'old-user' });
+
+    await orchestrator.prompt({ sessionId: 'session-1', cwd: '/tmp/project', message: 'Follow up message', messageId: 'message-1' });
+
+    expect(sessionStore.getSession('session-1')?.title).toBe('Original user request that should name the…');
+    expect(events.some((event) => event.type === 'session_name' && event.sessionName === 'Original user request that should name the…')).toBe(true);
+  });
+
+  it('does not overwrite an existing title with the fallback title', async () => {
+    const { orchestrator, sessionStore, events } = await setup();
+    sessionStore.createSession('/tmp/project', 'p/a', 'session-1');
+    sessionStore.updateSession('session-1', { title: 'Manual title' });
+
+    await orchestrator.prompt({ sessionId: 'session-1', cwd: '/tmp/project', message: 'Replace me please', messageId: 'message-1' });
+
+    expect(sessionStore.getSession('session-1')?.title).toBe('Manual title');
+    expect(events.some((event) => event.type === 'session_name' && event.sessionName === 'Replace me please')).toBe(false);
   });
 
   it('updates model and thinking level only after runner confirmation', async () => {

@@ -17,7 +17,7 @@ import { ComposerPanel } from './components/chat/ComposerPanel';
 import { AttentionPanel } from './components/chat/AttentionPanel';
 import { Toaster } from './components/ui';
 import { CommandPalette } from './components/command/CommandPalette';
-import { PizzaPiWorkspace, type WorkspacePanel } from './components/workspace/PizzaPiWorkspace';
+import { PiWorkspace, type WorkspacePanel } from './components/workspace/PiWorkspace';
 import { answerQuestion } from './sync/session-actions';
 
 const WORKSPACE_PANEL_STORAGE_KEY = 'pi-web-app:workspace-panel';
@@ -176,7 +176,7 @@ export default function App() {
   ), [currentDirectoryLabel, currentSession?.title, handleCreateSession, relayConnected, relayStatusMessage, sidebarOpen, toggleSidebar]);
 
   const sessionErrorBanner = error ? (
-    <div className="pizzapi-session-error-banner connection-banner error" role="alert">
+    <div className="piweb-session-error-banner connection-banner error" role="alert">
       ✗ {error}
     </div>
   ) : null;
@@ -221,9 +221,9 @@ export default function App() {
   );
 
   const content = (
-    <PizzaPiWorkspace activePanel={workspacePanel} onPanelChange={setWorkspacePanel} cwd={selectedDirectory}>
+    <PiWorkspace activePanel={workspacePanel} onPanelChange={setWorkspacePanel} cwd={selectedDirectory}>
       {chatContent}
-    </PizzaPiWorkspace>
+    </PiWorkspace>
   );
 
   const connectionBanner = streaming === 'error'

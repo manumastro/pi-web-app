@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PizzaLogo } from '@/components/brand/PizzaLogo';
+import { PiLogo } from '@/components/brand/PiLogo';
 
 function formatSessionTime(iso: string): string {
   const date = new Date(iso);
@@ -244,16 +244,16 @@ export function SidebarPanel({
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <div className={cn('sidebar-shell drawer-safe-area', mobileVariant && 'sidebar-shell-mobile')}>
-        <div className="pizzapi-sidebar-brand-row">
-          <div className="pizzapi-sidebar-brand">
-            <PizzaLogo className="pizza-logo-sidebar" />
+        <div className="piweb-sidebar-brand-row">
+          <div className="piweb-sidebar-brand">
+            <PiLogo className="pi-logo-sidebar" />
             <div>
-              <div className="pizzapi-sidebar-brand-title">PizzaPi</div>
-              <div className="pizzapi-sidebar-brand-subtitle" title={relayStatusMessage}><span className="pizzapi-live-dot" style={!relayConnected ? { opacity: 0.45 } : undefined} /> {relayStatusMessage}</div>
+              <div className="piweb-sidebar-brand-title">Pi Web</div>
+              <div className="piweb-sidebar-brand-subtitle" title={relayStatusMessage}><span className="piweb-live-dot" style={!relayConnected ? { opacity: 0.45 } : undefined} /> {relayStatusMessage}</div>
             </div>
           </div>
           {!mobileVariant ? (
-            <button type="button" className="pizzapi-sidebar-runner-button" title="Runners">
+            <button type="button" className="piweb-sidebar-runner-button" title="Runners">
               <Settings2 size={14} />
               <span>Runners</span>
             </button>
@@ -264,7 +264,7 @@ export function SidebarPanel({
           {mobileVariant ? (
             <>
               <div className="sidebar-mobile-title-group">
-                <div className="sidebar-mobile-eyebrow">PizzaPi</div>
+                <div className="sidebar-mobile-eyebrow">Pi Web</div>
                 <div className="sidebar-mobile-title">Sessions</div>
               </div>
               <div className="sidebar-toolbar-group">

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Config } from '../config/index.js';
 import { THINKING_LEVELS, type ThinkingLevel } from '../types/thinking.js';
 import { modelKey, parseModelKey, summarizeModels, type ModelLike, type ModelSummary } from '../models/resolver.js';
@@ -53,6 +55,49 @@ function stringifyResult(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function deriveFallbackSessionTitle(message: string): string {
+  const normalized = message
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) return 'New session';
+
+  const words = normalized.split(' ').slice(0, 7).join(' ');
+  const title = words.length < normalized.length ? `${words}…` : words;
+  return title.length > 80 ? `${title.slice(0, 77).trim()}…` : title;
+}
+
+function readEnabledModelKeys(homeDir: string): string[] {
+  const settingsPath = path.join(homeDir, '.pi', 'agent', 'settings.json');
+  try {
+    const parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as unknown;
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { enabledModels?: unknown }).enabledModels)) {
+      return [];
+    }
+    return (parsed as { enabledModels: unknown[] }).enabledModels
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function applyModelVisibility(models: RunnerModelInfo[], hiddenModelKeys: Set<string>, enabledModelKeys: string[]): RunnerModelInfo[] {
+  const visibleModels = models.filter((model) => !isHiddenModelKey(modelKey(model), hiddenModelKeys));
+  if (enabledModelKeys.length === 0) return visibleModels;
+
+  const byKey = new Map(visibleModels.map((model) => [modelKey(model), model]));
+  return enabledModelKeys.flatMap((key) => {
+    const model = byKey.get(key);
+    return model ? [model] : [];
+  });
 }
 
 function toModelLike(model: RunnerModelInfo): ModelLike {
@@ -128,7 +173,7 @@ export function createRunnerOrchestrator(params: {
   }
 
   function cacheModels(sessionId: string | undefined, models: RunnerModelInfo[]): void {
-    const visibleModels = models.filter((model) => !isHiddenModelKey(modelKey(model), hiddenModelKeys));
+    const visibleModels = applyModelVisibility(models, hiddenModelKeys, readEnabledModelKeys(config.homeDir));
     globalAvailableModels.splice(0, globalAvailableModels.length, ...visibleModels);
     if (sessionId) availableModelsBySession.set(sessionId, visibleModels);
   }
@@ -345,7 +390,25 @@ export function createRunnerOrchestrator(params: {
 
     if (request.model) sessionStore.updateSession(session.id, { model: request.model });
     if (request.thinkingLevel) sessionStore.updateSession(session.id, { thinkingLevel: request.thinkingLevel });
-    sessionStore.updateSession(session.id, { status: 'busy', cwd });
+
+    const latestSession = sessionStore.getSession(session.id) ?? session;
+    const shouldApplyFallbackTitle = !latestSession.title?.trim();
+    const titleSource = latestSession.messages.find((message) => message.role === 'user' && message.content.trim().length > 0)?.content ?? request.message;
+    const fallbackTitle = shouldApplyFallbackTitle ? deriveFallbackSessionTitle(titleSource) : '';
+
+    sessionStore.updateSession(session.id, {
+      status: 'busy',
+      cwd,
+      ...(fallbackTitle ? { title: fallbackTitle } : {}),
+    });
+    if (fallbackTitle) {
+      emit(sseManager, {
+        type: 'session_name',
+        sessionId: session.id,
+        sessionName: fallbackTitle,
+        timestamp: now(),
+      });
+    }
     sessionStore.addMessage(session.id, { role: 'user', content: request.message, messageId });
     activeTurns.set(session.id, { assistantMessageId: messageId, assistantContent: '' });
 

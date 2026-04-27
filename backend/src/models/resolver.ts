@@ -100,13 +100,6 @@ export function summarizeModels(params: {
 }): ModelSummary[] {
   const { models, availableKeys, selectedKey } = params;
   return [...models]
-    .sort((left, right) => {
-      const providerCompare = left.provider.localeCompare(right.provider);
-      if (providerCompare !== 0) {
-        return providerCompare;
-      }
-      return left.id.localeCompare(right.id);
-    })
     .map((model) => {
       const key = modelKey(model);
       return {

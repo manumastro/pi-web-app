@@ -2,7 +2,7 @@
   "name": "pi-web-app",
   "version": "0.1.0",
   "private": true,
-  "description": "Web UI for the PizzaPi CLI wrapper",
+  "description": "Web UI wrapper for the Pi coding agent CLI",
   "workspaces": [
     "backend",
     "frontend"
