@@ -80,6 +80,23 @@ describe('events', () => {
       }
     });
 
+    it('should parse valid session_name event', () => {
+      const input = {
+        type: 'session_name',
+        sessionId: 'session_123',
+        sessionName: 'My Session',
+        timestamp: '2026-04-15T10:00:00Z',
+      };
+
+      const result = SseEventSchema.safeParse(input);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.type).toBe('session_name');
+        expect(result.data.sessionName).toBe('My Session');
+      }
+    });
+
     it('should parse valid error event', () => {
       const input = {
         type: 'error',
@@ -259,6 +276,7 @@ describe('events', () => {
         { type: 'tool_result', sessionId: 's1', messageId: 'm1', toolCallId: 't1', result: 'ok', success: true, timestamp: '2026-04-15T10:00:00Z' },
         { type: 'question', sessionId: 's1', messageId: 'm1', questionId: 'q1', question: '?', timestamp: '2026-04-15T10:00:00Z' },
         { type: 'permission', sessionId: 's1', messageId: 'm1', permissionId: 'p1', action: 'read', resource: '/', timestamp: '2026-04-15T10:00:00Z' },
+        { type: 'session_name', sessionId: 's1', sessionName: 'Name', timestamp: '2026-04-15T10:00:00Z' },
         { type: 'error', sessionId: 's1', message: 'err', category: 'runner', recoverable: true, timestamp: '2026-04-15T10:00:00Z' },
         { type: 'done', sessionId: 's1', messageId: 'm1', aborted: false, timestamp: '2026-04-15T10:00:00Z' },
       ];

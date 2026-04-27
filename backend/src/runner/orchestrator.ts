@@ -291,11 +291,9 @@ export function createRunnerOrchestrator(params: {
         if (!title) break;
         sessionStore.updateSession(event.sessionId, { title });
         emit(sseManager, {
-          type: 'status',
+          type: 'session_name',
           sessionId: event.sessionId,
-          status: 'busy',
-          message: 'Session renamed',
-          metadata: { sessionName: title },
+          sessionName: title,
           timestamp: now(),
         });
         break;

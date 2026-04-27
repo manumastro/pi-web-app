@@ -78,6 +78,14 @@ export const StatusEventSchema = z.object({
 });
 export type StatusEvent = z.infer<typeof StatusEventSchema>;
 
+export const SessionNameEventSchema = z.object({
+  type: z.literal('session_name'),
+  sessionId: z.string(),
+  sessionName: z.string(),
+  timestamp: z.string().datetime(),
+});
+export type SessionNameEvent = z.infer<typeof SessionNameEventSchema>;
+
 export const ErrorEventSchema = z.object({
   type: z.literal('error'),
   sessionId: z.string(),
@@ -105,6 +113,7 @@ export const SseEventSchema = z.discriminatedUnion('type', [
   QuestionEventSchema,
   PermissionEventSchema,
   StatusEventSchema,
+  SessionNameEventSchema,
   ErrorEventSchema,
   DoneEventSchema,
 ]);

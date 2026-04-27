@@ -161,6 +161,15 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     return;
   }
 
+  if (type === 'session_active' || type === 'session_metadata_update') {
+    const state = isRecord(event.state) ? event.state : isRecord(event.metadata) ? event.metadata : event;
+    const sessionName = extractSessionName(state.sessionName) ?? extractSessionName(event.sessionName);
+    if (sessionName) {
+      emit({ type: 'session_name', sessionId: active.sessionId, sessionName, timestamp: new Date().toISOString() });
+    }
+    return;
+  }
+
   if (type === 'message_start') {
     const message = isRecord(event.message) ? event.message : undefined;
     if (isRecord(message) && message.role === 'assistant' && !active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
@@ -216,7 +225,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
       const payload = type === 'tool_execution_update' ? event.partialResult : event.result;
       const sessionName = extractSessionName(payload) ?? extractSessionName(event.args);
       if (sessionName) {
-        emit({ type: 'session_name', sessionId: active.sessionId, sessionName });
+        emit({ type: 'session_name', sessionId: active.sessionId, sessionName, timestamp: new Date().toISOString() });
       }
       return;
     }

@@ -52,7 +52,7 @@ export interface ErrorItem {
 export type ConversationItem = MessageItem | ThinkingItem | ToolCallItem | ToolResultItem | ErrorItem;
 
 export interface SsePayload {
-  type: 'text_chunk' | 'thinking' | 'tool_call' | 'tool_result' | 'question' | 'permission' | 'status' | 'error' | 'done';
+  type: 'text_chunk' | 'thinking' | 'tool_call' | 'tool_result' | 'question' | 'permission' | 'status' | 'session_name' | 'error' | 'done';
   sessionId: string;
   messageId?: string;
   content?: string;
@@ -69,6 +69,7 @@ export interface SsePayload {
   timestamp?: string;
   status?: string;
   title?: string;
+  sessionName?: string;
   metadata?: Record<string, unknown>;
   /** Internal transport event id used for replay/reconnect deduplication. */
   __eventId?: string;

@@ -94,6 +94,12 @@ describe('useSessionStream', () => {
     instance.open();
     expect(onConnected).toHaveBeenCalled();
 
+    instance.emit('session_name', {
+      type: 'session_name',
+      sessionId: 'session-1',
+      sessionName: 'Named Session',
+      timestamp: '2026-04-15T10:00:00.000Z',
+    });
     instance.emit('text_chunk', {
       type: 'text_chunk',
       sessionId: 'session-1',
@@ -102,6 +108,7 @@ describe('useSessionStream', () => {
       timestamp: '2026-04-15T10:00:00.000Z',
     });
     await vi.advanceTimersByTimeAsync(16);
+    expect(onPayload).toHaveBeenCalledWith(expect.objectContaining({ type: 'session_name', sessionName: 'Named Session' }));
     expect(onPayload).toHaveBeenCalledWith(expect.objectContaining({ type: 'text_chunk', content: 'Hello' }));
 
     instance.fail();

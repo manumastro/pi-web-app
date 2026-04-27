@@ -158,6 +158,7 @@ export const RunnerEventSchema = z.discriminatedUnion('type', [
     type: z.literal('session_name'),
     sessionId: z.string(),
     sessionName: z.string(),
+    timestamp: z.string().optional(),
   }),
   z.object({
     type: z.literal('error'),

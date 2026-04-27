@@ -1,4 +1,6 @@
 import type { SessionInfo, StreamingState } from '@/types';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { applySsePayload, type ConversationItem, type SsePayload } from '@/sync/conversation';
 import { applyStreamingPayloadState } from './streaming';
 import { appendNotification } from './notification-store';
@@ -61,6 +63,15 @@ function patchSessionMessages(directory: string | undefined, sessionId: string, 
   }));
 }
 
+function syncCurrentSession(sessionId: string): void {
+  const session = useSessionStore.getState().sessions.find((entry) => entry.id === sessionId);
+  if (!session) return;
+  useSessionUiStore.setState((state) => ({
+    ...state,
+    currentSession: state.selectedSessionId === sessionId ? session : state.currentSession,
+  }));
+}
+
 function patchSessionAttention(directory: string | undefined, sessionId: string, kind: 'permission' | 'question', payload: SsePayload): void {
   if (!directory) return;
 
@@ -107,6 +118,9 @@ function transitionStatusForPayload(payload: SsePayload): SyncSessionStatus {
   }
   if (payload.type === 'status') {
     return { type: payload.status ?? 'busy', timestamp: Date.now(), message: payload.message, metadata: payload.metadata };
+  }
+  if (payload.type === 'session_name') {
+    return { type: 'busy', timestamp: Date.now(), message: 'Session renamed', metadata: { sessionName: payload.sessionName } };
   }
   return { type: 'idle', timestamp: Date.now() };
 }
@@ -157,10 +171,21 @@ export function reduceSessionLifecyclePayloads(
       ...(sessionName ? { title: sessionName } : {}),
       updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
     });
+    syncCurrentSession(finalPayload.sessionId);
     deps.setStatusMessage(finalPayload.message ?? finalPayload.status ?? 'Working');
     if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
       deps.setStreaming('streaming');
     }
+  } else if (finalPayload.type === 'session_name') {
+    const sessionName = finalPayload.sessionName?.trim() ?? '';
+    if (sessionName) {
+      deps.updateSession(finalPayload.sessionId, {
+        title: sessionName,
+        updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
+      });
+      syncCurrentSession(finalPayload.sessionId);
+    }
+    deps.setStatusMessage('Session renamed');
   } else if (finalPayload.type === 'done') {
     deps.updateSession(finalPayload.sessionId, { status: 'idle', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('idle');

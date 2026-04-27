@@ -164,6 +164,7 @@ export function useSessionStream({
       source.addEventListener('tool_call', handlePayload);
       source.addEventListener('tool_result', handlePayload);
       source.addEventListener('done', handlePayload);
+      source.addEventListener('session_name', handlePayload);
       source.addEventListener('error', handlePayload);
 
       staleTimerRef.current = window.setInterval(() => {
