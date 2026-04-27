@@ -297,7 +297,16 @@ function SkeletonConversation() {
   );
 }
 
-function renderStandaloneMessage(item: SystemMessageItem | AssistantMessageItem, showReasoningTraces: boolean): React.ReactElement {
+function renderStandaloneMessage(
+  item: SystemMessageItem | AssistantMessageItem,
+  showReasoningTraces: boolean,
+  options?: {
+    showWorkingPlaceholder?: boolean;
+    workingLabel?: string;
+    workingStatusText?: string | null;
+    workingActivity?: 'idle' | 'streaming' | 'tooling' | 'permission' | 'retry' | 'cooldown' | 'complete';
+  },
+): React.ReactElement {
   return (
     <FadeInOnReveal key={item.id} animate>
       <article
@@ -308,6 +317,14 @@ function renderStandaloneMessage(item: SystemMessageItem | AssistantMessageItem,
         )}
       >
         <MessageHeader role={item.role} timestamp={formatTimestamp(item.timestamp)} />
+        {options?.showWorkingPlaceholder ? (
+          <WorkingPlaceholder
+            label={options.workingLabel}
+            statusText={options.workingStatusText}
+            activity={options.workingActivity}
+            className="mt-1"
+          />
+        ) : null}
         <MessageBody item={item} showReasoningTraces={showReasoningTraces} />
       </article>
     </FadeInOnReveal>
@@ -355,6 +372,28 @@ function isStreamingRecord(record: RenderRecord | undefined, activeStreamingMess
       return true;
     }
     return false;
+  }
+
+  return false;
+}
+
+function shouldShowInlineWorkingPlaceholder(record: RenderRecord, isWorking: boolean): boolean {
+  if (!isWorking) {
+    return false;
+  }
+
+  if (record.kind === 'turn') {
+    const hasStreamingAssistant = record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming');
+    if (!hasStreamingAssistant) {
+      return false;
+    }
+
+    const hasAssistantText = record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0);
+    return !hasAssistantText;
+  }
+
+  if (record.kind === 'standalone' && record.item.role === 'assistant') {
+    return record.item.status === 'streaming' && record.item.content.trim().length === 0;
   }
 
   return false;
@@ -613,11 +652,7 @@ const StaticHistoryList = React.memo(function StaticHistoryList({
             entries={record.entries}
             firstTimestamp={record.firstTimestamp}
             showReasoningTraces={showReasoningTraces}
-            showWorkingPlaceholder={
-              isWorking
-              && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming')
-              && !record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0)
-            }
+            showWorkingPlaceholder={shouldShowInlineWorkingPlaceholder(record, isWorking)}
             workingLabel={workingLabel}
             workingStatusText={workingStatusText}
             workingActivity={workingActivity}
@@ -687,7 +722,17 @@ const StaticHistoryList = React.memo(function StaticHistoryList({
       ];
     }
 
-    return [wrapStaticHistoryNode(record.item.id, renderStandaloneMessage(record.item, showReasoningTraces))];
+    return [
+      wrapStaticHistoryNode(
+        record.item.id,
+        renderStandaloneMessage(record.item, showReasoningTraces, {
+          showWorkingPlaceholder: shouldShowInlineWorkingPlaceholder(record, isWorking),
+          workingLabel,
+          workingStatusText,
+          workingActivity,
+        }),
+      ),
+    ];
   };
 
   if (!shouldVirtualize) {
@@ -767,11 +812,7 @@ const StreamingTailContent = React.memo(function StreamingTailContent({
           entries={record.entries}
           firstTimestamp={record.firstTimestamp}
           showReasoningTraces={showReasoningTraces}
-          showWorkingPlaceholder={
-            isWorking
-            && record.entries.some((entry) => entry.kind === 'assistant' && entry.item.status === 'streaming')
-            && !record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0)
-          }
+          showWorkingPlaceholder={shouldShowInlineWorkingPlaceholder(record, isWorking)}
           workingLabel={workingLabel}
           workingStatusText={workingStatusText}
           workingActivity={workingActivity}
@@ -817,7 +858,16 @@ const StreamingTailContent = React.memo(function StreamingTailContent({
     );
   }
 
-  return <div className="streaming-tail-content" data-streaming-tail="standalone">{renderStandaloneMessage(record.item, showReasoningTraces)}</div>;
+  return (
+    <div className="streaming-tail-content" data-streaming-tail="standalone">
+      {renderStandaloneMessage(record.item, showReasoningTraces, {
+        showWorkingPlaceholder: shouldShowInlineWorkingPlaceholder(record, isWorking),
+        workingLabel,
+        workingStatusText,
+        workingActivity,
+      })}
+    </div>
+  );
 }, (prev, next) => {
   return prev.showReasoningTraces === next.showReasoningTraces
     && prev.isWorking === next.isWorking
@@ -914,6 +964,16 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     return records.filter((record) => record !== trailingStreamingRecord);
   }, [records, trailingStreamingRecord]);
 
+  const showConversationWorkingTail = React.useMemo(() => {
+    if (!isWorking || items.length === 0) {
+      return false;
+    }
+    if (!trailingStreamingRecord) {
+      return true;
+    }
+    return !shouldShowInlineWorkingPlaceholder(trailingStreamingRecord, isWorking);
+  }, [isWorking, items.length, trailingStreamingRecord]);
+
   return (
     <div className="messages-panel" role="log" aria-label="Conversation" aria-live="polite" ref={panelRef} style={{ position: 'relative' }}>
       {errorMsg ? (
@@ -956,6 +1016,12 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
           workingStatusText={workingStatusText}
           workingActivity={workingActivity}
         />
+      ) : null}
+
+      {showConversationWorkingTail ? (
+        <div className="conversation-working-tail">
+          <WorkingPlaceholder label={workingLabel} statusText={workingStatusText} activity={workingActivity} className="mt-1" />
+        </div>
       ) : null}
 
       <div ref={bottomAnchorRef} aria-hidden="true" className="conversation-bottom-anchor" />

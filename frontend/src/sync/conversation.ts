@@ -7,7 +7,7 @@ export interface MessageItem {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  status?: 'streaming' | 'complete' | 'aborted';
+  status?: 'streaming' | 'complete' | 'aborted' | 'error';
   messageId?: string;
 }
 
@@ -406,6 +406,21 @@ export function messagesToConversation(messages: SessionMessage[]): Conversation
     if (role === 'assistant') {
       const turnId = message.messageId ?? activeTurnId ?? randomId('assistant-turn');
       activeTurnId = turnId;
+      const errorMessage = typeof message.errorMessage === 'string' ? message.errorMessage.trim() : '';
+      const stopReason = typeof message.stopReason === 'string' ? message.stopReason.trim() : '';
+
+      if (errorMessage || stopReason === 'error') {
+        conversation.push({
+          kind: 'error',
+          id: message.id,
+          message: errorMessage || message.content || 'Unknown error',
+          category: 'runner',
+          recoverable: false,
+          timestamp: message.timestamp,
+        });
+        continue;
+      }
+
       const { reasoning, answer } = splitAssistantContent(message.content);
 
       if (reasoning) {
@@ -453,7 +468,41 @@ export function rehydrateConversationForSession(
     return conversation;
   }
 
-  const assistantTurnId = randomId('assistant-turn');
+  let lastAssistantIndex = -1;
+  let lastUserIndex = -1;
+
+  for (let index = conversation.length - 1; index >= 0; index -= 1) {
+    const item = conversation[index];
+    if (lastAssistantIndex === -1 && item.kind === 'message' && item.role === 'assistant') {
+      lastAssistantIndex = index;
+    }
+    if (lastUserIndex === -1 && item.kind === 'message' && item.role === 'user') {
+      lastUserIndex = index;
+    }
+    if (lastAssistantIndex !== -1 && lastUserIndex !== -1) {
+      break;
+    }
+  }
+
+  // If the latest visible turn already has assistant text, treat that last
+  // assistant message as still streaming instead of creating a detached empty row.
+  if (lastAssistantIndex >= 0 && lastAssistantIndex > lastUserIndex) {
+    const assistant = conversation[lastAssistantIndex];
+    if (assistant && assistant.kind === 'message' && assistant.role === 'assistant') {
+      const next = [...conversation];
+      next[lastAssistantIndex] = {
+        ...assistant,
+        status: 'streaming',
+      };
+      return next;
+    }
+  }
+
+  const lastUser = lastUserIndex >= 0 ? conversation[lastUserIndex] : undefined;
+  const assistantTurnId = lastUser && lastUser.kind === 'message' && lastUser.role === 'user' && lastUser.messageId
+    ? lastUser.messageId
+    : randomId('assistant-turn');
+
   return [
     ...conversation,
     {

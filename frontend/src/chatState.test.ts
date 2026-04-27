@@ -21,12 +21,25 @@ describe('conversation', () => {
 
   it('rehydrates a running session with a streaming assistant placeholder', () => {
     const conversation = rehydrateConversationForSession(
-      [{ id: 'm1', role: 'user', content: 'hello', timestamp: '2026-04-15T10:00:00.000Z' }],
+      [{ id: 'm1', role: 'user', content: 'hello', timestamp: '2026-04-15T10:00:00.000Z', messageId: 'turn-1' }],
       'busy',
     );
 
     expect(conversation).toHaveLength(2);
-    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'message', role: 'assistant', status: 'streaming', content: '' }));
+    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'message', role: 'assistant', status: 'streaming', content: '', messageId: 'turn-1' }));
+  });
+
+  it('marks the latest assistant message as streaming when reloading an in-progress response', () => {
+    const conversation = rehydrateConversationForSession(
+      [
+        { id: 'u1', role: 'user', content: 'hello', timestamp: '2026-04-15T10:00:00.000Z', messageId: 'turn-1' },
+        { id: 'a1', role: 'assistant', content: 'Sto rispondendo...', timestamp: '2026-04-15T10:00:01.000Z', messageId: 'turn-1' },
+      ],
+      'busy',
+    );
+
+    expect(conversation).toHaveLength(2);
+    expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'message', role: 'assistant', status: 'streaming', content: 'Sto rispondendo...' }));
   });
 
   it('keeps persisted assistant content intact and keeps tool calls/results attached to the same turn', () => {

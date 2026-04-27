@@ -2184,6 +2184,11 @@
   color: color-mix(in oklab, var(--foreground) 68%, transparent);
 }
 
+.conversation-working-tail {
+  margin-top: 0.35rem;
+  padding: 0 0.35rem 0.2rem;
+}
+
 /* =============================================
    TOOL BLOCK - OpenChamber style
    ============================================= */

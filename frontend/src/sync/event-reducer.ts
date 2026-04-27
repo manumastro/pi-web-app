@@ -74,6 +74,11 @@ function syncCurrentSession(sessionId: string): void {
   }));
 }
 
+function updateSessionAndSync(deps: SessionLifecycleReducerDeps, sessionId: string, updates: Partial<SessionInfo>): void {
+  deps.updateSession(sessionId, updates);
+  syncCurrentSession(sessionId);
+}
+
 function patchSessionAttention(directory: string | undefined, sessionId: string, kind: 'permission' | 'question', payload: SsePayload): void {
   if (!directory) return;
 
@@ -158,7 +163,7 @@ export function reduceSessionLifecyclePayloads(
   patchSessionStatus(deps.directory, finalPayload.sessionId, nextStatus);
 
   if (finalPayload.type === 'permission' || finalPayload.type === 'question') {
-    deps.updateSession(finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    updateSessionAndSync(deps, finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     patchSessionAttention(deps.directory, finalPayload.sessionId, finalPayload.type, finalPayload);
     deps.setStreaming('streaming');
     deps.setStatusMessage(finalPayload.message ?? (finalPayload.type === 'permission' ? 'Permission needed' : 'Question pending'));
@@ -168,12 +173,11 @@ export function reduceSessionLifecyclePayloads(
       clearResolvedQuestion(deps.directory, finalPayload.sessionId, resolvedQuestionId);
     }
     const sessionName = typeof finalPayload.metadata?.sessionName === 'string' ? finalPayload.metadata.sessionName.trim() : '';
-    deps.updateSession(finalPayload.sessionId, {
+    updateSessionAndSync(deps, finalPayload.sessionId, {
       status: nextStatusType,
       ...(sessionName ? { title: sessionName } : {}),
       updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
     });
-    syncCurrentSession(finalPayload.sessionId);
     deps.setStatusMessage(finalPayload.message ?? finalPayload.status ?? 'Working');
     if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
       deps.setStreaming('streaming');
@@ -181,15 +185,14 @@ export function reduceSessionLifecyclePayloads(
   } else if (finalPayload.type === 'session_name') {
     const sessionName = finalPayload.sessionName?.trim() ?? '';
     if (sessionName) {
-      deps.updateSession(finalPayload.sessionId, {
+      updateSessionAndSync(deps, finalPayload.sessionId, {
         title: sessionName,
         updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
       });
-      syncCurrentSession(finalPayload.sessionId);
     }
     deps.setStatusMessage('Session renamed');
   } else if (finalPayload.type === 'done') {
-    deps.updateSession(finalPayload.sessionId, { status: 'idle', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    updateSessionAndSync(deps, finalPayload.sessionId, { status: 'idle', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('idle');
     deps.setStatusMessage(finalPayload.aborted ? 'Stopped' : 'Connected');
     appendNotification({
@@ -201,7 +204,7 @@ export function reduceSessionLifecyclePayloads(
     });
   } else if (finalPayload.type === 'error') {
     const message = finalPayload.message?.trim() || 'Unknown error';
-    deps.updateSession(finalPayload.sessionId, { status: 'error', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    updateSessionAndSync(deps, finalPayload.sessionId, { status: 'error', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('error');
     deps.setStatusMessage(message);
     deps.setError?.(message);
@@ -216,7 +219,7 @@ export function reduceSessionLifecyclePayloads(
       },
     });
   } else if (isRunningSessionStatus(nextStatusType)) {
-    deps.updateSession(finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    updateSessionAndSync(deps, finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('streaming');
   }
 

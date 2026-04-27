@@ -406,7 +406,7 @@ No hardcoded paths. Ever.
 | Image support (paste/pick) | **P2** | V3 | Medium | ❌ Deferred |
 | Steer / Follow-up | **P2** | V3 | Low | ✅ Proven |
 | Session status in sidebar | **P1** | V2 | Low | ✅ Proven |
-| OpenChamber-style working indicator placement + compact message spacing | **P1** | V2 | Low | ✅ Proven |
+| OpenChamber-style working indicator placement + compact message spacing | **P1** | V2 | Low | ✅ Proven (reload/session-working fidelity) |
 | Error pattern detection | **P2** | V3 | High | ⚠️ Partial |
 | Context compaction display | **P2** | V3 | Low | ✅ Proven |
 | Server log viewer | **P3** | V4 | Low | ✅ Proven |
@@ -1667,12 +1667,17 @@ NODE_PATH=/usr/bin/node
 - Verification after error-visibility/animation/model parity polish: `npm run lint --workspace=backend`, `npm run lint --workspace=frontend`, `npm run test --workspace=backend` (95 passed), `npm run test --workspace=frontend` (80 passed), `npm run build --workspace=backend`, and `npm run build --workspace=frontend` are green.
 
 #### Done (2026-04-27)
+- Verified the reference `~/PizzaPi` architecture is not a JSONL stdin/stdout wrapper: it uses Socket.IO runner/server protocols plus worker subprocesses that call Pi internals directly. Pi Web intentionally stays on the official `pi --mode rpc` JSONL stdin/stdout surface so it behaves like the CLI from the web.
+- Strengthened true CLI session wrapping: Pi Web now records the CLI RPC `sessionId`/`sessionFile` returned by `get_state`, persists them in its session JSONL metadata, and passes them back to `pi --mode rpc --session <file|id>` when re-opening a web session after runner/backend restart.
 - Wrapper fidelity repair pass: untitled sessions receive an immediate automatic title fallback from the first stored user prompt/current prompt while still allowing later Pi RPC `session_name` events to supersede it, avoiding stale `Untitled Session` entries when the CLI RPC stream does not emit the internal naming tool or when an older untitled session already has messages.
 - Frontend live session-name propagation now refreshes the selected session and visible sidebar list after `session_name` SSE updates, so header and sidebar titles stay in sync without requiring a reload.
 - Dark theme contrast fixes: removed invalid `hsl(var(--oklch-token))` CSS usage and replaced remaining dark text on dark Pi Web controls with semantic foreground/success tokens.
 - Model selector remains a true session-scoped CLI wrapper (`/api/models?sessionId=...` pulls live `pi --mode rpc` capabilities, then filters/orders them through `~/.pi/agent/settings.json.enabledModels` plus the hidden-model env contract); no model list is shown without an active session, and model order now mirrors the CLI `/model` list instead of the raw provider registry.
 - Removed external reference naming from source code: workspace/component names, CSS class prefixes, visible brand text, logo component, and hidden-model env handling now use Pi Web / `PI_WEB_*` terminology only.
-- Verification after wrapper/naming/contrast/model-order/source-naming repair: `npm -ws --if-present test -- --run` (99 backend tests, 80 frontend tests), `npm -ws --if-present run lint`, and `npm -ws --if-present run build` are green.
+- Verification after wrapper/naming/contrast/model-order/source-naming/CLI-session-resume repair: `npm -ws --if-present test -- --run` (99 backend tests, 80 frontend tests), `npm -ws --if-present run lint`, and `npm -ws --if-present run build` are green.
+- Chat working-state polish: the conversation panel now shows the working placeholder whenever the selected session is busy/retrying even if SSE transport is temporarily idle after reload; added a frontend regression test for the busy-session placeholder.
+- Working-state fidelity hardening (PizzaPi parity-inspired): running sessions now keep sidebar/header session status in sync across all lifecycle SSE payloads (including optimistic send, permission/question, done/error), rehydration promotes in-progress assistant content to `streaming` instead of losing the active signal on reload, standalone/tail rendering now keeps visible in-chat working feedback even after streamed text has already appeared, and streaming hydration now treats every running status (not only `busy`) as active.
+- Verification after working-state fidelity hardening: `npm -ws --if-present test -- --run` (100 backend tests, 86 frontend tests), `npm -ws --if-present run lint`, and `npm -ws --if-present run build` are green.
 
 #### Done (2026-04-21)
 - Fixed optimistic session merge ordering to sort messages chronologically by timestamp (with id fallback), preventing lexicographic-id reordering when multiple messages arrive.

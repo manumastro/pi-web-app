@@ -126,6 +126,8 @@ describe('session actions', () => {
     expect(useChatStore.getState().conversation).toHaveLength(3);
     expect(useUIStore.getState().prompt).toBe('');
     expect(useChatStore.getState().streaming).toBe('streaming');
+    expect(useSessionStore.getState().sessions.find((entry) => entry.id === 'session-1')?.status).toBe('busy');
+    expect(useSessionUiStore.getState().currentSession?.status).toBe('busy');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

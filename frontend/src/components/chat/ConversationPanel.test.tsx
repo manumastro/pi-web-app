@@ -158,7 +158,7 @@ describe('ConversationPanel', () => {
     expect(container.querySelector('.tool-block')).not.toBeNull();
   });
 
-  it('shows assistant-card working feedback only before streamed text arrives', () => {
+  it('keeps a compact working tail visible while streamed assistant text is already present', () => {
     const streamingTurnItems: ConversationItem[] = [
       {
         kind: 'message',
@@ -179,11 +179,29 @@ describe('ConversationPanel', () => {
       },
     ];
 
-    const { container, queryByText } = render(<ConversationPanel items={streamingTurnItems} isWorking workingLabel="Working..." />);
+    const { container, getByText } = render(<ConversationPanel items={streamingTurnItems} isWorking workingLabel="Working..." />);
 
     expect(container.querySelector('.message-assistant-turn .working-placeholder')).toBeNull();
-    expect(queryByText('Working...')).toBeNull();
-    expect(container.querySelector('.conversation-working-tail')).toBeNull();
+    expect(container.querySelector('.conversation-working-tail')).not.toBeNull();
+    expect(getByText('Working...')).toBeInTheDocument();
+  });
+
+  it('shows inline working feedback for standalone assistant streaming placeholders', () => {
+    const standaloneStreamingItems: ConversationItem[] = [
+      {
+        kind: 'message',
+        id: 'assistant-standalone-stream',
+        role: 'assistant',
+        content: '',
+        timestamp: 'streaming',
+        status: 'streaming',
+      },
+    ];
+
+    const { container, getByText } = render(<ConversationPanel items={standaloneStreamingItems} isWorking workingLabel="Writing..." />);
+
+    expect(container.querySelector('.message-assistant .working-placeholder')).not.toBeNull();
+    expect(getByText('Writing...')).toBeInTheDocument();
   });
 
   it('hides reasoning traces when disabled', () => {

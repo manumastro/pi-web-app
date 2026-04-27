@@ -20,13 +20,22 @@ describe('streaming lifecycle', () => {
     resetStreamingStore();
   });
 
-  it('hydrates busy sessions with the last assistant turn as active streaming tail', () => {
+  it('hydrates running sessions with the last assistant turn as active streaming tail', () => {
     const conversation = appendPrompt([], 'hello', 'turn-1');
     hydrateStreamingSession('s1', conversation, 'busy');
 
     const state = useStreamingStore.getState();
     expect(state.streamingMessageIds.get('s1')).toBe('turn-1');
     expect(state.messageStreamStates.get('turn-1')?.phase).toBe('streaming');
+  });
+
+  it('hydrates retry sessions as active streaming tails too', () => {
+    const conversation = appendPrompt([], 'hello', 'turn-retry');
+    hydrateStreamingSession('s1', conversation, 'retry');
+
+    const state = useStreamingStore.getState();
+    expect(state.streamingMessageIds.get('s1')).toBe('turn-retry');
+    expect(state.messageStreamStates.get('turn-retry')?.phase).toBe('streaming');
   });
 
   it('moves from streaming to cooldown to completed on done payloads', () => {

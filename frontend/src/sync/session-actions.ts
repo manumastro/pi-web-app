@@ -86,6 +86,17 @@ function applySessionSnapshot(session: SessionInfo): void {
   upsertDirectorySession(session);
 }
 
+function syncSessionUiFromStore(sessionId: string): void {
+  const sessions = useSessionStore.getState().sessions;
+  useSessionUiStore.setState((state) => ({
+    ...state,
+    visibleSessions: sessions.filter((entry) => entry.cwd === state.selectedDirectory),
+    currentSession: state.selectedSessionId === sessionId
+      ? sessions.find((entry) => entry.id === sessionId) ?? state.currentSession
+      : state.currentSession,
+  }));
+}
+
 export async function createSession(input: CreateSessionInput): Promise<SessionInfo | null> {
   try {
     const resolvedModel = resolveModelKey(input.model);
@@ -278,6 +289,16 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
   chat.setStreaming('streaming');
   chat.setStatusMessage('Working');
   chat.appendPrompt(input.message, resolvedModel, turnId);
+
+  const optimisticUpdatedAt = new Date().toISOString();
+  useSessionStore.getState().updateSession(sessionId, {
+    status: 'busy',
+    updatedAt: optimisticUpdatedAt,
+    ...(effectiveSession?.cwd ? { cwd: effectiveSession.cwd } : {}),
+    ...(effectiveSession?.model ? { model: effectiveSession.model } : {}),
+  });
+  syncSessionUiFromStore(sessionId);
+
   useUIStore.getState().setPrompt('');
   useInputStore.getState().setPendingInputText(null);
 

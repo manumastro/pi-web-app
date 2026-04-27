@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ConversationItem, SsePayload } from '@/sync/conversation';
+import { isRunningSessionStatus } from './sessionActivity';
 
 export type StreamPhase = 'streaming' | 'cooldown' | 'completed';
 
@@ -95,7 +96,7 @@ function startCooldown(sessionId: string, messageId: string, now: number): void 
 export function hydrateStreamingSession(sessionId: string, items: ConversationItem[], sessionStatus?: string | null): void {
   const messageId = detectLastAssistantMessageId(items);
   const now = Date.now();
-  if (!messageId || sessionStatus !== 'busy') {
+  if (!messageId || !isRunningSessionStatus(sessionStatus)) {
     clearCompletionTimer(sessionId);
     setStreamingState(sessionId, null);
     return;
