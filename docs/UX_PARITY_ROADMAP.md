@@ -17,7 +17,7 @@ Out of scope for UX parity:
 - Hosted PizzaPi control plane.
 - Remote multi-machine runner registration/auth.
 - NPM/package distribution parity.
-- Exact PizzaPi visual chrome if a pi-web-native UX is clearer.
+- Hosted/multi-machine internals remain out of scope, but visible chrome/UX should now be matched as closely as practical to PizzaPi.
 
 ## Phase checklist
 
@@ -88,3 +88,55 @@ Verification for this increment:
 
 - `npm run lint --workspace=frontend`
 - `npm run test --workspace=frontend` → 79 tests passing
+- `npm run build --workspace=frontend`
+
+## Immediate remaining steps
+
+Continue strict PizzaPi UI/UX replication in this order:
+
+1. **Real File Explorer panel**
+   - Backend endpoints for listing the selected CWD tree and reading files safely.
+   - Frontend tree view in the existing Files dock panel.
+   - Read-only file viewer with refresh.
+   - Highlight files touched by agent tool calls.
+
+2. **Real Terminal panel**
+   - Backend terminal process/session API scoped to CWD.
+   - Streaming terminal output in the Terminal dock panel.
+   - Input support and kill process.
+   - Multiple terminal tabs can stay P2 if needed.
+
+3. **Real Git panel**
+   - Backend git status/branch/diff endpoints scoped to CWD.
+   - Frontend changed-files list.
+   - Diff viewer.
+   - Stage/commit can remain deferred until read-only UX is solid.
+
+4. **Pending question UI**
+   - Render agent questions inline or modal like PizzaPi.
+   - Support free-text and multiple-choice answers.
+   - Keep question state when switching sessions.
+   - Sidebar badge for sessions awaiting answer.
+
+5. **Permission approve/deny UI**
+   - Render sensitive action details before approval.
+   - Approve/deny actions from chat UI.
+   - Remember choice per session/project only if safe.
+   - Sidebar badge for sessions awaiting permission.
+
+6. **Dock layout persistence**
+   - Persist open panel, position, and width in localStorage.
+   - Mobile bottom-sheet behavior for panels.
+   - Later: full PizzaPi-style multi-position dock layout.
+
+7. **Richer tool/runtime cards**
+   - Tool duration/progress.
+   - Per-tool metadata and icons matching PizzaPi more closely.
+   - Write/edit diff preview.
+   - Better failed-tool recovery/retry affordances.
+
+8. **Final product polish**
+   - Preferences dialog parity: theme, density, default model, thinking visibility, shortcuts.
+   - Usage/context indicator.
+   - Browser notifications for background completion/input-required.
+   - Full mobile QA against PizzaPi behavior.
