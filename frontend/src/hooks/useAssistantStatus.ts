@@ -26,29 +26,33 @@ function getLastAssistantRelatedItems(items: ConversationItem[]) {
   let activeToolName: string | undefined;
   let hasPendingTool = false;
   let hasAssistantText = false;
+  const resolvedToolCallIds = new Set<string>();
 
+  // Evaluate only the latest user→assistant turn (scan backwards until the last user message).
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
+
+    if (item.kind === 'message' && item.role === 'user') {
+      break;
+    }
+
     if (item.kind === 'tool_result') {
-      if (hasPendingTool) {
-        hasPendingTool = false;
-      }
+      resolvedToolCallIds.add(item.toolCallId);
       continue;
     }
 
     if (item.kind === 'tool_call') {
-      hasPendingTool = true;
-      activeToolName = item.toolName;
+      if (!resolvedToolCallIds.has(item.toolCallId)) {
+        hasPendingTool = true;
+        if (!activeToolName) {
+          activeToolName = item.toolName;
+        }
+      }
       continue;
     }
 
-    if (item.kind === 'message' && item.role === 'assistant') {
-      hasAssistantText = item.content.trim().length > 0;
-      break;
-    }
-
-    if (item.kind === 'message' && item.role === 'user') {
-      break;
+    if (item.kind === 'message' && item.role === 'assistant' && item.content.trim().length > 0) {
+      hasAssistantText = true;
     }
   }
 
@@ -72,7 +76,11 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
     const isRetry = statusType === 'retry';
     const isCooldown = streaming.phase === 'cooldown';
     const isStreaming = streaming.phase === 'streaming' || statusType === 'busy' || statusType === 'answering' || statusType === 'prompting';
-    const isTooling = !hasPermission && !isRetry && !isCooldown && (hasPendingTool || statusType === 'tooling' || statusType === 'editing');
+    const isTooling = !hasPermission && !isRetry && !isCooldown && (
+      statusType === 'tooling'
+      || statusType === 'editing'
+      || (hasPendingTool && isStreaming)
+    );
     const isComplete = !hasPermission && !isRetry && !isCooldown && !isStreaming && !isTooling && hasAssistantText;
 
     let activity: AssistantActivity = 'idle';
@@ -82,6 +90,8 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       activity = 'retry';
     } else if (isCooldown) {
       activity = 'cooldown';
+    } else if (isStreaming && hasAssistantText) {
+      activity = 'streaming';
     } else if (isTooling) {
       activity = 'tooling';
     } else if (isStreaming) {
