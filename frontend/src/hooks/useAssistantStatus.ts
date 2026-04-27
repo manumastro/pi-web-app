@@ -59,13 +59,14 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
   const conversation = useChatStore((state) => state.conversation);
   const selectedSessionId = useSessionUiStore((state) => state.selectedSessionId);
   const selectedDirectory = useSessionUiStore((state) => state.selectedDirectory);
+  const currentSession = useSessionUiStore((state) => state.currentSession);
   const sessionStatus = useSessionStatus(selectedSessionId, selectedDirectory);
   const permissions = useSessionPermissions(selectedSessionId, selectedDirectory);
   const questions = useSessionQuestions(selectedSessionId, selectedDirectory);
   const streaming = useStreamingSession(selectedSessionId || undefined);
 
   return useMemo(() => {
-    const statusType = getSessionStatusType(sessionStatus);
+    const statusType = getSessionStatusType(sessionStatus) ?? getSessionStatusType(currentSession?.status);
     const { activeToolName, hasPendingTool, hasAssistantText } = getLastAssistantRelatedItems(conversation);
     const hasPermission = permissions.length > 0 || questions.length > 0 || statusType === 'waiting_permission' || statusType === 'waiting_question';
     const isRetry = statusType === 'retry';
@@ -119,5 +120,5 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       activeToolName,
       lifecyclePhase: streaming.phase,
     };
-  }, [conversation, permissions.length, questions.length, selectedDirectory, sessionStatus, streaming.phase]);
+  }, [conversation, currentSession?.status, permissions.length, questions.length, selectedDirectory, sessionStatus, streaming.phase]);
 }

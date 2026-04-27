@@ -345,7 +345,9 @@ export function useAppController(): AppController {
     sessionId: selectedSessionId || undefined,
     onPayload: (payload: SsePayload) => {
       const currentConversation = useChatStore.getState().conversation;
+      const currentDirectory = useSessionUiStore.getState().selectedDirectory;
       reduceSessionLifecyclePayload(currentConversation, payload, {
+        directory: currentDirectory,
         setConversation,
         updateSession,
         setStreaming,
@@ -358,7 +360,9 @@ export function useAppController(): AppController {
         return;
       }
       const currentConversation = useChatStore.getState().conversation;
+      const currentDirectory = useSessionUiStore.getState().selectedDirectory;
       reduceSessionLifecyclePayloads(currentConversation, payloads, {
+        directory: currentDirectory,
         setConversation,
         updateSession,
         setStreaming,

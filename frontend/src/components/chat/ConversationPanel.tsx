@@ -236,7 +236,19 @@ function buildRenderRecords(items: ConversationItem[]): RenderRecord[] {
           groupToolEntry(turn.entries, item);
         }
       } else {
-        records.push({ kind: 'orphan', item });
+        const latestTurn = [...records].reverse().find(
+          (record): record is Extract<RenderRecord, { kind: 'turn' }> => record.kind === 'turn',
+        );
+
+        if (latestTurn) {
+          if (item.kind === 'thinking') {
+            latestTurn.entries.push({ kind: 'thinking', item });
+          } else {
+            groupToolEntry(latestTurn.entries, item);
+          }
+        } else {
+          records.push({ kind: 'orphan', item });
+        }
       }
       continue;
     }

@@ -204,6 +204,51 @@ describe('ConversationPanel', () => {
     expect(getByText('Writing...')).toBeInTheDocument();
   });
 
+  it('attaches tool events without messageId to the latest turn instead of rendering overlapping orphan cards', () => {
+    const itemsWithOrphanToolEvents: ConversationItem[] = [
+      {
+        kind: 'message',
+        id: 'user-no-tool-message-id',
+        messageId: 'turn-orphan-tool',
+        role: 'user',
+        content: 'cerca la classifica',
+        timestamp: '2026-04-27T17:39:00.000Z',
+        status: 'complete',
+      },
+      {
+        kind: 'message',
+        id: 'assistant-no-tool-message-id',
+        messageId: 'turn-orphan-tool',
+        role: 'assistant',
+        content: 'Il Milan è 9º con 54 punti.',
+        timestamp: '2026-04-27T17:39:02.000Z',
+        status: 'complete',
+      },
+      {
+        kind: 'tool_call',
+        id: 'tool-call-orphan',
+        toolCallId: 'tool-call-orphan',
+        toolName: 'web_search',
+        input: 'classifica serie a',
+        timestamp: '2026-04-27T17:39:01.000Z',
+      },
+      {
+        kind: 'tool_result',
+        id: 'tool-result-orphan',
+        toolCallId: 'tool-call-orphan',
+        result: '{"position":9}',
+        success: true,
+        timestamp: '2026-04-27T17:39:01.500Z',
+      },
+    ];
+
+    const { container } = render(<ConversationPanel items={itemsWithOrphanToolEvents} />);
+
+    expect(container.querySelectorAll('.turn-item')).toHaveLength(1);
+    expect(container.querySelector('.message-assistant-turn .tool-block')).not.toBeNull();
+    expect(container.querySelectorAll('.history-record-static > .tool-block')).toHaveLength(0);
+  });
+
   it('hides reasoning traces when disabled', () => {
     const { container, queryByText } = render(<ConversationPanel items={items} showReasoningTraces={false} />);
 
