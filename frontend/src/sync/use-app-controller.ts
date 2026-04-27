@@ -35,6 +35,13 @@ function formatDirectoryLabel(cwd: string, homeDir: string): string {
   return getProjectLabel(cwd, homeDir);
 }
 
+interface RelayStatusPayload {
+  viewers: number;
+  sessions: Record<string, number>;
+  transport: string;
+  path: string;
+}
+
 export type AppController = {
   conversation: ReturnType<typeof useChatStore.getState>['conversation'];
   streaming: StreamingState;
@@ -45,6 +52,8 @@ export type AppController = {
   models: ModelInfo[];
   activeModelKey: string;
   showReasoningTraces: boolean;
+  relayStatusMessage: string;
+  relayConnected: boolean;
   availableThinkingLevels: ThinkingLevel[];
   activeThinkingLevel?: ThinkingLevel;
   thinkingLevelError: string;
@@ -135,6 +144,8 @@ export function useAppController(): AppController {
   const { pendingInputText, setPendingInputText } = useInputStore();
   const prompt = pendingInputText ?? '';
   const [thinkingLevelError, setThinkingLevelError] = useState('');
+  const [relayStatusMessage, setRelayStatusMessage] = useState('Relay connecting');
+  const [relayConnected, setRelayConnected] = useState(false);
 
   const projectDirectories = useMemo<DirectoryInfo[]>(() => {
     const sessionCounts = new Map<string, number>();
@@ -184,10 +195,11 @@ export function useAppController(): AppController {
   );
 
   const refreshModels = useCallback(async (selSessionId?: string): Promise<ModelInfo[]> => {
-    const url = selSessionId
-      ? `/api/models?sessionId=${encodeURIComponent(selSessionId)}`
-      : '/api/models';
-    const payload = await apiGet<{ models: unknown[] }>(url);
+    if (!selSessionId) {
+      setModels([]);
+      return [];
+    }
+    const payload = await apiGet<{ models: unknown[] }>(`/api/models?sessionId=${encodeURIComponent(selSessionId)}`);
     const mapped: ModelInfo[] = (payload.models ?? []).map((m: unknown) => {
       const model = m as Record<string, unknown>;
       return {
@@ -292,7 +304,7 @@ export function useAppController(): AppController {
         setSelectedSessionId('');
         setConversation([]);
         setQueryParams({ cwd: targetDirectory, sessionId: '' });
-        await refreshModels(undefined);
+        setModels([]);
         setThinkingConfig([], undefined);
         setStatusMessage('Select or create a session');
       }
@@ -310,6 +322,25 @@ export function useAppController(): AppController {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const refreshRelayStatus = useCallback(async (): Promise<void> => {
+    try {
+      const payload = await apiGet<RelayStatusPayload>('/api/relay/status');
+      setRelayConnected(true);
+      setRelayStatusMessage(`Relay connected · ${payload.viewers} viewer${payload.viewers === 1 ? '' : 's'}`);
+    } catch {
+      setRelayConnected(false);
+      setRelayStatusMessage('Relay unavailable');
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRelayStatus();
+    const timer = window.setInterval(() => {
+      void refreshRelayStatus();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [refreshRelayStatus]);
+
   useSessionStream({
     sessionId: selectedSessionId || undefined,
     onPayload: (payload: SsePayload) => {
@@ -319,6 +350,7 @@ export function useAppController(): AppController {
         updateSession,
         setStreaming,
         setStatusMessage,
+        setError,
       });
     },
     onPayloadBatch: (payloads: SsePayload[]) => {
@@ -331,6 +363,7 @@ export function useAppController(): AppController {
         updateSession,
         setStreaming,
         setStatusMessage,
+        setError,
       });
     },
     onConnected: () => {
@@ -338,10 +371,26 @@ export function useAppController(): AppController {
       const sessionRunning = currentSessionActivity.isWorking;
       setStreaming(sessionRunning ? 'streaming' : (currentState === 'error' ? 'error' : 'idle'));
       setStatusMessage(sessionRunning ? 'Working' : 'Connected');
+      setRelayConnected(true);
+      void refreshRelayStatus();
     },
     onConnectionLost: () => {
       setStreaming('connecting');
       setStatusMessage('Reconnecting');
+      setRelayConnected(false);
+      setRelayStatusMessage('Relay reconnecting');
+    },
+    onGapDetected: async ({ sessionId, lastEventId, nextEventId }) => {
+      setStatusMessage('Recovering missed events');
+      setError(`Recovered stream gap (${lastEventId} → ${nextEventId})`);
+      try {
+        await loadSession(sessionId);
+        setError('');
+      } catch (cause) {
+        setStreaming('error');
+        setStatusMessage('Recovery failed');
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
     },
   });
 
@@ -549,6 +598,8 @@ export function useAppController(): AppController {
     models,
     activeModelKey,
     showReasoningTraces,
+    relayStatusMessage,
+    relayConnected,
     availableThinkingLevels,
     activeThinkingLevel,
     thinkingLevelError,

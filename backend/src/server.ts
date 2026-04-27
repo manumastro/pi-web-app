@@ -18,7 +18,7 @@ export function createApp() {
   const sessionStore = createPersistentSessionStore(config.sessionsDir);
   sessionStore.hydrateSync();
   const sseManager = createSseManager(path.join(config.sessionsDir, '.sse-history'));
-  const bridge = createRunnerOrchestrator({ config, sessionStore, sseManager });
+  const runner = createRunnerOrchestrator({ config, sessionStore, sseManager });
 
   const app = express();
   app.use(express.json({ limit: '2mb' }));
@@ -35,12 +35,12 @@ export function createApp() {
   app.get('/api/config', (_req, res) => {
     res.json({
       homeDir: config.homeDir,
-      sdkCwd: config.sdkCwd,
+      piCwd: config.piCwd,
       sessionsDir: config.sessionsDir,
     });
   });
 
-  registerApiRoutes(app, { bridge, sessionStore, config });
+  registerApiRoutes(app, { runner, sessionStore, config });
   app.use('/api/events', createSseRouter(sseManager, sessionStore));
 
   const disableFrontendHttpCache = (process.env.PI_WEB_DISABLE_FRONTEND_HTTP_CACHE ?? 'true').toLowerCase() !== 'false';
@@ -71,7 +71,7 @@ export function createApp() {
     });
   }
 
-  return { app, config, logger, sessionStore, sseManager, orchestrator: bridge };
+  return { app, config, logger, sessionStore, sseManager, orchestrator: runner };
 }
 
 export function createHttpServer() {

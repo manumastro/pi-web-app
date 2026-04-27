@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import type { ThinkingLevel } from '@mariozechner/pi-ai';
+import type { ThinkingLevel } from '../types/thinking.js';
 
 export type SessionStatus =
   | 'idle'

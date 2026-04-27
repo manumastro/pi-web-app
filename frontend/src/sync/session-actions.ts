@@ -207,6 +207,19 @@ export async function updateSessionThinkingLevel(sessionId: string, thinkingLeve
   }
 }
 
+export async function answerQuestion(sessionId: string, questionId: string, answer: string): Promise<boolean> {
+  try {
+    await apiRequest('/api/messages/question/answer', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, questionId, answer }),
+    });
+    return true;
+  } catch (error) {
+    console.error('[session-actions] answer question failed', error);
+    return false;
+  }
+}
+
 export async function abortCurrentOperation(sessionId: string): Promise<void> {
   try {
     await apiRequest('/api/messages/abort', {

@@ -62,6 +62,12 @@ export const RunnerCommandSchema = z.discriminatedUnion('type', [
     sessionId: z.string().min(1),
   }),
   BaseCommandSchema.extend({
+    type: z.literal('answer_question'),
+    sessionId: z.string().min(1),
+    questionId: z.string().min(1),
+    answer: z.string(),
+  }),
+  BaseCommandSchema.extend({
     type: z.literal('get_capabilities'),
     sessionId: z.string().optional(),
   }),
@@ -142,6 +148,16 @@ export const RunnerEventSchema = z.discriminatedUnion('type', [
     sessionId: z.string(),
     messageId: z.string(),
     aborted: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal('question_resolved'),
+    sessionId: z.string(),
+    questionId: z.string(),
+  }),
+  z.object({
+    type: z.literal('session_name'),
+    sessionId: z.string(),
+    sessionName: z.string(),
   }),
   z.object({
     type: z.literal('error'),

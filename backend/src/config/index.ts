@@ -11,8 +11,8 @@ export interface Config {
   nodeEnv: 'development' | 'production' | 'test';
   homeDir: string;
   sessionsDir: string;
-  sdkCwd: string;
-  model: string;
+  piCwd: string;
+  model: string | undefined;
   corsOrigins: string[];
   logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
   sessionIdPrefix: string;
@@ -93,8 +93,8 @@ export function loadConfig(): Config {
   const nodeEnv = parseNodeEnv(process.env.NODE_ENV);
   const homeDir = getHomeDir();
   const sessionsDir = process.env.SESSIONS_DIR ?? getDefaultSessionsDir();
-  const sdkCwd = process.env.SDK_CWD ?? getDefaultSdkCwd();
-  const model = process.env.SDK_MODEL ?? 'claude-3-5-sonnet-20241022';
+  const piCwd = process.env.PI_CWD ?? getDefaultSdkCwd();
+  const model = process.env.PI_MODEL?.trim() || undefined;
   const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
   const logLevel = parseLogLevel(process.env.LOG_LEVEL);
 
@@ -103,7 +103,7 @@ export function loadConfig(): Config {
     nodeEnv,
     homeDir,
     sessionsDir,
-    sdkCwd,
+    piCwd,
     model,
     corsOrigins,
     logLevel,

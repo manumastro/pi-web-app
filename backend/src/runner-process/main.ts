@@ -1,328 +1,332 @@
-import readline from 'node:readline';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import crypto from 'node:crypto';
-import {
-  AuthStorage,
-  ModelRegistry,
-  SessionManager,
-  SettingsManager,
-  createAgentSession,
-  createAgentSessionServices,
-  type AgentSession,
-  type AgentSessionEvent,
-} from '@mariozechner/pi-coding-agent';
-import type { ThinkingLevel } from '@mariozechner/pi-ai';
+import path from 'node:path';
 import { RunnerCommandSchema, type RunnerCommand, type RunnerEvent, type RunnerModelRef } from '../runner/protocol.js';
 
-interface RunnerSession {
-  sessionId: string;
-  cwd: string;
-  session: AgentSession;
-  assistantMessageId: string | null;
-  aborted: boolean;
-  unsubscribe: () => void;
+interface RpcResponse {
+  type: 'response';
+  id?: string;
+  command?: string;
+  success: boolean;
+  data?: unknown;
+  error?: string;
 }
 
-const authStorage = AuthStorage.create();
-const modelRegistry = ModelRegistry.create(authStorage);
-const sessions = new Map<string, RunnerSession>();
+interface RpcSession {
+  sessionId: string;
+  cwd: string;
+  child: ChildProcessWithoutNullStreams;
+  assistantMessageId: string | null;
+  aborted: boolean;
+  model: RunnerModelRef | null;
+  thinkingLevel?: string;
+  pending: Map<string, { resolve: (response: RpcResponse) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>;
+  buffer: string;
+  suppressExitError?: boolean;
+}
+
+const sessions = new Map<string, RpcSession>();
 const runnerId = crypto.randomUUID();
+const piCommand = process.env.PI_WEB_PI_COMMAND || 'pi';
 
 function emit(event: RunnerEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
 function commandResult(requestId: string, ok: boolean, data?: unknown, error?: string): void {
-  emit({
-    type: 'command_result',
-    requestId,
-    ok,
-    ...(data !== undefined ? { data } : {}),
-    ...(error !== undefined ? { error } : {}),
+  emit({ type: 'command_result', requestId, ok, ...(data !== undefined ? { data } : {}), ...(error !== undefined ? { error } : {}) });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+function modelFromUnknown(value: unknown): RunnerModelRef | null {
+  if (!isRecord(value)) return null;
+  const provider = typeof value.provider === 'string' ? value.provider : undefined;
+  const id = typeof value.id === 'string' ? value.id : typeof value.modelId === 'string' ? value.modelId : undefined;
+  return provider && id ? { provider, id } : null;
+}
+
+function modelsFromUnknown(value: unknown): Array<RunnerModelRef & { name?: string; reasoning?: boolean; contextWindow?: number }> {
+  const raw = isRecord(value) && Array.isArray(value.models) ? value.models : Array.isArray(value) ? value : [];
+  return raw.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    const provider = typeof entry.provider === 'string' ? entry.provider : '';
+    const id = typeof entry.id === 'string' ? entry.id : typeof entry.modelId === 'string' ? entry.modelId : '';
+    if (!provider || !id) return [];
+    return [{
+      provider,
+      id,
+      ...(typeof entry.name === 'string' ? { name: entry.name } : {}),
+      ...(typeof entry.reasoning === 'boolean' ? { reasoning: entry.reasoning } : {}),
+      ...(typeof entry.contextWindow === 'number' ? { contextWindow: entry.contextWindow } : {}),
+    }];
   });
 }
 
-function modelKey(model: { provider: string; id: string }): string {
-  return `${model.provider}/${model.id}`;
+function nextRpcId(requestId: string): string {
+  return `${requestId}:${crypto.randomUUID()}`;
 }
 
-function modelMatchesPattern(model: { provider: string; id: string; name?: string }, pattern: string): boolean {
-  const normalized = pattern.trim();
-  if (!normalized) return false;
-  const key = modelKey(model);
-  if (normalized === key || normalized === model.id) return true;
-  if (normalized.endsWith('/*')) return model.provider === normalized.slice(0, -2);
-  return model.id.includes(normalized) || key.includes(normalized) || (model.name?.toLowerCase().includes(normalized.toLowerCase()) ?? false);
-}
-
-async function warmModelRegistry(cwd = process.cwd()): Promise<void> {
-  const settingsManager = SettingsManager.create(cwd);
-  await createAgentSessionServices({ cwd, authStorage, modelRegistry, settingsManager });
-}
-
-function modelsForPattern(models: ReturnType<ModelRegistry['getAvailable']>, pattern: string) {
-  const normalized = pattern.trim();
-  const exact = models.find((model) => modelKey(model) === normalized || model.id === normalized);
-  if (exact) return [exact];
-  return models.filter((model) => modelMatchesPattern(model, normalized));
-}
-
-function refreshAvailableModels(cwd = process.cwd()) {
-  modelRegistry.refresh();
-  const available = modelRegistry.getAvailable();
-  const enabledPatterns = SettingsManager.create(cwd).getEnabledModels();
-  const scoped = enabledPatterns && enabledPatterns.length > 0
-    ? enabledPatterns
-        .flatMap((pattern) => modelsForPattern(available, pattern))
-        .filter((model, index, models) => models.findIndex((candidate) => modelKey(candidate) === modelKey(model)) === index)
-    : [...available].sort((left, right) => left.provider === right.provider ? left.id.localeCompare(right.id) : left.provider.localeCompare(right.provider));
-
-  return scoped.map((model) => ({
-    provider: model.provider,
-    id: model.id,
-    name: model.name,
-    reasoning: model.reasoning,
-    contextWindow: model.contextWindow,
-  }));
-}
-
-function findModel(ref?: RunnerModelRef) {
-  if (!ref) return undefined;
-  modelRegistry.refresh();
-  return modelRegistry.find(ref.provider, ref.id);
-}
-
-function currentModel(active: RunnerSession): RunnerModelRef | null {
-  const maybe = active.session as unknown as { model?: { provider?: string; id?: string } };
-  const model = maybe.model;
-  if (model?.provider && model.id) return { provider: model.provider, id: model.id };
-  return null;
-}
-
-function emitSessionActive(active: RunnerSession): void {
-  emit({
-    type: 'session_active',
-    sessionId: active.sessionId,
-    cwd: active.cwd,
-    model: currentModel(active),
-    thinkingLevel: active.session.thinkingLevel as ThinkingLevel | undefined,
-    availableModels: refreshAvailableModels(active.cwd),
-  });
-}
-
-function emitSessionMetadata(active: RunnerSession): void {
-  emit({
-    type: 'session_metadata_update',
-    sessionId: active.sessionId,
-    model: currentModel(active),
-    thinkingLevel: active.session.thinkingLevel as ThinkingLevel | undefined,
-    availableModels: refreshAvailableModels(active.cwd),
-  });
-}
-
-function extractMessageText(message: { content?: unknown }): string {
-  if (typeof message.content === 'string') return message.content;
-  if (!Array.isArray(message.content)) return '';
-  return message.content.map((part) => {
-    if (typeof part === 'string') return part;
-    if (part && typeof part === 'object') {
-      const record = part as Record<string, unknown>;
-      for (const key of ['text', 'content', 'refusal', 'thinking']) {
-        if (typeof record[key] === 'string') return record[key];
+function sendRpc(active: RpcSession, requestId: string, payload: Record<string, unknown>): Promise<RpcResponse> {
+  const id = nextRpcId(requestId);
+  const message = { id, ...payload };
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      active.pending.delete(id);
+      reject(new Error(`pi rpc command timed out: ${String(payload.type)}`));
+    }, 120_000);
+    active.pending.set(id, { resolve, reject, timer });
+    active.child.stdin.write(`${JSON.stringify(message)}\n`, (error) => {
+      if (error) {
+        clearTimeout(timer);
+        active.pending.delete(id);
+        reject(error);
       }
-    }
-    return '';
-  }).join('').trim();
-}
-
-function normalizeInput(input: unknown): unknown {
-  if (input && typeof input === 'object') return input;
-  return { value: input };
-}
-
-function emptyUsage() {
-  return {
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    totalTokens: 0,
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      total: 0,
-    },
-  };
-}
-
-function toAgentMessages(
-  messages: Array<{ role: string; content: string; timestamp?: string | undefined }>,
-  active: AgentSession,
-): unknown[] {
-  const activeModel = currentModel({ session: active } as RunnerSession);
-  return messages
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
-    .map((message) => {
-      const timestamp = message.timestamp ? Date.parse(message.timestamp) : Date.now();
-      if (message.role === 'assistant') {
-        return {
-          role: 'assistant',
-          content: [{ type: 'text', text: message.content }],
-          api: 'unknown',
-          provider: activeModel?.provider ?? 'unknown',
-          model: activeModel?.id ?? 'unknown',
-          usage: emptyUsage(),
-          stopReason: 'stop',
-          timestamp,
-        };
-      }
-
-      return {
-        role: 'user',
-        content: message.content,
-        timestamp,
-      };
     });
+  });
 }
 
-type ExtendedAgentSessionEvent = AgentSessionEvent | {
-  type: 'question';
-  questionId: string;
-  question: string;
-  options?: string[];
-} | {
-  type: 'permission';
-  permissionId: string;
-  action: string;
-  resource: string;
-};
+function handleRpcResponse(active: RpcSession, response: RpcResponse): void {
+  if (!response.id) return;
+  const pending = active.pending.get(response.id);
+  if (!pending) return;
+  active.pending.delete(response.id);
+  clearTimeout(pending.timer);
+  if (response.success) pending.resolve(response);
+  else pending.reject(new Error(response.error || `${response.command || 'rpc'} failed`));
+}
 
-function handleAgentEvent(active: RunnerSession, event: ExtendedAgentSessionEvent): void {
-  switch (event.type) {
-    case 'message_start': {
-      if (event.message.role === 'assistant' && !active.assistantMessageId) {
-        active.assistantMessageId = crypto.randomUUID();
-      }
-      break;
+function extractText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(extractText).join('').trim();
+  if (isRecord(value)) {
+    for (const key of ['text', 'content', 'delta', 'refusal', 'thinking']) {
+      if (typeof value[key] === 'string') return value[key];
     }
-    case 'message_update': {
-      if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
-      if (event.assistantMessageEvent.type === 'text_delta') {
-        emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: event.assistantMessageEvent.delta });
-      } else if (event.assistantMessageEvent.type === 'thinking_delta') {
-        emit({ type: 'thinking', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: event.assistantMessageEvent.delta });
+  }
+  return '';
+}
+
+function extractSessionName(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (isRecord(value)) {
+    for (const key of ['sessionName', 'name', 'title']) {
+      const raw = value[key];
+      if (typeof raw === 'string' && raw.trim().length > 0) {
+        return raw.trim();
       }
-      break;
     }
-    case 'tool_execution_start': {
-      if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+  }
+
+  return undefined;
+}
+
+function extractErrorMessage(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (isRecord(value)) {
+    for (const key of ['message', 'error', 'reason', 'description']) {
+      const nested = value[key];
+      if (typeof nested === 'string' && nested.trim().length > 0) {
+        return nested;
+      }
+    }
+
+    for (const key of ['error', 'cause', 'details']) {
+      if (value[key] !== undefined) {
+        const nestedMessage = extractErrorMessage(value[key]);
+        if (nestedMessage.trim().length > 0) {
+          return nestedMessage;
+        }
+      }
+    }
+  }
+
+  const fallback = extractText(value).trim();
+  return fallback;
+}
+
+function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): void {
+  const type = typeof event.type === 'string' ? event.type : '';
+  if (type === 'response') {
+    handleRpcResponse(active, event as unknown as RpcResponse);
+    return;
+  }
+
+  if (type === 'message_start') {
+    const message = isRecord(event.message) ? event.message : undefined;
+    if (isRecord(message) && message.role === 'assistant' && !active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    return;
+  }
+
+  if (type === 'message_update') {
+    if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    const update = isRecord(event.assistantMessageEvent) ? event.assistantMessageEvent : {};
+    const updateType = typeof update.type === 'string' ? update.type : '';
+    if (updateType === 'text_delta') {
+      emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: typeof update.delta === 'string' ? update.delta : '' });
+    } else if (updateType === 'thinking_delta') {
+      emit({ type: 'thinking', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: typeof update.delta === 'string' ? update.delta : '' });
+    } else if (updateType === 'toolcall_end' && isRecord(update.toolCall)) {
+      const toolCall = update.toolCall;
+      const toolName = typeof toolCall.name === 'string' ? toolCall.name : 'tool';
+      if (toolName === 'set_session_name') {
+        return;
+      }
       emit({
         type: 'tool_call',
         sessionId: active.sessionId,
         messageId: active.assistantMessageId,
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        input: normalizeInput(event.args),
+        toolCallId: typeof toolCall.id === 'string' ? toolCall.id : crypto.randomUUID(),
+        toolName,
+        input: toolCall.input ?? toolCall.args ?? {},
       });
-      break;
     }
-    case 'tool_execution_update': {
-      if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
-      emit({
-        type: 'tool_result',
-        sessionId: active.sessionId,
-        messageId: active.assistantMessageId,
-        toolCallId: event.toolCallId,
-        output: event.partialResult,
-        success: true,
-      });
-      break;
+    return;
+  }
+
+  if (type === 'tool_execution_start') {
+    const toolName = typeof event.toolName === 'string' ? event.toolName : 'tool';
+    if (toolName === 'set_session_name') {
+      return;
     }
-    case 'tool_execution_end': {
-      if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
-      emit({
-        type: 'tool_result',
-        sessionId: active.sessionId,
-        messageId: active.assistantMessageId,
-        toolCallId: event.toolCallId,
-        output: event.result,
-        success: !event.isError,
-      });
-      break;
-    }
-    case 'message_end': {
-      const role = String((event.message as { role?: unknown }).role ?? '');
-      if (role === 'assistant') {
-        const text = extractMessageText(event.message as { content?: unknown });
-        if (text && !active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    emit({
+      type: 'tool_call',
+      sessionId: active.sessionId,
+      messageId: active.assistantMessageId,
+      toolCallId: typeof event.toolCallId === 'string' ? event.toolCallId : crypto.randomUUID(),
+      toolName,
+      input: event.args ?? {},
+    });
+    return;
+  }
+
+  if (type === 'tool_execution_update' || type === 'tool_execution_end') {
+    const toolName = typeof event.toolName === 'string' ? event.toolName : 'tool';
+    if (toolName === 'set_session_name') {
+      const payload = type === 'tool_execution_update' ? event.partialResult : event.result;
+      const sessionName = extractSessionName(payload) ?? extractSessionName(event.args);
+      if (sessionName) {
+        emit({ type: 'session_name', sessionId: active.sessionId, sessionName });
       }
-      break;
+      return;
     }
-    case 'agent_end': {
-      emit({
-        type: 'done',
-        sessionId: active.sessionId,
-        messageId: active.assistantMessageId ?? crypto.randomUUID(),
-        aborted: active.aborted,
-      });
-      active.assistantMessageId = null;
-      active.aborted = false;
-      emitSessionMetadata(active);
-      break;
-    }
-    default:
-      break;
+
+    if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    emit({
+      type: 'tool_result',
+      sessionId: active.sessionId,
+      messageId: active.assistantMessageId,
+      toolCallId: typeof event.toolCallId === 'string' ? event.toolCallId : crypto.randomUUID(),
+      output: type === 'tool_execution_update' ? event.partialResult : event.result,
+      success: type === 'tool_execution_end' ? event.isError !== true : true,
+    });
+    return;
+  }
+
+  if (type === 'error' || type === 'agent_error' || type === 'fatal_error') {
+    const message = extractErrorMessage(event.error ?? event.message ?? event.details ?? event) || 'Unknown Pi error';
+    emit({
+      type: 'error',
+      sessionId: active.sessionId,
+      message,
+      error: message,
+      fatal: type === 'fatal_error' || event.fatal === true,
+    });
+    return;
+  }
+
+  if (type === 'question') {
+    const questionId = typeof event.questionId === 'string' ? event.questionId : crypto.randomUUID();
+    emit({ type: 'error', sessionId: active.sessionId, error: extractText(event.question ?? event.message) || 'Question event received without supported RPC answer protocol', message: extractText(event.question ?? event.message), fatal: false });
+    emit({ type: 'question_resolved', sessionId: active.sessionId, questionId });
+    return;
+  }
+
+  if (type === 'agent_end') {
+    emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId ?? crypto.randomUUID(), aborted: active.aborted });
+    active.assistantMessageId = null;
+    active.aborted = false;
   }
 }
 
-async function ensureSession(command: Extract<RunnerCommand, { type: 'start_session' | 'send_input' | 'set_model' | 'set_thinking_level' | 'abort' }>): Promise<RunnerSession> {
-  const existing = sessions.get(command.sessionId);
-  if (existing) return existing;
-
-  if (!('cwd' in command)) {
-    throw new Error(`Session ${command.sessionId} has not been started`);
+function handleRpcChunk(active: RpcSession, chunk: Buffer): void {
+  active.buffer += chunk.toString('utf8');
+  for (;;) {
+    const index = active.buffer.indexOf('\n');
+    if (index < 0) break;
+    const line = active.buffer.slice(0, index).replace(/\r$/, '');
+    active.buffer = active.buffer.slice(index + 1);
+    if (!line.trim()) continue;
+    try {
+      handleRpcEvent(active, JSON.parse(line) as Record<string, unknown>);
+    } catch (error) {
+      emit({ type: 'error', sessionId: active.sessionId, error: error instanceof Error ? error.message : String(error), fatal: false });
+    }
   }
+}
 
-  const settingsManager = SettingsManager.create(command.cwd);
-  await warmModelRegistry(command.cwd);
-  settingsManager.applyOverrides({ compaction: { enabled: false } });
-  const { session } = await createAgentSession({
-    cwd: command.cwd,
-    sessionManager: SessionManager.inMemory(),
-    authStorage,
-    modelRegistry,
-    settingsManager,
+function spawnRpcSession(sessionId: string, cwd: string): RpcSession {
+  const child = spawn(piCommand, ['--mode', 'rpc'], {
+    cwd: path.resolve(cwd),
+    env: process.env,
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
-  session.agent.sessionId = command.sessionId;
-
-  const active: RunnerSession = {
-    sessionId: command.sessionId,
-    cwd: command.cwd,
-    session,
-    assistantMessageId: null,
-    aborted: false,
-    unsubscribe: () => undefined,
-  };
-  if (command.history && command.history.length > 0) {
-    session.agent.state.messages = toAgentMessages(command.history, session) as never;
-  }
-
-  active.unsubscribe = session.subscribe((event) => handleAgentEvent(active, event as ExtendedAgentSessionEvent));
-  sessions.set(command.sessionId, active);
+  const active: RpcSession = { sessionId, cwd, child, assistantMessageId: null, aborted: false, model: null, pending: new Map(), buffer: '' };
+  child.stdout.on('data', (chunk: Buffer) => handleRpcChunk(active, chunk));
+  child.stderr.on('data', (chunk: Buffer) => process.stderr.write(chunk));
+  child.on('exit', (code, signal) => {
+    for (const pending of active.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(`pi rpc exited with code ${String(code)} signal ${String(signal)}`));
+    }
+    active.pending.clear();
+    sessions.delete(sessionId);
+    if (!active.suppressExitError) {
+      emit({ type: 'error', sessionId, error: `pi rpc exited with code ${String(code)} signal ${String(signal)}`, fatal: false });
+    }
+  });
+  sessions.set(sessionId, active);
   return active;
+}
+
+async function ensureSession(command: Extract<RunnerCommand, { type: 'start_session' }>): Promise<RpcSession> {
+  return sessions.get(command.sessionId) ?? spawnRpcSession(command.sessionId, command.cwd);
+}
+
+async function emitSessionActive(active: RpcSession): Promise<void> {
+  const [state, models] = await Promise.all([
+    sendRpc(active, 'state', { type: 'get_state' }).catch(() => null),
+    sendRpc(active, 'models', { type: 'get_available_models' }).catch(() => null),
+  ]);
+  const data = isRecord(state?.data) ? state.data : {};
+  active.model = modelFromUnknown(data.model) ?? active.model;
+  emit({
+    type: 'session_active',
+    sessionId: active.sessionId,
+    cwd: active.cwd,
+    model: active.model,
+    thinkingLevel: typeof data.thinkingLevel === 'string' && data.thinkingLevel !== 'off' ? data.thinkingLevel as never : undefined,
+    availableModels: modelsFromUnknown(models?.data),
+  });
 }
 
 async function handleCommand(command: RunnerCommand): Promise<void> {
   switch (command.type) {
     case 'start_session': {
       const active = await ensureSession(command);
-      if (command.model) {
-        const model = findModel(command.model);
-        if (model) await active.session.setModel(model as never);
-      }
-      if (command.thinkingLevel) active.session.setThinkingLevel(command.thinkingLevel);
-      emitSessionActive(active);
+      if (command.model) await sendRpc(active, command.requestId, { type: 'set_model', provider: command.model.provider, modelId: command.model.id });
+      if (command.thinkingLevel) await sendRpc(active, command.requestId, { type: 'set_thinking_level', level: command.thinkingLevel });
+      await emitSessionActive(active);
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       break;
     }
@@ -331,82 +335,92 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
       active.assistantMessageId = command.messageId ?? crypto.randomUUID();
       active.aborted = false;
-      await active.session.prompt(command.text);
+      const rpcType = command.deliverAs === 'steer' ? 'steer' : command.deliverAs === 'followUp' ? 'follow_up' : 'prompt';
+      await sendRpc(active, command.requestId, { type: rpcType, message: command.text });
       commandResult(command.requestId, true, { sessionId: command.sessionId });
+      break;
+    }
+    case 'answer_question': {
+      const active = sessions.get(command.sessionId);
+      if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
+      active.assistantMessageId = crypto.randomUUID();
+      active.aborted = false;
+      await sendRpc(active, command.requestId, { type: 'prompt', message: command.answer });
+      emit({ type: 'question_resolved', sessionId: command.sessionId, questionId: command.questionId });
+      commandResult(command.requestId, true, { sessionId: command.sessionId, questionId: command.questionId });
       break;
     }
     case 'set_model': {
       const active = sessions.get(command.sessionId);
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
-      const model = findModel(command.model);
-      if (!model) {
-        emit({ type: 'model_set_result', sessionId: command.sessionId, requestId: command.requestId, ok: false, model: command.model, error: 'Model is not configured for this runner.' });
-        commandResult(command.requestId, false, undefined, 'Model is not configured for this runner.');
-        return;
-      }
-      await active.session.setModel(model as never);
-      emit({
-        type: 'model_set_result',
-        sessionId: command.sessionId,
-        requestId: command.requestId,
-        ok: true,
-        model: command.model,
-      });
-      emitSessionMetadata(active);
+      await sendRpc(active, command.requestId, { type: 'set_model', provider: command.model.provider, modelId: command.model.id });
+      active.model = command.model;
+      emit({ type: 'model_set_result', sessionId: command.sessionId, requestId: command.requestId, ok: true, model: command.model });
+      await emitSessionActive(active);
       commandResult(command.requestId, true, { model: command.model });
       break;
     }
     case 'set_thinking_level': {
       const active = sessions.get(command.sessionId);
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
-      active.session.setThinkingLevel(command.level);
-      emitSessionMetadata(active);
-      commandResult(command.requestId, true, { thinkingLevel: active.session.thinkingLevel });
+      await sendRpc(active, command.requestId, { type: 'set_thinking_level', level: command.level });
+      await emitSessionActive(active);
+      commandResult(command.requestId, true, { thinkingLevel: command.level });
       break;
     }
     case 'abort': {
       const active = sessions.get(command.sessionId);
       if (active) {
         active.aborted = true;
-        active.session.abort();
-        active.session.agent.waitForIdle().catch(() => undefined);
+        await sendRpc(active, command.requestId, { type: 'abort' }).catch(() => undefined);
       }
       commandResult(command.requestId, true);
       break;
     }
     case 'get_capabilities': {
       const active = command.sessionId ? sessions.get(command.sessionId) : undefined;
-      await warmModelRegistry(active?.cwd ?? process.cwd());
-      commandResult(command.requestId, true, {
-        model: active ? currentModel(active) : null,
-        thinkingLevel: active?.session.thinkingLevel,
-        availableModels: refreshAvailableModels(active?.cwd),
-      });
+      if (active) {
+        const response = await sendRpc(active, command.requestId, { type: 'get_available_models' });
+        commandResult(command.requestId, true, { model: active.model, availableModels: modelsFromUnknown(response.data) });
+      } else {
+        const probe = spawnRpcSession(`capabilities-${crypto.randomUUID()}`, process.cwd());
+        probe.suppressExitError = true;
+        const response = await sendRpc(probe, command.requestId, { type: 'get_available_models' });
+        probe.child.kill('SIGTERM');
+        commandResult(command.requestId, true, { model: null, availableModels: modelsFromUnknown(response.data) });
+      }
       break;
     }
     case 'shutdown': {
       commandResult(command.requestId, true);
-      for (const active of sessions.values()) active.unsubscribe();
+      for (const active of sessions.values()) active.child.kill('SIGTERM');
       process.exit(0);
     }
   }
 }
 
-emit({ type: 'ready', runnerId, pid: process.pid, version: '0.1.0' });
+emit({ type: 'ready', runnerId, pid: process.pid, version: '0.2.0-rpc' });
 
-const lines = readline.createInterface({ input: process.stdin });
-lines.on('line', (line) => {
-  if (!line.trim()) return;
-  void (async () => {
-    let requestId = 'unknown';
-    try {
-      const command = RunnerCommandSchema.parse(JSON.parse(line));
-      requestId = command.requestId;
-      await handleCommand(command);
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      commandResult(requestId, false, undefined, message);
-      emit({ type: 'error', error: message, fatal: false });
-    }
-  })();
+let stdinBuffer = '';
+process.stdin.on('data', (chunk: Buffer) => {
+  stdinBuffer += chunk.toString('utf8');
+  for (;;) {
+    const index = stdinBuffer.indexOf('\n');
+    if (index < 0) break;
+    const line = stdinBuffer.slice(0, index).replace(/\r$/, '');
+    stdinBuffer = stdinBuffer.slice(index + 1);
+    if (!line.trim()) continue;
+    void (async () => {
+      let requestId = 'unknown';
+      try {
+        const command = RunnerCommandSchema.parse(JSON.parse(line));
+        requestId = command.requestId;
+        await handleCommand(command);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        commandResult(requestId, false, undefined, message);
+        emit({ type: 'error', error: message, fatal: false });
+      }
+    })();
+  }
 });

@@ -4,6 +4,7 @@ import { useAssistantStatus } from './hooks/useAssistantStatus';
 import { useMobileRuntime } from './hooks/useMobileRuntime';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useUIStore } from './stores/uiStore';
+import { useSessionPermissions, useSessionQuestions } from './sync/sync-context';
 import type { StreamingState } from './types';
 
 import { MainLayout } from './components/layout/MainLayout';
@@ -13,9 +14,33 @@ import { ChatView } from './components/views/ChatView';
 import { ChatEmptyState } from './components/chat/ChatEmptyState';
 import { ConversationPanel } from './components/chat/ConversationPanel';
 import { ComposerPanel } from './components/chat/ComposerPanel';
+import { AttentionPanel } from './components/chat/AttentionPanel';
 import { Toaster } from './components/ui';
 import { CommandPalette } from './components/command/CommandPalette';
 import { PizzaPiWorkspace, type WorkspacePanel } from './components/workspace/PizzaPiWorkspace';
+import { answerQuestion } from './sync/session-actions';
+
+const WORKSPACE_PANEL_STORAGE_KEY = 'pi-web-app:workspace-panel';
+
+function readStoredWorkspacePanel(): WorkspacePanel {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.localStorage.getItem(WORKSPACE_PANEL_STORAGE_KEY);
+    return stored === 'terminal' || stored === 'files' || stored === 'git' ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistWorkspacePanel(panel: WorkspacePanel): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (panel) window.localStorage.setItem(WORKSPACE_PANEL_STORAGE_KEY, panel);
+    else window.localStorage.removeItem(WORKSPACE_PANEL_STORAGE_KEY);
+  } catch {
+    // ignore storage failures
+  }
+}
 
 function ConnectionBanner({ state, message, error }: { state: StreamingState; message: string; error?: string }) {
   if (state !== 'error') return null;
@@ -29,7 +54,14 @@ export default function App() {
   const setSidebarOpen = useUIStore((state) => state.setSidebarOpen);
   const previousCompactLayoutRef = useRef<boolean | null>(null);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [workspacePanel, setWorkspacePanel] = useState<WorkspacePanel>(null);
+  const [workspacePanel, setWorkspacePanelState] = useState<WorkspacePanel>(() => readStoredWorkspacePanel());
+  const setWorkspacePanel = (panelOrUpdater: WorkspacePanel | ((panel: WorkspacePanel) => WorkspacePanel)) => {
+    setWorkspacePanelState((currentPanel) => {
+      const nextPanel = typeof panelOrUpdater === 'function' ? panelOrUpdater(currentPanel) : panelOrUpdater;
+      persistWorkspacePanel(nextPanel);
+      return nextPanel;
+    });
+  };
 
   useEffect(() => {
     if (previousCompactLayoutRef.current === null) {
@@ -56,6 +88,8 @@ export default function App() {
     models,
     activeModelKey,
     showReasoningTraces,
+    relayStatusMessage,
+    relayConnected,
     availableThinkingLevels,
     activeThinkingLevel,
     thinkingLevelError,
@@ -84,6 +118,9 @@ export default function App() {
     handleThinkingLevelSelect,
   } = useAppController();
 
+  const pendingQuestions = useSessionQuestions(selectedSessionId, selectedDirectory);
+  const pendingPermissions = useSessionPermissions(selectedSessionId, selectedDirectory);
+
   const sidebar = useMemo(() => (
     <Sidebar
       projects={projectDirectories}
@@ -91,6 +128,8 @@ export default function App() {
       selectedDirectory={selectedDirectory}
       selectedSessionId={selectedSessionId}
       homeDirectory={homeDirectory}
+      relayStatusMessage={relayStatusMessage}
+      relayConnected={relayConnected}
       sidebarOpen={sidebarOpen}
       onDirectorySelect={handleDirectorySelect}
       onProjectAdd={handleProjectAdd}
@@ -111,6 +150,8 @@ export default function App() {
     handleSessionSelect,
     homeDirectory,
     projectDirectories,
+    relayConnected,
+    relayStatusMessage,
     selectedDirectory,
     selectedSessionId,
     sidebarOpen,
@@ -122,6 +163,8 @@ export default function App() {
     <Header
       sessionName={currentSession?.title ?? 'Untitled Session'}
       projectLabel={currentDirectoryLabel}
+      relayStatusMessage={relayStatusMessage}
+      relayConnected={relayConnected}
       sidebarOpen={sidebarOpen}
       onNewSession={handleCreateSession}
       onToggleSidebar={toggleSidebar}
@@ -130,10 +173,17 @@ export default function App() {
       onToggleGit={() => setWorkspacePanel((panel) => (panel === 'git' ? null : 'git'))}
       onOpenCommandPalette={() => setCommandPaletteOpen(true)}
     />
-  ), [currentDirectoryLabel, currentSession?.title, handleCreateSession, sidebarOpen, toggleSidebar]);
+  ), [currentDirectoryLabel, currentSession?.title, handleCreateSession, relayConnected, relayStatusMessage, sidebarOpen, toggleSidebar]);
+
+  const sessionErrorBanner = error ? (
+    <div className="pizzapi-session-error-banner connection-banner error" role="alert">
+      ✗ {error}
+    </div>
+  ) : null;
 
   const chatContent = selectedSessionId ? (
     <ChatView sessionId={selectedSessionId}>
+      {sessionErrorBanner}
       <ConversationPanel
         items={conversation}
         error={error}
@@ -144,6 +194,12 @@ export default function App() {
         workingActivity={assistantStatus.activity}
         activeStreamingMessageId={activeStreamingMessageId}
         activeStreamingPhase={activeStreamingPhase}
+      />
+      <AttentionPanel
+        sessionId={selectedSessionId}
+        questions={pendingQuestions}
+        permissions={pendingPermissions}
+        onAnswerQuestion={answerQuestion}
       />
       <ComposerPanel
         prompt={prompt}
@@ -170,7 +226,7 @@ export default function App() {
     </PizzaPiWorkspace>
   );
 
-  const connectionBanner = !selectedSessionId && streaming === 'error'
+  const connectionBanner = streaming === 'error'
     ? <ConnectionBanner state={streaming} message={statusMessage} error={error} />
     : null;
 

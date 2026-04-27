@@ -47,6 +47,7 @@ type RenderRecord =
   | { kind: 'user'; item: UserMessageItem; consumed: boolean }
   | { kind: 'standalone'; item: SystemMessageItem | AssistantMessageItem }
   | { kind: 'orphan'; item: ThinkingItem | ToolCallItem | ToolResultItem }
+  | { kind: 'error'; item: Extract<ConversationItem, { kind: 'error' }> }
   | {
       kind: 'turn';
       turnId: string;
@@ -245,7 +246,12 @@ function buildRenderRecords(items: ConversationItem[]): RenderRecord[] {
       continue;
     }
 
-    // Questions / permissions / errors are rendered elsewhere in App.
+    if (item.kind === 'error') {
+      records.push({ kind: 'error', item });
+      continue;
+    }
+
+    // Questions / permissions are rendered elsewhere in App.
   }
 
   // Attach the last pending user record to the last turn that has no user entry.
@@ -494,7 +500,7 @@ function estimateRecordHeight(record: RenderRecord | undefined): number {
   if (record.kind === 'turn') {
     return 180 + Math.min(record.entries.length, 5) * 96;
   }
-  if (record.kind === 'user' || record.kind === 'standalone') {
+  if (record.kind === 'user' || record.kind === 'standalone' || record.kind === 'error') {
     return 140;
   }
   return 120;
@@ -528,6 +534,10 @@ function areRenderRecordsEquivalent(left: RenderRecord[], right: RenderRecord[])
     }
 
     if (record.kind === 'orphan' && other.kind === 'orphan') {
+      return record.item === other.item;
+    }
+
+    if (record.kind === 'error' && other.kind === 'error') {
       return record.item === other.item;
     }
 
@@ -663,6 +673,20 @@ const StaticHistoryList = React.memo(function StaticHistoryList({
       ];
     }
 
+    if (record.kind === 'error') {
+      return [
+        wrapStaticHistoryNode(
+          record.item.id,
+          <FadeInOnReveal animate>
+            <article className={cn('message', 'message-error')}>
+              <MessageHeader role="system" timestamp={formatTimestamp(record.item.timestamp)} />
+              <MessageBody item={record.item} showReasoningTraces={showReasoningTraces} />
+            </article>
+          </FadeInOnReveal>,
+        ),
+      ];
+    }
+
     return [wrapStaticHistoryNode(record.item.id, renderStandaloneMessage(record.item, showReasoningTraces))];
   };
 
@@ -776,6 +800,19 @@ const StreamingTailContent = React.memo(function StreamingTailContent({
     return (
       <div className="streaming-tail-content" data-streaming-tail="tool-result">
         <ToolPart toolId={record.item.toolCallId} toolName="result" output={record.item.result} status={record.item.success ? 'success' : 'error'} timestamp={formatTimestamp(record.item.timestamp)} />
+      </div>
+    );
+  }
+
+  if (record.kind === 'error') {
+    return (
+      <div className="streaming-tail-content" data-streaming-tail="error">
+        <FadeInOnReveal animate>
+          <article className={cn('message', 'message-error')}>
+            <MessageHeader role="system" timestamp={formatTimestamp(record.item.timestamp)} />
+            <MessageBody item={record.item} showReasoningTraces={showReasoningTraces} />
+          </article>
+        </FadeInOnReveal>
       </div>
     );
   }

@@ -8,6 +8,7 @@ interface UseSessionStreamOptions {
   onPayloadBatch?: (payloads: SsePayload[]) => void;
   onConnected?: () => void;
   onConnectionLost?: () => void;
+  onGapDetected?: (detail: { sessionId: string; lastEventId: string; nextEventId: string }) => void;
 }
 
 function parsePayload(data: string): SsePayload | undefined {
@@ -24,8 +25,9 @@ export function useSessionStream({
   onPayloadBatch,
   onConnected,
   onConnectionLost,
+  onGapDetected,
 }: UseSessionStreamOptions): void {
-  const callbacksRef = useRef({ onPayload, onPayloadBatch, onConnected, onConnectionLost });
+  const callbacksRef = useRef({ onPayload, onPayloadBatch, onConnected, onConnectionLost, onGapDetected });
   const reconnectTimerRef = useRef<number | null>(null);
   const flushTimerRef = useRef<number | null>(null);
   const queuedPayloadsRef = useRef<SsePayload[]>([]);
@@ -35,10 +37,11 @@ export function useSessionStream({
   const lastPayloadAtRef = useRef(0);
   const seenEventIdsRef = useRef(createSeenEventIdWindow());
   const staleTimerRef = useRef<number | null>(null);
+  const lastNumericEventIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    callbacksRef.current = { onPayload, onPayloadBatch, onConnected, onConnectionLost };
-  }, [onPayload, onPayloadBatch, onConnected, onConnectionLost]);
+    callbacksRef.current = { onPayload, onPayloadBatch, onConnected, onConnectionLost, onGapDetected };
+  }, [onPayload, onPayloadBatch, onConnected, onConnectionLost, onGapDetected]);
 
   useEffect(() => {
     generationRef.current += 1;
@@ -92,6 +95,7 @@ export function useSessionStream({
     lastEventIdRef.current = '';
     lastPayloadAtRef.current = 0;
     seenEventIdsRef.current = createSeenEventIdWindow();
+    lastNumericEventIdRef.current = null;
 
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
@@ -134,6 +138,18 @@ export function useSessionStream({
 
         lastPayloadAtRef.current = Date.now();
         if (event.lastEventId) {
+          const previousId = lastNumericEventIdRef.current;
+          const currentId = Number.parseInt(event.lastEventId, 10);
+          if (Number.isFinite(currentId)) {
+            if (previousId !== null && currentId > previousId + 1) {
+              callbacksRef.current.onGapDetected?.({
+                sessionId,
+                lastEventId: String(previousId),
+                nextEventId: event.lastEventId,
+              });
+            }
+            lastNumericEventIdRef.current = currentId;
+          }
           lastEventIdRef.current = event.lastEventId;
           payload.__eventId = event.lastEventId;
         }

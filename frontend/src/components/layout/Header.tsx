@@ -6,6 +6,8 @@ import { PizzaLogo } from '@/components/brand/PizzaLogo';
 interface HeaderProps {
   sessionName: string;
   projectLabel: string;
+  relayStatusMessage?: string;
+  relayConnected?: boolean;
   sidebarOpen?: boolean;
   onNewSession: () => void;
   onToggleSidebar: () => void;
@@ -44,6 +46,8 @@ function IconButton({
 export function Header({
   sessionName,
   projectLabel,
+  relayStatusMessage = 'Relay connected',
+  relayConnected = true,
   sidebarOpen = true,
   onNewSession,
   onToggleSidebar,
@@ -101,9 +105,9 @@ export function Header({
           <span className="pizzapi-brand-name">PizzaPi</span>
         </div>
         <span className="pizzapi-separator" />
-        <div className="pizzapi-relay-status">
-          <span className="pizzapi-live-dot" />
-          <span>Relay connected</span>
+        <div className="pizzapi-relay-status" title={relayStatusMessage}>
+          <span className="pizzapi-live-dot" style={!relayConnected ? { opacity: 0.45 } : undefined} />
+          <span>{relayStatusMessage}</span>
         </div>
         <span className="pizzapi-separator" />
         <div className="header-title-group pizzapi-session-heading">

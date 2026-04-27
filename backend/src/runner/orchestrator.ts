@@ -1,9 +1,10 @@
-import type { ThinkingLevel } from '@mariozechner/pi-ai';
 import type { Config } from '../config/index.js';
+import { THINKING_LEVELS, type ThinkingLevel } from '../types/thinking.js';
 import { modelKey, parseModelKey, summarizeModels, type ModelLike, type ModelSummary } from '../models/resolver.js';
+import { getHiddenModelKeysFromEnv, isHiddenModelKey } from '../models/visibility.js';
 import type { Session, SessionStore } from '../sessions/store.js';
 import type { SseManager } from '../sse/manager.js';
-import type { SseEvent } from '../sdk/events.js';
+import type { SseEvent } from '../events.js';
 import { RunnerProcessClient } from './child-process.js';
 import type { RunnerEvent, RunnerModelInfo } from './protocol.js';
 
@@ -25,6 +26,7 @@ export interface RunnerOrchestrator {
   listModels: (selectedModelKey?: string) => Promise<ModelSummary[]>;
   prompt: (request: PromptRequest) => Promise<PromptResult>;
   abort: (sessionId: string) => Promise<void>;
+  answerQuestion: (sessionId: string, questionId: string, answer: string) => Promise<void>;
   setModel: (sessionId: string, modelKey: string) => Promise<void>;
   setThinkingLevel: (sessionId: string, thinkingLevel: ThinkingLevel) => Promise<void>;
   getThinkingLevels: (sessionId: string) => Promise<{ currentLevel: ThinkingLevel | undefined; availableLevels: ThinkingLevel[] }>;
@@ -86,6 +88,7 @@ export function createRunnerOrchestrator(params: {
   const availableModelsBySession = new Map<string, RunnerModelInfo[]>();
   const globalAvailableModels: RunnerModelInfo[] = [];
   const activeTurns = new Map<string, ActiveTurn>();
+  const hiddenModelKeys = getHiddenModelKeysFromEnv();
 
   runner.on('event', (event: RunnerEvent) => {
     handleRunnerEvent(event);
@@ -95,7 +98,7 @@ export function createRunnerOrchestrator(params: {
       type: 'error',
       sessionId: 'runner',
       message: cause instanceof Error ? cause.message : String(cause),
-      category: 'sdk',
+      category: 'runner',
       recoverable: true,
       timestamp: now(),
     });
@@ -112,7 +115,7 @@ export function createRunnerOrchestrator(params: {
         type: 'error',
         sessionId,
         message,
-        category: 'sdk',
+        category: 'runner',
         recoverable: true,
         timestamp: now(),
       });
@@ -125,24 +128,26 @@ export function createRunnerOrchestrator(params: {
   }
 
   function cacheModels(sessionId: string | undefined, models: RunnerModelInfo[]): void {
-    globalAvailableModels.splice(0, globalAvailableModels.length, ...models);
-    if (sessionId) availableModelsBySession.set(sessionId, models);
+    const visibleModels = models.filter((model) => !isHiddenModelKey(modelKey(model), hiddenModelKeys));
+    globalAvailableModels.splice(0, globalAvailableModels.length, ...visibleModels);
+    if (sessionId) availableModelsBySession.set(sessionId, visibleModels);
   }
 
   function selectedKeyFor(sessionIdOrKey?: string): string | undefined {
     if (!sessionIdOrKey) return undefined;
-    if (sessionStore.getSession(sessionIdOrKey)) return sessionStore.getSession(sessionIdOrKey)?.model;
+    const session = sessionStore.getSession(sessionIdOrKey);
+    if (session) return session.model;
     return sessionIdOrKey;
   }
 
   function ensureStoredSession(sessionId: string, cwd: string, model?: string): Session {
     const existing = sessionStore.getSession(sessionId);
     if (existing) return existing;
-    return sessionStore.createSession(cwd, model ?? config.model, sessionId);
+    return sessionStore.createSession(cwd, model, sessionId);
   }
 
   async function startSessionIfNeeded(session: Session): Promise<void> {
-    const parsed = parseModelKey(session.model ?? config.model);
+    const parsed = parseModelKey(session.model);
     const result = await runner.send({
       type: 'start_session',
       requestId: requestId(),
@@ -194,7 +199,7 @@ export function createRunnerOrchestrator(params: {
             type: 'error',
             sessionId: event.sessionId,
             message: event.error ?? 'Failed to set model',
-            category: 'sdk',
+            category: 'runner',
             recoverable: true,
             timestamp: now(),
           });
@@ -270,12 +275,37 @@ export function createRunnerOrchestrator(params: {
           timestamp: now(),
         });
         break;
+      case 'question_resolved':
+        sessionStore.updateSession(event.sessionId, { status: 'busy' });
+        emit(sseManager, {
+          type: 'status',
+          sessionId: event.sessionId,
+          status: 'busy',
+          message: 'Question answered',
+          metadata: { resolvedQuestionId: event.questionId },
+          timestamp: now(),
+        });
+        break;
+      case 'session_name': {
+        const title = event.sessionName.trim();
+        if (!title) break;
+        sessionStore.updateSession(event.sessionId, { title });
+        emit(sseManager, {
+          type: 'status',
+          sessionId: event.sessionId,
+          status: 'busy',
+          message: 'Session renamed',
+          metadata: { sessionName: title },
+          timestamp: now(),
+        });
+        break;
+      }
       case 'error':
         emit(sseManager, {
           type: 'error',
           sessionId: event.sessionId ?? 'runner',
           message: event.message ?? event.error,
-          category: 'sdk',
+          category: 'runner',
           recoverable: !event.fatal,
           timestamp: now(),
         });
@@ -285,21 +315,33 @@ export function createRunnerOrchestrator(params: {
     }
   }
 
-  async function listModels(selectedModelKey?: string): Promise<ModelSummary[]> {
-    const result = await runner.send({ type: 'get_capabilities', requestId: requestId() });
+  async function listModels(sessionIdOrKey?: string): Promise<ModelSummary[]> {
+    const session = sessionIdOrKey ? sessionStore.getSession(sessionIdOrKey) : undefined;
+    const sessionId = session?.id;
+
+    const result = await runner.send(sessionId
+      ? { type: 'get_capabilities', requestId: requestId(), sessionId }
+      : { type: 'get_capabilities', requestId: requestId() });
+
     if (result.ok && result.data && typeof result.data === 'object') {
       const models = (result.data as { availableModels?: RunnerModelInfo[] }).availableModels ?? [];
-      cacheModels(undefined, models);
+      cacheModels(sessionId, models);
     }
-    const selectedKey = selectedKeyFor(selectedModelKey) ?? config.model;
-    const models = globalAvailableModels.map(toModelLike);
+
+    const modelsSource = sessionId
+      ? (availableModelsBySession.get(sessionId) ?? globalAvailableModels)
+      : globalAvailableModels;
+    const models = modelsSource.map(toModelLike);
     const availableKeys = new Set(models.map((model) => modelKey(model)));
-    return summarizeModels({ models, availableKeys, selectedKey });
+    const selectedKey = selectedKeyFor(sessionIdOrKey) ?? session?.model;
+    return selectedKey
+      ? summarizeModels({ models, availableKeys, selectedKey })
+      : summarizeModels({ models, availableKeys });
   }
 
   async function prompt(request: PromptRequest): Promise<PromptResult> {
     const sessionId = request.sessionId ?? config.generateSessionId();
-    const cwd = request.cwd ?? config.sdkCwd;
+    const cwd = request.cwd ?? config.piCwd;
     const session = ensureStoredSession(sessionId, cwd, request.model);
     const messageId = request.messageId ?? config.generateSessionId();
 
@@ -331,6 +373,12 @@ export function createRunnerOrchestrator(params: {
     if (!result.ok) throw new Error(result.error ?? 'Pi runner abort failed');
   }
 
+  async function answerQuestion(sessionId: string, questionId: string, answer: string): Promise<void> {
+    const result = await runner.send({ type: 'answer_question', requestId: requestId(), sessionId, questionId, answer });
+    if (!result.ok) throw new Error(result.error ?? 'Pi runner question answer failed');
+    sessionStore.updateSession(sessionId, { status: 'busy' });
+  }
+
   async function setModel(sessionId: string, modelKeyInput: string): Promise<void> {
     const session = sessionStore.getSession(sessionId);
     if (!session) return;
@@ -357,13 +405,12 @@ export function createRunnerOrchestrator(params: {
 
   async function getThinkingLevels(sessionId: string): Promise<{ currentLevel: ThinkingLevel | undefined; availableLevels: ThinkingLevel[] }> {
     const session = sessionStore.getSession(sessionId);
-    const availableLevels: ThinkingLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
-    return { currentLevel: session?.thinkingLevel, availableLevels };
+    return { currentLevel: session?.thinkingLevel, availableLevels: THINKING_LEVELS };
   }
 
   async function dispose(): Promise<void> {
     await runner.stop();
   }
 
-  return { listModels, prompt, abort, setModel, setThinkingLevel, getThinkingLevels, dispose };
+  return { listModels, prompt, abort, answerQuestion, setModel, setThinkingLevel, getThinkingLevels, dispose };
 }

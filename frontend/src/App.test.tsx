@@ -102,7 +102,7 @@ beforeEach(() => {
 
   apiGetMock.mockImplementation(async (path: string) => {
     if (path === '/api/config') {
-      return { homeDir: '/tmp', sdkCwd: '/tmp', sessionsDir: '/tmp/.pi/agent/sessions' };
+      return { homeDir: '/tmp', piCwd: '/tmp', sessionsDir: '/tmp/.pi/agent/sessions' };
     }
     if (path === '/api/sessions') {
       return { sessions: [session] };

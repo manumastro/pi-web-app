@@ -9,6 +9,8 @@ interface SidebarProps {
   selectedDirectory: string;
   selectedSessionId: string;
   homeDirectory: string;
+  relayStatusMessage?: string;
+  relayConnected?: boolean;
   sidebarOpen?: boolean;
   onDirectorySelect: (cwd: string) => void;
   onProjectAdd: (path: string) => boolean;
@@ -26,6 +28,8 @@ export function Sidebar({
   selectedDirectory,
   selectedSessionId,
   homeDirectory,
+  relayStatusMessage,
+  relayConnected,
   sidebarOpen,
   onDirectorySelect,
   onProjectAdd,
@@ -45,6 +49,8 @@ export function Sidebar({
       selectedDirectory={selectedDirectory}
       selectedSessionId={selectedSessionId}
       homeDirectory={homeDirectory}
+      relayStatusMessage={relayStatusMessage}
+      relayConnected={relayConnected}
       sidebarOpen={sidebarOpen}
       onDirectorySelect={onDirectorySelect}
       onProjectAdd={onProjectAdd}

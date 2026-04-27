@@ -29,7 +29,7 @@
 
 ### 0.1 Delivered so far
 
-- Backend SDK bridge integrated with `@mariozechner/pi-coding-agent`, including dynamic `ModelRegistry` model keys.
+- Backend Pi runner integrated with `Pi CLI`, including dynamic `ModelRegistry` model keys.
 - Persistent JSONL session storage and replayable SSE history on disk; session status persistence now normalizes to OpenChamber-style busy/idle semantics so active runs stay marked working until the agent completes.
 - REST + SSE backend wiring for sessions, messages, models, and live event streaming.
 - **OpenChamber-aligned frontend** with Tailwind CSS v4, Radix UI primitives, light theme with warm/beige palette (oklch-based), IBM Plex Sans/Mono fonts, 304px sidebar, and 56px header; session resumption now flows through an OpenChamber-style `frontend/src/sync/*` layer (`bootstrap`, `child-store`, `event-reducer`, `global-sync-store`, `index`, `input-store`, `live-aggregate`, `notification-store`, `optimistic`, `persist-cache`, `selection-store`, `session-actions`, `session-cache`, `session-prefetch-cache`, `sync-context`, `sync-refs`, `sessionActivity`, `use-app-controller`, `use-sync`, `viewport-store`, `voice-store`) instead of only local transport state; session list/status are split from selection/current-session state across `frontend/src/stores/sessionStore.ts` and `frontend/src/stores/sessionUiStore.ts`; mobile chrome is now being tightened with a drawer-style sidebar/backdrop, wrapped composer controls, and touch-friendly menu visibility on narrow screens.
@@ -42,8 +42,8 @@
 - **Build/test green (55 frontend tests, 79 backend tests)**, live `pi-web.service` on `0.0.0.0:3210`.
 - Frontend cache persistence is disabled by default to avoid stale client-side state; optional opt-in via `VITE_ENABLE_FRONTEND_CACHE=true`.
 - Thinking level selector (`minimal`/`low`/`medium`/`high`/`xhigh`) exposed in the composer panel via a styled select dropdown; levels are fetched per-session via `GET /api/models/session/thinking`, persisted via `PUT /api/models/session/thinking`, and forwarded to `agentSession.setThinkingLevel()` on each prompt.
-- Missing API key/model-auth failures no longer take down the backend process: SDK `setModel()` calls are awaited so rejections are handled in-route, and `GET /api/models/session/thinking` now returns the real error to the client instead of silently masking it; the composer now shows the same message inline under the thinking-level selector for clear UX context.
-- Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` and SDK compaction hooks no-op to prevent `totalTokens` crashes in multi-turn sessions.
+- Missing API key/model-auth failures no longer take down the backend process: runner `setModel()` calls are awaited so rejections are handled in-route, and `GET /api/models/session/thinking` now returns the real error to the client instead of silently masking it; the composer now shows the same message inline under the thinking-level selector for clear UX context.
+- Compaction disabled via `settingsManager.applyOverrides({ compaction: { enabled: false } })` and runner compaction hooks no-op to prevent `totalTokens` crashes in multi-turn sessions.
 - systemd service launches Bash interactively so `~/.bashrc` exports (including `OPENCODE_API_KEY`) are visible to the backend, matching CLI credentials; the CLI remains the source of truth for auth/model access.
 - Model selection now persisted per-session via `PUT /api/models/session/model`; active model is selected by `isSelected` flag from the API.
 - Sidebar toggle functionality with dynamic icons (PanelLeftClose/PanelLeft).
@@ -121,7 +121,7 @@ frontend/src/
 ## 1. Vision & Principles
 
 ### 1.1 Vision
-A **lean, maintainable** web UI for the `@mariozechner/pi-coding-agent` SDK that:
+A **lean, maintainable** web UI for the `Pi CLI` runner that:
 - Works reliably for daily coding tasks
 - Handles reconnections gracefully
 - Is easy to extend and debug
@@ -192,10 +192,10 @@ A **lean, maintainable** web UI for the `@mariozechner/pi-coding-agent` SDK that
 │  └──────┬──────┘  └──────┬───────┘  └───────┬────────┘  │
 │         │                │                   │           │
 │  ┌──────┴────────────────┴───────────────────┴────────┐  │
-│  │          SDK Bridge (AgentSession factory)          │  │
+│  │          runner Bridge (AgentSession factory)          │  │
 │  │  • One AgentSession per CWD                         │  │
-│  │  • Forward SDK events → SSE clients                │  │
-│  │  • Route REST commands → SDK methods               │  │
+│  │  • Forward runner events → SSE clients                │  │
+│  │  • Route REST commands → runner methods               │  │
 │  └──────────────────────┬──────────────────────────────┘  │
 │                         │                                  │
 │  ┌──────────────────────┴──────────────────────────────┐  │
@@ -207,7 +207,7 @@ A **lean, maintainable** web UI for the `@mariozechner/pi-coding-agent` SDK that
                     in-process
                          │
 ┌─────────────────────────────────────────────────────────┐
-│  @mariozechner/pi-coding-agent SDK                       │
+│  Pi CLI runner                       │
 │  • AgentSession(prompt, steer, abort, setModel)         │
 │  • Emits: text, thinking, tool_call, error, done...     │
 │  • Persists: JSONL session files                        │
@@ -248,7 +248,7 @@ A **lean, maintainable** web UI for the `@mariozechner/pi-coding-agent` SDK that
 
 | Decision | Rationale |
 |----------|-----------|
-| **In-process SDK** | Zero overhead, direct API access, no subprocess management |
+| **In-process runner** | Zero overhead, direct API access, no subprocess management |
 | **SSE (not WebSocket)** | Simpler, better HTTP compatibility, follows standard patterns |
 | **JSONL session files** | Durable, crash-safe, no database needed, easily scannable |
 | **URL as source of truth** (`?cwd=&session=`) | Bookmarkable, browser nav works, shareable |
@@ -265,7 +265,7 @@ A **lean, maintainable** web UI for the `@mariozechner/pi-coding-agent` SDK that
 |-----------|-----------|---------|-------|
 | Runtime | Node.js | >= 20 | LTS minimum |
 | Framework | Express | 4.x | Mature, well-known |
-| SDK | `@mariozechner/pi-coding-agent` | latest | In-process |
+| runner | `Pi CLI` | latest | In-process |
 | Validation | Zod | 3.x | Runtime type validation |
 | Logging | pino | 9.x | Structured JSON logs |
 | Testing | Vitest | 2.x | Unit + integration |
@@ -301,7 +301,7 @@ A **lean, maintainable** web UI for the `@mariozechner/pi-coding-agent` SDK that
 ```
 src/
 ├── config/           # Environment, defaults, validation
-├── sdk/              # SDK bridge, AgentSession factory, event forwarding
+├── runner/              # Pi runner, AgentSession factory, event forwarding
 ├── sessions/         # Session lifecycle, JSONL parser, persistence
 ├── models/           # Model resolution, auth, listing
 ├── api/              # Express routes (REST endpoints)
@@ -350,10 +350,10 @@ All route modules receive dependencies via constructor, NOT via global setters:
 
 ```typescript
 // ✅ CORRECT: Explicit dependencies
-export function createMessagesRouter(sdk: SdkBridge) {
+export function createMessagesRouter(runner: SdkBridge) {
   const router = express.Router();
   router.post('/prompt', async (req, res) => {
-    await sdk.prompt(req.body.sessionId, req.body.message);
+    await runner.prompt(req.body.sessionId, req.body.message);
     res.json({ ok: true });
   });
   return router;
@@ -410,7 +410,9 @@ No hardcoded paths. Ever.
 | Error pattern detection | **P2** | V3 | High | ⚠️ Partial |
 | Context compaction display | **P2** | V3 | Low | ✅ Proven |
 | Server log viewer | **P3** | V4 | Low | ✅ Proven |
-| Shell mode (interactive terminal) | **P3** | V4 | High | ❌ Deferred |
+| Workspace Files panel (safe list/read viewer) | **P2** | V4 | Medium | ✅ Proven |
+| Workspace Git panel (branch/status/diff) | **P2** | V4 | Medium | ✅ Proven |
+| Shell mode (interactive terminal) | **P3** | V4 | High | ⚠️ Partial: scoped command runner |
 | Slash commands | **P3** | V4 | Medium | ❌ Deferred |
 | Todo system (AI-generated) | **P3** | V4 | Medium | ❌ Deferred |
 
@@ -531,7 +533,7 @@ GET /api/models → resolve all provider models
 
 | Component | What's In |
 |-----------|-----------|
-| **Backend** | Express server, SDK bridge, SSE manager, REST routes (messages, sessions, models), JSONL persistence, config module, structured logging |
+| **Backend** | Express server, Pi runner, SSE manager, REST routes (messages, sessions, models), JSONL persistence, config module, structured logging |
 | **Frontend** | ChatView (messages + input), SessionPanel (sidebar with session list), ModelSelector (dropdown), SSE hook, Zustand stores, Reconnect banner |
 | **Protocol** | SSE events (text_chunk, thinking, tool_call, tool_result, question, permission, error, done), REST commands (prompt, abort, steer, follow_up, setModel) |
 | **Navigation** | URL params `?cwd=&session=`, browser back/forward works |
@@ -578,7 +580,7 @@ GET /api/models → resolve all provider models
 | **Message part gap recovery** | Detect missing parts after reconnect, fetch from JSONL | High |
 | **Event coalescing** | Merge redundant events (e.g., rapid text_chunks) | Medium |
 | **Global session status** | Sidebar shows status of ALL sessions | Low |
-| **PAUSE/RESUME state** | Add to state machine, implement in SDK bridge | Medium |
+| **PAUSE/RESUME state** | Add to state machine, implement in Pi runner | Medium |
 
 ### 7.2 V3: Rich Features
 
@@ -621,11 +623,11 @@ pi-web-app/                          # NEW repo or branch
 │   │   ├── config/
 │   │   │   ├── index.ts             # Config schema + validation
 │   │   │   └── index.test.ts        # Config validation tests
-│   │   ├── sdk/
-│   │   │   ├── bridge.ts            # SdkBridge: wraps AgentSession
-│   │   │   ├── bridge.test.ts       # Bridge unit tests
+│   │   ├── runner/
+│   │   │   ├── runner.ts            # Pi runner: wraps AgentSession
+│   │   │   ├── runner.test.ts       # Runner unit tests
 │   │   │   ├── factory.ts           # AgentSession factory per CWD
-│   │   │   └── events.ts            # SDK event → SSE event mapping
+│   │   │   └── events.ts            # runner event → SSE event mapping
 │   │   ├── sessions/
 │   │   │   ├── store.ts             # Session CRUD in memory
 │   │   │   ├── store.test.ts
@@ -720,7 +722,7 @@ pi-web-app/                          # NEW repo or branch
 | Each store | 50-100 | 150 |
 | Each route | 50-100 | 150 |
 | `server.ts` | 100-150 | 200 |
-| `bridge.ts` | 150-200 | 250 |
+| `runner.ts` | 150-200 | 250 |
 | `manager.ts` (SSE) | 100-150 | 200 |
 | Config | 30-50 | 80 |
 | **Total backend** | ~800 | ~1200 |
@@ -809,7 +811,7 @@ interface ErrorEvent {
   type: 'error';
   sessionId: string;
   message: string;
-  category: 'network' | 'auth' | 'provider' | 'sdk' | 'unknown';
+  category: 'network' | 'auth' | 'provider' | 'runner' | 'unknown';
   recoverable: boolean;
   timestamp: string;
 }
@@ -911,7 +913,7 @@ interface ModelInfo {
 
 ### 9.2 JSONL Session File Format
 
-Each line is a JSON object. Format is dictated by the SDK and must not be changed:
+Each line is a JSON object. Format is dictated by the runner and must not be changed:
 
 ```jsonl
 {"type":"user","content":"Hello","timestamp":"2026-04-15T10:00:00Z"}
@@ -1282,7 +1284,7 @@ Components re-render (via selectors, not full store)
 ```
 1. Scrivi test per il modulo (RED)
    ├── Importa modulo da testare
-   ├── Mocka dipendenze esterne (SDK, filesystem)
+   ├── Mocka dipendenze esterne (runner, filesystem)
    ├── Definisci behavior atteso con assertions
    └── Verifica che test fallisca (modulo non esiste)
 
@@ -1614,7 +1616,7 @@ NODE_PATH=/usr/bin/node
 > Maintenance note: after every significant change, update this snapshot **and** the `Current state` line in `AGENTS.md`.
 
 #### Done (2026-04-18)
-- Backend SDK bridge, dynamic model registry, JSONL session persistence, SSE replay, and REST/SSE wiring.
+- Backend Pi runner, dynamic model registry, JSONL session persistence, SSE replay, and REST/SSE wiring.
 - Frontend OpenChamber-style UI: Flexoki dark palette (#151313/#da702c/#cecdc3), IBM Plex Sans/Mono fonts, 280px sidebar with project/session/model sections, 48px header with status chip.
 - ConversationPanel: border-left colored per role (user=orange, assistant=green, tool=amber), streaming indicator, expandable tool call/result.
 - ComposerPanel: send-only, Enter to send, Shift+Enter newline, Stop button.
@@ -1624,17 +1626,17 @@ NODE_PATH=/usr/bin/node
 - Build green, 95 backend tests + 79 frontend tests passing, `pi-web.service` active.
 
 #### In Progress
-- PizzaPi UX parity: continue from `docs/UX_PARITY_ROADMAP.md`; PizzaPi is cloned at `~/PizzaPi` for direct visual/reference parity. Next largest user-visible gaps are real file/terminal/git panel data, pending question/permission UI, full gap repair, richer per-tool metadata/diff previews, and dock layout persistence.
+- PizzaPi UX parity: continue from `docs/UX_PARITY_ROADMAP.md`; PizzaPi is cloned at `~/PizzaPi` for direct visual/reference parity. Files/Git panels now have real scoped data, Terminal streams cwd-scoped process output with kill support, pending question answers travel through REST → orchestrator → runner protocol, permission cards are display-only by request, and the open workspace panel persists in localStorage; next largest user-visible gaps are multiple terminal tabs/history, full gap repair, richer per-tool metadata/diff previews, and dock width/position persistence.
 - Final polish: runner/relay UX messaging beyond the current recoverable SSE/WebSocket error state, if needed after field use.
 
 #### Done (2026-04-26)
-- Added `docs/PI_RUNNER_ORCHESTRATOR_MIGRATION.md` as the one-shot migration plan for replacing the in-process SDK backend with a PizzaPi-like runner/orchestrator architecture.
+- Added `docs/PI_RUNNER_ORCHESTRATOR_MIGRATION.md` as the one-shot migration plan for replacing the in-process runner backend with a PizzaPi-like runner/orchestrator architecture.
 - Introduced the first concrete runner/orchestrator implementation: `backend/src/runner/protocol.ts` defines the JSONL command/event contract, `backend/src/runner/child-process.ts` manages the child runner process, `backend/src/runner-process/main.ts` owns Pi runtime sessions/model registry in a separate process, and `backend/src/runner/orchestrator.ts` adapts runner events back into the existing REST/SSE/session-store contract.
-- Swapped the server bootstrap to create the runner orchestrator instead of directly creating the SDK bridge, so new prompt/model/thinking/abort flows are routed through the local runner process while preserving the existing API surface.
+- Swapped the server bootstrap to create the runner orchestrator instead of directly creating the Pi runner, so new prompt/model/thinking/abort flows are routed through the local runner process while preserving the existing API surface.
 - Backend TypeScript lint, backend tests, and backend build are green after the runner migration bootstrap.
 - Fixed the production/dev runner spawn path so systemd/tsx source runs launch `backend/src/runner-process/main.ts` with the active tsx loader while compiled builds launch `dist/runner-process/main.js`; `/api/models` now returns runner-owned available models again after restart, and REST prompt E2E verified through the runner with a persisted assistant response.
 - Aligned runner model capabilities with CLI `/model` scope: the runner now warms cwd-bound Pi services/extensions before listing models and filters `availableModels` through `SettingsManager.getEnabledModels()` in configured order instead of exposing the full authenticated registry; current service verification returns 15 resolvable scoped models, with the stale configured `openai-codex-2/gpt-5.5` pattern absent from the live registry.
-- Completed the remaining runner migration cleanup: removed legacy `backend/src/sdk/bridge.ts` and its tests, verified no `AgentSession`/`ModelRegistry`/`createAgentSession` imports remain outside `backend/src/runner-process/*`, added protocol/client/orchestrator/fake-runner/route-failure test coverage, added `backend/scripts/e2e-runner-smoke.mjs` plus `npm run test:e2e:runner --workspace=backend`, and hardened runner exit handling so active turns emit recoverable SSE errors and mark affected sessions as `error`.
+- Completed the remaining Pi runner cleanup: removed legacy `backend/src/runner/runner.ts` and its tests, verified no `AgentSession`/`ModelRegistry`/`createAgentSession` imports remain outside `backend/src/runner-process/*`, added protocol/client/orchestrator/fake-runner/route-failure test coverage, added `backend/scripts/e2e-runner-smoke.mjs` plus `npm run test:e2e:runner --workspace=backend`, and hardened runner exit handling so active turns emit recoverable SSE errors and mark affected sessions as `error`.
 - Verification after cleanup: `npm run lint --workspace=backend`, `npm run test --workspace=backend` (89 passed), `npm run build --workspace=backend`, `npm run build --workspace=frontend`, `npm run test --workspace=frontend` (70 passed), service restart, and `npm run test:e2e:runner --workspace=backend` all pass.
 - Completed the same-server PizzaPi-like relay layer: added `backend/src/relay/protocol.ts` and `backend/src/relay/server.ts`, installed `/api/relay` WebSocket upgrade handling plus `/api/relay/status` on the same HTTP server, updated the root `src/server.ts` systemd entrypoint to boot `createHttpServer()`, forwarded canonical SSE events to subscribed relay viewers, and added relay protocol/server tests plus `backend/scripts/e2e-relay-smoke.mjs` / `npm run test:e2e:relay --workspace=backend`.
 - Verification after same-server relay completion: `npm run lint --workspace=backend`, `npm run test --workspace=backend` (95 passed), `npm run build --workspace=backend`, `npm run build --workspace=frontend`, `npm run test --workspace=frontend` (70 passed), service restart, `npm run test:e2e:relay --workspace=backend`, and `npm run test:e2e:runner --workspace=backend` all pass.
@@ -1644,6 +1646,25 @@ NODE_PATH=/usr/bin/node
 - Verification after command palette/tool-card increment: `npm run lint --workspace=frontend` and `npm run test --workspace=frontend` (79 passed) are green.
 - Fixed a runner rehydration regression that caused `/api/messages/prompt` to return 500 (`Cannot read properties of undefined (reading 'totalTokens')`) for sessions with persisted assistant history: runner-process history rehydration now restores assistant messages as valid Pi AI assistant messages with zeroed usage/cost metadata. Verified direct prompt returns 202, runner E2E, relay E2E, and backend tests pass.
 - Began strict PizzaPi visual/UX replication from the cloned `~/PizzaPi` UI: replaced the visible app chrome with PizzaPi logo/brand, relay-connected status in header/sidebar, dark neutral PizzaPi tokens, PizzaPi-like header action cluster, active-session conic chase border, and a dock-panel shell opened by Files/Terminal/Git header buttons.
+- Completed the first real workspace-panel pass: added `/api/workspace` endpoints for safe cwd-scoped file listing/reading, git branch/status/diff, and a scoped terminal command runner; replaced placeholder dock content with Files/Git/Terminal panels; restored the active-session PizzaPi chase border for the selected session; and auto-named untitled sessions from the first user prompt on backend persistence plus optimistic frontend state.
+- Added a pending attention UI pass: question and permission events render cards above the composer, question answers are submitted through `/api/messages/question/answer` to the runner protocol, permission request transport is intentionally not implemented, and the last open workspace panel persists in localStorage.
+- Replaced backend runner-process direct runner imports with documented Pi RPC subprocess transport (`pi --mode rpc`) so backend source no longer imports `Pi CLI`; the runner process now adapts RPC JSONL events into the existing web runner protocol.
+- Upgraded the Terminal dock to stream command output over SSE and added a kill endpoint/button for scoped terminal processes.
+- Verification after workspace-panel/passive UX fixes: `npm run lint --workspace=backend`, `npm run lint --workspace=frontend`, `npm run build --workspace=backend`, `npm run build --workspace=frontend`, `npm run test --workspace=frontend` (79 passed), and `npm run test --workspace=backend` (95 passed) are green.
+- Completed PizzaPi wrapper-alignment pass to avoid backend runner dependencies entirely: replaced remaining backend `@mariozechnerlocal types` type imports with local thinking-level types (`backend/src/types/thinking.ts`) so backend runtime/contracts stay CLI-wrapper focused.
+- Replaced first-prompt auto session naming with PizzaPi-style agent-driven naming: runner protocol now supports `session_name` events, runner-process maps `set_session_name` RPC tool executions into that event (and suppresses visible tool cards for that internal tool), orchestrator persists titles from runner events, and frontend consumes status metadata to update session titles live.
+- Session create API now honors explicit `title` input on creation (`POST /api/sessions`), keeping REST behavior consistent with UI rename semantics.
+- Verification after wrapper/naming alignment: `npm run lint --workspace=backend`, `npm run lint --workspace=frontend`, `npm run test --workspace=backend` (95 passed), and `npm run test --workspace=frontend` (79 passed) are green.
+- Added relay viewer UX/status parity signal in frontend chrome: header/sidebar relay badge now shows live `/api/relay/status` health + viewer count with reconnect/unavailable states instead of hardcoded "Relay connected".
+- Added multi-client stream gap recovery end-to-end: SSE client now detects non-contiguous `lastEventId` gaps, raises recovery callbacks, and reloads the session snapshot/messages to heal missed events.
+- Improved Pi error fidelity in UI: runner-process now forwards richer RPC error payloads (including nested provider messages like usage-limit failures), reducer surfaces exact error text in status banner/state, and conversation error rows keep the raw message.
+- Added frontend regression coverage for SSE gap detection in `frontend/src/hooks/useSessionStream.test.ts`.
+- Verification after relay/gap/error fidelity pass: `npm run lint --workspace=backend`, `npm run lint --workspace=frontend`, `npm run test --workspace=backend` (95 passed), `npm run test --workspace=frontend` (80 passed), `npm run build --workspace=backend`, and `npm run build --workspace=frontend` are green.
+- Chat error visibility fix: SSE/runner error items are now rendered directly in `ConversationPanel` history/tail (not dropped), and selected-session errors also surface as a sticky in-chat banner so provider/runtime failures are visible even when the transcript is scrolled.
+- Session row animation polish: the conic chase animation in sidebar is now gated to active+working sessions only (`session-item-working`), avoiding constant motion on idle selected sessions.
+- Model selector parity fix: `/api/models` is now session-scoped only (empty when no session is selected) and filtered through the same hidden-model env contract used by PizzaPi (`PIZZAPI_HIDDEN_MODELS` / `PI_WEB_HIDDEN_MODELS`), so the frontend no longer leaks the global registered model registry and can match the CLI `/model` view when the same visibility config is present.
+- CLI-wrapper audit fixes: removed the last backend default-model fallback (`config.model` is now optional and no longer seeds sessions), and the frontend no longer bootstraps a model list until a session exists.
+- Verification after error-visibility/animation/model parity polish: `npm run lint --workspace=backend`, `npm run lint --workspace=frontend`, `npm run test --workspace=backend` (95 passed), `npm run test --workspace=frontend` (80 passed), `npm run build --workspace=backend`, and `npm run build --workspace=frontend` are green.
 
 #### Done (2026-04-21)
 - Fixed optimistic session merge ordering to sort messages chronologically by timestamp (with id fallback), preventing lexicographic-id reordering when multiple messages arrive.
@@ -1690,9 +1711,9 @@ NODE_PATH=/usr/bin/node
 
 - [x] Implement `config.ts` with Zod validation
 - [x] Implement `jsonl.ts` parser (single source of truth)
-- [x] Replace legacy `sdk/bridge.ts` AgentSession wrapper with runner/orchestrator process architecture
-- [x] Implement `sdk/factory.ts` for per-CWD session creation
-- [x] Implement `sdk/events.ts` event mapping (SDK → SSE)
+- [x] Replace legacy `runner/runner.ts` AgentSession wrapper with runner/orchestrator process architecture
+- [x] Implement `runner/factory.ts` for per-CWD session creation
+- [x] Implement `runner/events.ts` event mapping (runner → SSE)
 - [x] Implement `sessions/store.ts` in-memory session store
 - [x] Implement `models/resolver.ts` model resolution
 - [x] Implement `sse/manager.ts` client registry + broadcast
@@ -1702,7 +1723,7 @@ NODE_PATH=/usr/bin/node
 - [x] Implement `api/models.ts` REST routes
 - [x] Implement `server.ts` Express bootstrap
 - [x] Wire everything together
-- [x] Write unit tests for: config, jsonl, bridge, manager, store
+- [x] Write unit tests for: config, jsonl, runner, manager, store
 - [x] Write integration tests for: prompt flow, abort, session CRUD
 - [x] **Gate**: Can send prompt via curl, receive SSE events, abort works ✅
 
@@ -1755,7 +1776,7 @@ NODE_PATH=/usr/bin/node
 - [ ] Zero `any` types in new code
 - [ ] All tests pass
 - [ ] No component > 200 lines
-- [ ] No file > 250 lines (except maybe bridge.ts)
+- [ ] No file > 250 lines (except maybe runner.ts)
 - [ ] No dead code
 - [ ] No hardcoded paths
 - [ ] README updated with quick start
@@ -1781,7 +1802,7 @@ NODE_PATH=/usr/bin/node
 |------|-----------|
 | **CWD** | Current Working Directory - the project directory the agent operates in |
 | **Session** | A conversation thread with the AI agent, persisted as JSONL |
-| **AgentSession** | SDK class that manages a single session |
+| **AgentSession** | runner class that manages a single session |
 | **SdkBridge** | Our wrapper around AgentSession (event forwarding, error handling) |
 | **SSE** | Server-Sent Events - unidirectional streaming over HTTP |
 | **JSONL** | JSON Lines - one JSON object per line in session files |
@@ -1792,8 +1813,8 @@ NODE_PATH=/usr/bin/node
 
 | Resource | Link/Path |
 |----------|-----------|
-| SDK npm package | `@mariozechner/pi-coding-agent` |
-| SDK session files | `~/.pi/agent/sessions/*.jsonl` |
+| Pi runner | `Pi CLI` |
+| runner session files | `~/.pi/agent/sessions/*.jsonl` |
 | Current project | `/home/manu/pi-web-app` |
 | systemd service | `/etc/systemd/system/pi-web.service` |
 | nginx config | `/etc/nginx/sites-available/pi-web` |
@@ -1803,7 +1824,7 @@ NODE_PATH=/usr/bin/node
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| SDK API changes | High | Pin SDK version, write adapter tests |
+| runner API changes | High | Pin runner version, write adapter tests |
 | JSONL format changes | High | Single parser module, test with real session files |
 | SSE connection instability | Medium | Robust reconnection, fallback to polling (future) |
 | Scope creep | Medium | Strict V1 boundary, defer features to V2+ |

@@ -12,6 +12,7 @@ export interface SessionLifecycleReducerDeps {
   updateSession: (id: string, updates: Partial<SessionInfo>) => void;
   setStreaming: (state: StreamingState) => void;
   setStatusMessage: (message: string) => void;
+  setError?: (message: string) => void;
 }
 
 function patchSessionStatus(directory: string | undefined, sessionId: string, status: SyncSessionStatus): void {
@@ -61,9 +62,7 @@ function patchSessionMessages(directory: string | undefined, sessionId: string, 
 }
 
 function patchSessionAttention(directory: string | undefined, sessionId: string, kind: 'permission' | 'question', payload: SsePayload): void {
-  if (!directory) {
-    return;
-  }
+  if (!directory) return;
 
   const childStores = getSyncChildStores();
   childStores.ensureChild(directory, { bootstrap: false });
@@ -72,6 +71,20 @@ function patchSessionAttention(directory: string | undefined, sessionId: string,
     [kind]: {
       ...state[kind],
       [sessionId]: [...(state[kind][sessionId] ?? []), payload],
+    },
+  }));
+}
+
+function clearResolvedQuestion(directory: string | undefined, sessionId: string, questionId: string): void {
+  if (!directory) return;
+  getSyncChildStores().update(directory, (state) => ({
+    ...state,
+    question: {
+      ...state.question,
+      [sessionId]: (state.question[sessionId] ?? []).filter((item) => {
+        if (!item || typeof item !== 'object') return true;
+        return (item as { questionId?: unknown }).questionId !== questionId;
+      }),
     },
   }));
 }
@@ -134,7 +147,16 @@ export function reduceSessionLifecyclePayloads(
     deps.setStreaming('streaming');
     deps.setStatusMessage(finalPayload.message ?? (finalPayload.type === 'permission' ? 'Permission needed' : 'Question pending'));
   } else if (finalPayload.type === 'status') {
-    deps.updateSession(finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    const resolvedQuestionId = typeof finalPayload.metadata?.resolvedQuestionId === 'string' ? finalPayload.metadata.resolvedQuestionId : '';
+    if (resolvedQuestionId) {
+      clearResolvedQuestion(deps.directory, finalPayload.sessionId, resolvedQuestionId);
+    }
+    const sessionName = typeof finalPayload.metadata?.sessionName === 'string' ? finalPayload.metadata.sessionName.trim() : '';
+    deps.updateSession(finalPayload.sessionId, {
+      status: nextStatusType,
+      ...(sessionName ? { title: sessionName } : {}),
+      updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
+    });
     deps.setStatusMessage(finalPayload.message ?? finalPayload.status ?? 'Working');
     if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
       deps.setStreaming('streaming');
@@ -151,9 +173,11 @@ export function reduceSessionLifecyclePayloads(
       viewed: false,
     });
   } else if (finalPayload.type === 'error') {
+    const message = finalPayload.message?.trim() || 'Unknown error';
     deps.updateSession(finalPayload.sessionId, { status: 'error', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('error');
-    deps.setStatusMessage('Error');
+    deps.setStatusMessage(message);
+    deps.setError?.(message);
     appendNotification({
       type: 'error',
       session: finalPayload.sessionId,

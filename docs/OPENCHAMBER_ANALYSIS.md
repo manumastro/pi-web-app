@@ -698,7 +698,7 @@ const addItem = useMyStore((s) => s.addItem);
 | Package | Purpose |
 |---------|---------|
 | `zustand` | State management |
-| `@opencode-ai/sdk` | SDK types and utilities |
+| OpenCode package | Types and utilities |
 | `motion` | Animations |
 | `fuse.js` | Fuzzy search |
 | `dompurify` | HTML sanitization |

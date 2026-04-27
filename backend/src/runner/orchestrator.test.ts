@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createSessionStore } from '../sessions/store.js';
-import type { SseEvent } from '../sdk/events.js';
+import type { SseEvent } from '../events.js';
 import type { SseManager } from '../sse/manager.js';
 import { RunnerProcessClient } from './child-process.js';
 import { createRunnerOrchestrator, type RunnerOrchestrator } from './orchestrator.js';
@@ -105,7 +105,7 @@ describe('RunnerOrchestrator', () => {
         nodeEnv: 'test',
         homeDir: '/tmp',
         sessionsDir: '/tmp/pi-web-test/sessions',
-        sdkCwd: '/tmp/project',
+        piCwd: '/tmp/project',
         model: 'p/a',
         corsOrigins: [],
         logLevel: 'error',

@@ -5,18 +5,18 @@ import { registerApiRoutes } from './index.js';
 import { createSessionStore } from '../sessions/store.js';
 import type { RunnerOrchestrator } from '../runner/orchestrator.js';
 
-async function withServer(bridge: RunnerOrchestrator, test: (baseUrl: string) => Promise<void>) {
+async function withServer(runner: RunnerOrchestrator, test: (baseUrl: string) => Promise<void>) {
   const app = express();
   app.use(express.json());
   registerApiRoutes(app, {
-    bridge,
+    runner,
     sessionStore: createSessionStore(),
     config: {
       port: 0,
       nodeEnv: 'test',
       homeDir: '/tmp',
       sessionsDir: '/tmp/pi-web-route-test/sessions',
-      sdkCwd: '/tmp',
+      piCwd: '/tmp',
       model: 'p/a',
       corsOrigins: [],
       logLevel: 'error',
@@ -39,12 +39,12 @@ describe('runner-backed API routes', () => {
   const disposables: RunnerOrchestrator[] = [];
 
   afterEach(async () => {
-    await Promise.all(disposables.map((bridge) => bridge.dispose().catch(() => undefined)));
+    await Promise.all(disposables.map((runner) => runner.dispose().catch(() => undefined)));
     disposables.length = 0;
   });
 
   function fakeBridge(overrides: Partial<RunnerOrchestrator> = {}): RunnerOrchestrator {
-    const bridge: RunnerOrchestrator = {
+    const runner: RunnerOrchestrator = {
       listModels: async () => [{
         key: 'p/a',
         id: 'a',
@@ -66,13 +66,13 @@ describe('runner-backed API routes', () => {
       dispose: async () => undefined,
       ...overrides,
     };
-    disposables.push(bridge);
-    return bridge;
+    disposables.push(runner);
+    return runner;
   }
 
   it('returns runner model failures as JSON 503 responses', async () => {
     await withServer(fakeBridge({ listModels: async () => { throw new Error('runner unavailable'); } }), async (baseUrl) => {
-      const response = await fetch(`${baseUrl}/api/models`);
+      const response = await fetch(`${baseUrl}/api/models?sessionId=session-1`);
       const body = await response.json();
 
       expect(response.status).toBe(503);

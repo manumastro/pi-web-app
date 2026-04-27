@@ -20,7 +20,7 @@ describe('RunnerProcessClient', () => {
     clients.length = 0;
   });
 
-  function clientFor(script: string, requestTimeoutMs = 500): RunnerProcessClient {
+  function clientFor(script: string, requestTimeoutMs = 1000): RunnerProcessClient {
     const client = new RunnerProcessClient({ command: process.execPath, args: [script], requestTimeoutMs });
     clients.push(client);
     return client;

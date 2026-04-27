@@ -1,10 +1,10 @@
 import type { Router, Request, Response } from 'express';
 import express from 'express';
-import type { ThinkingLevel } from '@mariozechner/pi-ai';
 import type { RunnerOrchestrator } from '../runner/orchestrator.js';
+import { THINKING_LEVELS, type ThinkingLevel } from '../types/thinking.js';
 import type { PromptRequest } from '../runner/orchestrator.js';
 
-export function createMessagesRouter(bridge: RunnerOrchestrator): Router {
+export function createMessagesRouter(runner: RunnerOrchestrator): Router {
   const router = express.Router();
 
   router.post('/prompt', async (req: Request, res: Response) => {
@@ -14,9 +14,8 @@ export function createMessagesRouter(bridge: RunnerOrchestrator): Router {
       return;
     }
 
-    const allowedThinkingLevels: ThinkingLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
     const thinkingLevelRaw = typeof req.body?.thinkingLevel === 'string' ? req.body.thinkingLevel.trim().toLowerCase() : '';
-    const thinkingLevel = allowedThinkingLevels.includes(thinkingLevelRaw as ThinkingLevel)
+    const thinkingLevel = THINKING_LEVELS.includes(thinkingLevelRaw as ThinkingLevel)
       ? (thinkingLevelRaw as ThinkingLevel)
       : undefined;
 
@@ -32,8 +31,26 @@ export function createMessagesRouter(bridge: RunnerOrchestrator): Router {
     }
 
     try {
-      const result = await bridge.prompt(promptPayload);
+      const result = await runner.prompt(promptPayload);
       res.status(202).json(result);
+    } catch (cause) {
+      const error = cause instanceof Error ? cause.message : String(cause);
+      res.status(500).json({ error });
+    }
+  });
+
+  router.post('/question/answer', async (req: Request, res: Response) => {
+    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : '';
+    const questionId = typeof req.body?.questionId === 'string' ? req.body.questionId : '';
+    const answer = typeof req.body?.answer === 'string' ? req.body.answer.trim() : '';
+    if (!sessionId || !questionId || !answer) {
+      res.status(400).json({ error: 'sessionId, questionId and answer are required' });
+      return;
+    }
+
+    try {
+      await runner.answerQuestion(sessionId, questionId, answer);
+      res.status(202).json({ ok: true });
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);
       res.status(500).json({ error });
@@ -48,7 +65,7 @@ export function createMessagesRouter(bridge: RunnerOrchestrator): Router {
     }
 
     try {
-      await bridge.abort(sessionId);
+      await runner.abort(sessionId);
       res.json({ ok: true });
     } catch (cause) {
       const error = cause instanceof Error ? cause.message : String(cause);

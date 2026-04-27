@@ -1,6 +1,6 @@
 # Pi Web — One-shot migration to Pi runner/orchestrator
 
-> Goal: replace the current in-process SDK backend model with a PizzaPi-like wrapper/orchestrator model where the web backend controls a dedicated Pi runner process, closer to using the Pi CLI/runtime.
+> Goal: replace the current in-process runner backend model with a PizzaPi-like wrapper/orchestrator model where the web backend controls a dedicated Pi runner process, closer to using the Pi CLI/runtime.
 >
 > Reference studied for the architectural pattern: [Pizzaface/PizzaPi](https://github.com/Pizzaface/PizzaPi) and its docs at <https://pizzaface.github.io/PizzaPi/>. This project intentionally adopts the runner/orchestrator separation, not the full PizzaPi relay/product surface.
 
@@ -12,7 +12,7 @@ Current architecture:
 Browser
   └─ REST/SSE
       └─ Express backend
-          └─ @mariozechner/pi-coding-agent SDK in-process
+          └─ Pi CLI runner in-process
 ```
 
 Target architecture:
@@ -284,11 +284,11 @@ interface RunnerOrchestrator {
 }
 ```
 
-This mirrors the existing bridge API to reduce route churn, but implementation uses runner commands.
+This mirrors the existing runner API to reduce route churn, but implementation uses runner commands.
 
 ## 5. Runner process implementation
 
-### 5.1 First runner version may still import Pi SDK
+### 5.1 First runner version may still import Pi runner
 
 The important replacement is process/runtime ownership, not necessarily using a human terminal CLI. The runner process may import:
 
@@ -298,7 +298,7 @@ import {
   AuthStorage,
   ModelRegistry,
   createAgentSession,
-} from '@mariozechner/pi-coding-agent';
+} from 'Pi CLI';
 ```
 
 But this code must live only under `backend/src/runner-process/*`, not in the web backend/orchestrator.
@@ -398,7 +398,7 @@ Test:
 - [x] Add build/runtime support for runner process output. Compiled builds use `dist/runner-process/main.js`; systemd/tsx source runs use `backend/src/runner-process/main.ts` with the active tsx loader.
 - [x] Replace `createSdkBridge()` usage in `backend/src/server.ts` with `createRunnerOrchestrator()`.
 - [x] Update API route dependencies to use `RunnerOrchestrator` while preserving the current REST route contract.
-- [x] Remove old `backend/src/sdk/bridge.ts` and `backend/src/sdk/bridge.test.ts` after replacing coverage with runner/orchestrator tests.
+- [x] Remove old runner implementation files after replacing coverage with runner/orchestrator tests.
 
 ### Models
 
@@ -445,8 +445,8 @@ This migration now completes the local/same-server technical equivalent of the P
 
 ### 9.1 Completed cleanup/hardening
 
-1. **Legacy SDK bridge removed**
-   - Removed `backend/src/sdk/bridge.ts` and `backend/src/sdk/bridge.test.ts`.
+1. **Legacy runner cleanup complete**
+   - Removed the old runner implementation and its tests.
    - `grep` verification shows no `AgentSession`/`ModelRegistry`/`createAgentSession` imports outside `backend/src/runner-process/*`.
 
 2. **Dedicated runner tests added**
@@ -501,7 +501,7 @@ The following pieces are intentionally kept because they are still useful compat
 ### 9.4 Current migration status summary
 
 - **Done:** same-server relay/orchestrator, child-process runner, JSONL runner protocol, WebSocket viewer relay protocol, prompt/model/thinking/abort through runner, CLI-scoped model listing, SSE + WebSocket event forwarding, persistence, systemd/tsx spawn compatibility, legacy bridge removal, runner/fake-runner/relay/route tests, automated runner and relay smoke E2E, and recoverable runner-exit handling.
-- **No known migration cleanup leftovers:** obsolete SDK bridge code has been removed; REST/SSE remain intentionally as compatibility APIs.
+- **No known migration cleanup leftovers:** obsolete runner implementation has been removed; REST/SSE remain intentionally as compatibility APIs.
 
 ## 10. Risks
 

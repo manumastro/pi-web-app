@@ -30,8 +30,10 @@ export function createSessionsRouter(sessionStore: SessionStore, homeDir: string
     const cwd = resolveCwd(rawCwd, homeDir);
     const model = typeof req.body?.model === 'string' ? req.body.model : undefined;
     const id = typeof req.body?.id === 'string' ? req.body.id : undefined;
+    const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
     const session = sessionStore.createSession(cwd, model, id);
-    res.status(201).json({ session });
+    const created = title.length > 0 ? (sessionStore.updateSession(session.id, { title }) ?? session) : session;
+    res.status(201).json({ session: created });
   });
 
   router.get('/:id', (req: Request, res: Response) => {

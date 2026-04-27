@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { SseEvent } from '../sdk/events.js';
+import type { SseEvent } from '../events.js';
 
 export interface StoredSseEvent {
   id: number;

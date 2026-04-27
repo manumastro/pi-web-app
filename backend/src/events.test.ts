@@ -85,7 +85,7 @@ describe('events', () => {
         type: 'error',
         sessionId: 'session_123',
         message: 'Something went wrong',
-        category: 'sdk',
+        category: 'runner',
         recoverable: true,
         timestamp: '2026-04-15T10:00:00Z',
       };
@@ -95,7 +95,7 @@ describe('events', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.type).toBe('error');
-        expect(result.data.category).toBe('sdk');
+        expect(result.data.category).toBe('runner');
         expect(result.data.recoverable).toBe(true);
       }
     });
@@ -211,7 +211,7 @@ describe('events', () => {
     });
 
     it('ErrorEventSchema should validate error categories', () => {
-      const categories = ['network', 'auth', 'provider', 'sdk', 'unknown'];
+      const categories = ['network', 'auth', 'provider', 'runner', 'unknown'];
 
       for (const category of categories) {
         const valid = {
@@ -259,9 +259,8 @@ describe('events', () => {
         { type: 'tool_result', sessionId: 's1', messageId: 'm1', toolCallId: 't1', result: 'ok', success: true, timestamp: '2026-04-15T10:00:00Z' },
         { type: 'question', sessionId: 's1', messageId: 'm1', questionId: 'q1', question: '?', timestamp: '2026-04-15T10:00:00Z' },
         { type: 'permission', sessionId: 's1', messageId: 'm1', permissionId: 'p1', action: 'read', resource: '/', timestamp: '2026-04-15T10:00:00Z' },
-        { type: 'error', sessionId: 's1', message: 'err', category: 'sdk', recoverable: true, timestamp: '2026-04-15T10:00:00Z' },
+        { type: 'error', sessionId: 's1', message: 'err', category: 'runner', recoverable: true, timestamp: '2026-04-15T10:00:00Z' },
         { type: 'done', sessionId: 's1', messageId: 'm1', aborted: false, timestamp: '2026-04-15T10:00:00Z' },
-        { type: 'session_end', sessionId: 's1', timestamp: '2026-04-15T10:00:00Z' },
       ];
 
       for (const event of eventTypes) {

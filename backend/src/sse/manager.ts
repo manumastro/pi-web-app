@@ -1,6 +1,6 @@
 import type { ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import type { SseEvent } from '../sdk/events.js';
+import type { SseEvent } from '../events.js';
 import { appendSseHistorySync, loadSseHistoriesSync } from './history.js';
 
 export interface SseClient {

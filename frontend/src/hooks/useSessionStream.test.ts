@@ -52,14 +52,16 @@ function Harness({
   onPayloadBatch,
   onConnected,
   onConnectionLost,
+  onGapDetected,
 }: {
   sessionId?: string;
   onPayload: (payload: SsePayload) => void;
   onPayloadBatch?: (payloads: SsePayload[]) => void;
   onConnected: () => void;
   onConnectionLost: () => void;
+  onGapDetected?: (detail: { sessionId: string; lastEventId: string; nextEventId: string }) => void;
 }) {
-  useSessionStream({ sessionId, onPayload, onPayloadBatch, onConnected, onConnectionLost });
+  useSessionStream({ sessionId, onPayload, onPayloadBatch, onConnected, onConnectionLost, onGapDetected });
   useEffect(() => undefined, []);
   return null;
 }
@@ -178,5 +180,46 @@ describe('useSessionStream', () => {
 
     expect(MockEventSource.instances).toHaveLength(2);
     expect(MockEventSource.instances[1]!.url).toContain('lastEventId=42');
+  });
+
+  it('detects event-id gaps and reports them for snapshot recovery', async () => {
+    const onPayload = vi.fn();
+    const onConnected = vi.fn();
+    const onConnectionLost = vi.fn();
+    const onGapDetected = vi.fn();
+
+    render(
+      React.createElement(Harness, {
+        sessionId: 'session-1',
+        onPayload,
+        onConnected,
+        onConnectionLost,
+        onGapDetected,
+      }),
+    );
+
+    const instance = MockEventSource.instances[0]!;
+    instance.emit('text_chunk', {
+      type: 'text_chunk',
+      sessionId: 'session-1',
+      messageId: 'm1',
+      content: 'A',
+      timestamp: '2026-04-15T10:00:00.000Z',
+    }, '10');
+    instance.emit('text_chunk', {
+      type: 'text_chunk',
+      sessionId: 'session-1',
+      messageId: 'm1',
+      content: 'B',
+      timestamp: '2026-04-15T10:00:00.001Z',
+    }, '13');
+
+    await vi.advanceTimersByTimeAsync(16);
+
+    expect(onGapDetected).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      lastEventId: '10',
+      nextEventId: '13',
+    });
   });
 });

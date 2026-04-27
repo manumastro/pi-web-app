@@ -49,19 +49,19 @@ Out of scope for UX parity:
 - [x] Visible abort/stop control.
 - [x] Tool cards expose status, type-specific icons, expandable formatted args/output, and copy controls.
 - [ ] Tool cards still need richer per-tool metadata, duration/progress, and write/diff previews.
-- [ ] Pending question UI.
-- [ ] Permission approve/deny UI.
+- [x] Pending question UI with answer transport.
+- [x] Permission request UI shell remains visible-only by request; approve/deny transport intentionally not implemented.
 - [ ] Busy queue/follow-up state.
 - [ ] Todo panel/inline todos.
 
 ### Phase 4 — Workspace panels
 
 - [x] PizzaPi-like dock panel shell for Files/Terminal/Git buttons in the main app chrome.
-- [ ] File explorer with read-only file viewer.
-- [ ] Terminal panel scoped to CWD.
-- [ ] Git panel with branch/status/diff.
+- [x] File explorer with read-only file viewer.
+- [x] Terminal panel scoped to CWD with streaming output and kill support.
+- [x] Git panel with branch/status/diff.
 - [ ] Logs/runtime panel.
-- [ ] Dockable/resizable layout persisted in localStorage.
+- [x] Dockable layout persisted in localStorage (open panel persists; width/position still deferred).
 
 ### Phase 5 — Preferences/model/product polish
 
@@ -83,59 +83,46 @@ The first UX-parity increment completes the reliability foundation visible to us
 - Command palette opens with `Cmd/Ctrl+K` and runs new-session/session/project/model commands.
 - Tool cards now display explicit status and copy input/output content.
 - Cloned PizzaPi to `~/PizzaPi` for direct UI reference and began matching visible chrome 1:1: PizzaPi logo/brand, relay status header/sidebar, dark neutral PizzaPi tokens, session active chase border, header action cluster, and dock-panel shell for Files/Terminal/Git.
+- Fixed session-list polish regressions: the active PizzaPi chase border is restored for the selected session, and first prompts now auto-name untitled sessions on both backend persistence and optimistic frontend state.
+- Replaced placeholder dock contents with real scoped workspace panels: Files lists/reads project files safely, Terminal can run a cwd-scoped command, and Git shows branch/status plus diffs.
+- Added pending question/permission attention cards above the composer, wired question answers through REST → orchestrator → runner protocol, intentionally left permission approval transport out, and persisted the last open workspace dock panel in localStorage.
+- Replaced direct runner-process runner usage with Pi RPC mode subprocesses (`pi --mode rpc`) per web session, matching the documented headless CLI/runtime transport instead of importing `Pi CLI` in backend source.
+- Upgraded Terminal dock from one-shot command output to SSE streaming output with kill support.
 
 Verification for this increment:
 
 - `npm run lint --workspace=frontend`
 - `npm run test --workspace=frontend` → 79 tests passing
 - `npm run build --workspace=frontend`
+- `npm run build --workspace=backend`
+- `npm run test --workspace=backend` → 95 tests passing
 
 ## Immediate remaining steps
 
 Continue strict PizzaPi UI/UX replication in this order:
 
-1. **Real File Explorer panel**
-   - Backend endpoints for listing the selected CWD tree and reading files safely.
-   - Frontend tree view in the existing Files dock panel.
-   - Read-only file viewer with refresh.
+1. **Workspace panel hardening**
    - Highlight files touched by agent tool calls.
+   - Add multiple terminal tabs/history on top of the streaming process session.
+   - Add dock width/position persistence and richer mobile bottom-sheet behavior.
 
-2. **Real Terminal panel**
-   - Backend terminal process/session API scoped to CWD.
-   - Streaming terminal output in the Terminal dock panel.
-   - Input support and kill process.
-   - Multiple terminal tabs can stay P2 if needed.
+2. **Pending question/permission hardening**
+   - Support multiple-choice question answers when payloads include options.
+   - Keep permission request transport intentionally deferred until explicitly needed.
+   - Remember safe permission choices per session/project only if supported by the runner and enabled later.
 
-3. **Real Git panel**
-   - Backend git status/branch/diff endpoints scoped to CWD.
-   - Frontend changed-files list.
-   - Diff viewer.
-   - Stage/commit can remain deferred until read-only UX is solid.
-
-4. **Pending question UI**
-   - Render agent questions inline or modal like PizzaPi.
-   - Support free-text and multiple-choice answers.
-   - Keep question state when switching sessions.
-   - Sidebar badge for sessions awaiting answer.
-
-5. **Permission approve/deny UI**
-   - Render sensitive action details before approval.
-   - Approve/deny actions from chat UI.
-   - Remember choice per session/project only if safe.
-   - Sidebar badge for sessions awaiting permission.
-
-6. **Dock layout persistence**
-   - Persist open panel, position, and width in localStorage.
+3. **Dock layout persistence**
+   - Persist position and width in localStorage.
    - Mobile bottom-sheet behavior for panels.
    - Later: full PizzaPi-style multi-position dock layout.
 
-7. **Richer tool/runtime cards**
+4. **Richer tool/runtime cards**
    - Tool duration/progress.
    - Per-tool metadata and icons matching PizzaPi more closely.
    - Write/edit diff preview.
    - Better failed-tool recovery/retry affordances.
 
-8. **Final product polish**
+5. **Final product polish**
    - Preferences dialog parity: theme, density, default model, thinking visibility, shortcuts.
    - Usage/context indicator.
    - Browser notifications for background completion/input-required.

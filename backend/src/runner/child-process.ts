@@ -62,7 +62,12 @@ export class RunnerProcessClient extends EventEmitter {
       this.emit('error', cause);
     });
 
-    child.on('exit', (code, signal) => {
+    let terminated = false;
+    const terminate = (code: number | null, signal: NodeJS.Signals | null) => {
+      if (terminated) {
+        return;
+      }
+      terminated = true;
       this.child = null;
       const error = new Error(`Pi runner exited with code ${String(code)} signal ${String(signal)}`);
       for (const [, pending] of this.pending) {
@@ -71,7 +76,10 @@ export class RunnerProcessClient extends EventEmitter {
       }
       this.pending.clear();
       this.emit('exit', { code, signal });
-    });
+    };
+
+    child.on('exit', terminate);
+    child.on('close', terminate);
   }
 
   async stop(): Promise<void> {
@@ -90,6 +98,9 @@ export class RunnerProcessClient extends EventEmitter {
     const child = this.child;
     if (!child) {
       return Promise.reject(new Error('Pi runner is not running'));
+    }
+    if (child.exitCode !== null || child.signalCode !== null) {
+      return Promise.reject(new Error(`Pi runner exited with code ${String(child.exitCode)} signal ${String(child.signalCode)}`));
     }
 
     return new Promise<RunnerCommandResult>((resolve, reject) => {

@@ -22,8 +22,8 @@ describe('config', () => {
       delete process.env.PORT;
       delete process.env.NODE_ENV;
       delete process.env.SESSIONS_DIR;
-      delete process.env.SDK_CWD;
-      delete process.env.SDK_MODEL;
+      delete process.env.PI_CWD;
+      delete process.env.PI_MODEL;
       delete process.env.CORS_ORIGINS;
       delete process.env.LOG_LEVEL;
 
@@ -34,7 +34,7 @@ describe('config', () => {
       expect(config.nodeEnv).toBe('development');
       expect(config.homeDir).toBe(process.env.HOME ?? '/home/manu');
       expect(config.sessionsDir).toBe(path.join(process.env.HOME ?? '/home/manu', '.pi/agent/sessions'));
-      expect(config.sdkCwd).toBe(process.env.HOME ?? '/home/manu');
+      expect(config.piCwd).toBe(process.env.HOME ?? '/home/manu');
       expect(config.logLevel).toBe('info');
     });
 
@@ -42,8 +42,8 @@ describe('config', () => {
       process.env.PORT = '4000';
       process.env.NODE_ENV = 'production';
       process.env.SESSIONS_DIR = '/custom/sessions';
-      process.env.SDK_CWD = '/custom/cwd';
-      process.env.SDK_MODEL = 'gpt-4';
+      process.env.PI_CWD = '/custom/cwd';
+      process.env.PI_MODEL = 'gpt-4';
       process.env.CORS_ORIGINS = 'http://example.com,https://app.example.com';
       process.env.LOG_LEVEL = 'debug';
 
@@ -53,7 +53,7 @@ describe('config', () => {
       expect(config.port).toBe(4000);
       expect(config.nodeEnv).toBe('production');
       expect(config.sessionsDir).toBe('/custom/sessions');
-      expect(config.sdkCwd).toBe('/custom/cwd');
+      expect(config.piCwd).toBe('/custom/cwd');
       expect(config.model).toBe('gpt-4');
       expect(config.corsOrigins).toEqual(['http://example.com', 'https://app.example.com']);
       expect(config.logLevel).toBe('debug');
@@ -106,7 +106,7 @@ describe('config', () => {
       expect(config).toHaveProperty('nodeEnv');
       expect(config).toHaveProperty('homeDir');
       expect(config).toHaveProperty('sessionsDir');
-      expect(config).toHaveProperty('sdkCwd');
+      expect(config).toHaveProperty('piCwd');
       expect(config).toHaveProperty('model');
       expect(config).toHaveProperty('corsOrigins');
       expect(config).toHaveProperty('logLevel');

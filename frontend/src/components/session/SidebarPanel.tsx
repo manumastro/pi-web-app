@@ -54,6 +54,8 @@ interface SidebarPanelProps {
   selectedDirectory: string;
   selectedSessionId: string;
   homeDirectory: string;
+  relayStatusMessage?: string;
+  relayConnected?: boolean;
   sidebarOpen?: boolean;
   mobileVariant?: boolean;
   onDirectorySelect: (cwd: string) => void;
@@ -113,6 +115,15 @@ function getSessionStatusBadge(status: string): { label: string; className: stri
   }
 }
 
+function isSessionWorking(status: string): boolean {
+  return status === 'busy'
+    || status === 'prompting'
+    || status === 'answering'
+    || status === 'retry'
+    || status === 'waiting_question'
+    || status === 'waiting_permission';
+}
+
 function ProjectMenu({
   project,
   isHomeProject,
@@ -157,6 +168,8 @@ export function SidebarPanel({
   selectedDirectory,
   selectedSessionId,
   homeDirectory,
+  relayStatusMessage = 'Relay connected',
+  relayConnected = true,
   sidebarOpen = true,
   mobileVariant = false,
   onDirectorySelect,
@@ -236,7 +249,7 @@ export function SidebarPanel({
             <PizzaLogo className="pizza-logo-sidebar" />
             <div>
               <div className="pizzapi-sidebar-brand-title">PizzaPi</div>
-              <div className="pizzapi-sidebar-brand-subtitle"><span className="pizzapi-live-dot" /> Relay connected</div>
+              <div className="pizzapi-sidebar-brand-subtitle" title={relayStatusMessage}><span className="pizzapi-live-dot" style={!relayConnected ? { opacity: 0.45 } : undefined} /> {relayStatusMessage}</div>
             </div>
           </div>
           {!mobileVariant ? (
@@ -481,7 +494,12 @@ export function SidebarPanel({
                     ) : (
                       <button
                         type="button"
-                        className={cn('session-item w-full pr-8', compactSessions && 'compact', session.id === selectedSessionId && 'active')}
+                        className={cn(
+                          'session-item w-full pr-8',
+                          compactSessions && 'compact',
+                          session.id === selectedSessionId && 'active',
+                          session.id === selectedSessionId && isSessionWorking(session.status) && 'session-item-working',
+                        )}
                         onClick={() => onSessionSelect(session.id)}
                         title={session.title || 'Untitled Session'}
                       >

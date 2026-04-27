@@ -1,15 +1,10 @@
 /**
- * SSE Event types and Zod schemas for runtime validation
- * All events are validated using Zod before processing
+ * Event types and Zod schemas for runtime validation.
+ * All events are validated using Zod before processing.
  */
 
 import { z } from 'zod';
 
-/**
- * SSE Event Types
- */
-
-// Text chunk event - streaming text updates
 export const TextChunkEventSchema = z.object({
   type: z.literal('text_chunk'),
   sessionId: z.string(),
@@ -17,10 +12,8 @@ export const TextChunkEventSchema = z.object({
   content: z.string(),
   timestamp: z.string().datetime(),
 });
-
 export type TextChunkEvent = z.infer<typeof TextChunkEventSchema>;
 
-// Thinking event - AI reasoning visibility
 export const ThinkingEventSchema = z.object({
   type: z.literal('thinking'),
   sessionId: z.string(),
@@ -29,10 +22,8 @@ export const ThinkingEventSchema = z.object({
   done: z.boolean(),
   timestamp: z.string().datetime(),
 });
-
 export type ThinkingEvent = z.infer<typeof ThinkingEventSchema>;
 
-// Tool call event - AI invoking a tool
 export const ToolCallEventSchema = z.object({
   type: z.literal('tool_call'),
   sessionId: z.string(),
@@ -42,10 +33,8 @@ export const ToolCallEventSchema = z.object({
   input: z.record(z.unknown()),
   timestamp: z.string().datetime(),
 });
-
 export type ToolCallEvent = z.infer<typeof ToolCallEventSchema>;
 
-// Tool result event - Tool execution completed
 export const ToolResultEventSchema = z.object({
   type: z.literal('tool_result'),
   sessionId: z.string(),
@@ -55,10 +44,8 @@ export const ToolResultEventSchema = z.object({
   success: z.boolean(),
   timestamp: z.string().datetime(),
 });
-
 export type ToolResultEvent = z.infer<typeof ToolResultEventSchema>;
 
-// Question event - AI asking user a question
 export const QuestionEventSchema = z.object({
   type: z.literal('question'),
   sessionId: z.string(),
@@ -68,10 +55,8 @@ export const QuestionEventSchema = z.object({
   options: z.array(z.string()).optional(),
   timestamp: z.string().datetime(),
 });
-
 export type QuestionEvent = z.infer<typeof QuestionEventSchema>;
 
-// Permission event - AI requesting permission
 export const PermissionEventSchema = z.object({
   type: z.literal('permission'),
   sessionId: z.string(),
@@ -81,22 +66,28 @@ export const PermissionEventSchema = z.object({
   resource: z.string(),
   timestamp: z.string().datetime(),
 });
-
 export type PermissionEvent = z.infer<typeof PermissionEventSchema>;
 
-// Error event - Something went wrong
+export const StatusEventSchema = z.object({
+  type: z.literal('status'),
+  sessionId: z.string(),
+  status: z.string(),
+  message: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
+  timestamp: z.string().datetime(),
+});
+export type StatusEvent = z.infer<typeof StatusEventSchema>;
+
 export const ErrorEventSchema = z.object({
   type: z.literal('error'),
   sessionId: z.string(),
   message: z.string(),
-  category: z.enum(['network', 'auth', 'provider', 'sdk', 'unknown']),
+  category: z.enum(['network', 'auth', 'provider', 'runner', 'unknown']),
   recoverable: z.boolean(),
   timestamp: z.string().datetime(),
 });
-
 export type ErrorEvent = z.infer<typeof ErrorEventSchema>;
 
-// Done event - Response completed
 export const DoneEventSchema = z.object({
   type: z.literal('done'),
   sessionId: z.string(),
@@ -104,19 +95,8 @@ export const DoneEventSchema = z.object({
   aborted: z.boolean(),
   timestamp: z.string().datetime(),
 });
-
 export type DoneEvent = z.infer<typeof DoneEventSchema>;
 
-// Session end event - Session has ended
-export const SessionEndEventSchema = z.object({
-  type: z.literal('session_end'),
-  sessionId: z.string(),
-  timestamp: z.string().datetime(),
-});
-
-export type SessionEndEvent = z.infer<typeof SessionEndEventSchema>;
-
-// Union of all SSE event types
 export const SseEventSchema = z.discriminatedUnion('type', [
   TextChunkEventSchema,
   ThinkingEventSchema,
@@ -124,9 +104,13 @@ export const SseEventSchema = z.discriminatedUnion('type', [
   ToolResultEventSchema,
   QuestionEventSchema,
   PermissionEventSchema,
+  StatusEventSchema,
   ErrorEventSchema,
   DoneEventSchema,
-  SessionEndEventSchema,
 ]);
 
 export type SseEvent = z.infer<typeof SseEventSchema>;
+
+export function parseSseEvent(input: unknown): SseEvent {
+  return SseEventSchema.parse(input);
+}
