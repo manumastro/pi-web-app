@@ -110,6 +110,24 @@ function toModelLike(model: RunnerModelInfo): ModelLike {
   };
 }
 
+function toSessionStatus(status: string): Session['status'] {
+  switch (status) {
+    case 'idle':
+    case 'busy':
+    case 'retry':
+    case 'error':
+    case 'prompting':
+    case 'answering':
+    case 'waiting_question':
+    case 'waiting_permission':
+    case 'paused':
+    case 'done':
+      return status;
+    default:
+      return 'busy';
+  }
+}
+
 function toRunnerHistory(messages: Session['messages']) {
   return messages.map((message) => ({
     role: message.role,
@@ -256,6 +274,17 @@ export function createRunnerOrchestrator(params: {
           });
         }
         break;
+      case 'status':
+        sessionStore.updateSession(event.sessionId, { status: toSessionStatus(event.status) });
+        emit(sseManager, {
+          type: 'status',
+          sessionId: event.sessionId,
+          status: event.status,
+          message: event.message,
+          metadata: event.metadata,
+          timestamp: now(),
+        });
+        break;
       case 'text': {
         const active = activeTurns.get(event.sessionId) ?? { assistantMessageId: event.messageId, assistantContent: '' };
         active.assistantMessageId = event.messageId;
@@ -297,6 +326,13 @@ export function createRunnerOrchestrator(params: {
           input: event.input && typeof event.input === 'object' ? event.input as Record<string, unknown> : { value: event.input },
           timestamp: now(),
         });
+        emit(sseManager, {
+          type: 'status',
+          sessionId: event.sessionId,
+          status: 'busy',
+          message: `Running ${event.toolName}`,
+          timestamp: now(),
+        });
         break;
       case 'tool_result':
         sessionStore.addMessage(event.sessionId, {
@@ -323,6 +359,13 @@ export function createRunnerOrchestrator(params: {
           sessionId: event.sessionId,
           messageId: event.messageId,
           aborted: event.aborted ?? false,
+          timestamp: now(),
+        });
+        emit(sseManager, {
+          type: 'status',
+          sessionId: event.sessionId,
+          status: 'idle',
+          message: event.aborted ? 'CLI stopped' : 'CLI idle',
           timestamp: now(),
         });
         break;

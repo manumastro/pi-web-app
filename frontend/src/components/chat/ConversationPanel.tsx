@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { ChevronDown, ChevronRight, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
   ConversationItem,
@@ -428,6 +429,66 @@ function renderToolEntry(entry: Extract<ToolTurnEntry, { kind: 'tool' }>): React
   );
 }
 
+function ToolBatchPart({ entries }: { entries: Array<Extract<ToolTurnEntry, { kind: 'tool' }>> }): React.ReactElement {
+  const [expanded, setExpanded] = useState(false);
+  const completed = entries.filter((entry) => entry.result).length;
+  const failed = entries.filter((entry) => entry.result && entry.result.success === false).length;
+  const label = failed > 0 ? `${failed} failed` : `${completed}/${entries.length} complete`;
+
+  return (
+    <div className={cn('tool-block', 'tool-batch-block', failed > 0 && 'error')}>
+      <div
+        className={cn('tool-header', failed > 0 && 'tool-header-error')}
+        onClick={() => setExpanded((value) => !value)}
+        role="button"
+        aria-expanded={expanded}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setExpanded((value) => !value);
+          }
+        }}
+      >
+        <span className="tool-toggle-area" aria-hidden="true">
+          {expanded ? <ChevronDown size={14} className="toggle-icon" /> : <ChevronRight size={14} className="toggle-icon" />}
+        </span>
+        <Wrench size={14} className="tool-icon" />
+        <span className={cn('tool-badge', failed > 0 && 'tool-badge-error')}>{entries.length} tool calls</span>
+        <span className={cn('tool-status-pill', failed > 0 ? 'error' : completed === entries.length ? 'success' : 'running')}>{label}</span>
+        {!expanded ? <span className="tool-summary-text">Tap to inspect grouped tool activity</span> : null}
+      </div>
+      {expanded ? <div className="tool-content tool-batch-content">{entries.map(renderToolEntry)}</div> : null}
+    </div>
+  );
+}
+
+function renderTurnEntries(entries: ToolTurnEntry[], showReasoningTraces: boolean): React.ReactElement[] {
+  const rendered: React.ReactElement[] = [];
+  let toolBatch: Array<Extract<ToolTurnEntry, { kind: 'tool' }>> = [];
+
+  const flushTools = () => {
+    if (toolBatch.length === 0) return;
+    if (toolBatch.length >= 3) rendered.push(<ToolBatchPart key={`tool-batch-${toolBatch.map(getToolEntryKey).join('-')}`} entries={toolBatch} />);
+    else rendered.push(...toolBatch.map(renderToolEntry));
+    toolBatch = [];
+  };
+
+  for (const entry of entries) {
+    if (entry.kind === 'tool') {
+      toolBatch.push(entry);
+      continue;
+    }
+
+    flushTools();
+    const node = renderTurnEntry(entry, showReasoningTraces);
+    if (node) rendered.push(node);
+  }
+
+  flushTools();
+  return rendered;
+}
+
 function renderTurnEntry(entry: ToolTurnEntry, showReasoningTraces: boolean): React.ReactElement | null {
   if (entry.kind === 'assistant') {
     return (
@@ -510,7 +571,7 @@ const AssistantTurn = React.memo(function AssistantTurn({
 
             {orderedEntries.length > 0 ? (
               <div className="message-turn-stack">
-                {orderedEntries.map((entry) => renderTurnEntry(entry, showReasoningTraces)).filter((entry): entry is React.ReactElement => Boolean(entry))}
+                {renderTurnEntries(orderedEntries, showReasoningTraces)}
               </div>
             ) : null}
 

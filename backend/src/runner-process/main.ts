@@ -127,6 +127,34 @@ function extractSessionName(value: unknown): string | undefined {
   return undefined;
 }
 
+function pickNumber(record: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  }
+  return undefined;
+}
+
+function extractUsageMetadata(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) return null;
+  const source = isRecord(value.usage) ? value.usage : isRecord(value.metrics) ? value.metrics : isRecord(value.context) ? value.context : value;
+  const inputTokens = pickNumber(source, ['inputTokens', 'promptTokens', 'input_tokens', 'prompt_tokens']);
+  const outputTokens = pickNumber(source, ['outputTokens', 'completionTokens', 'output_tokens', 'completion_tokens']);
+  const totalTokens = pickNumber(source, ['totalTokens', 'tokens', 'total_tokens']);
+  const contextWindow = pickNumber(source, ['contextWindow', 'context_window', 'maxContextTokens']);
+  const contextUsed = pickNumber(source, ['contextUsed', 'contextTokens', 'context_used', 'usedTokens']);
+  const contextPercent = pickNumber(source, ['contextPercent', 'contextPercentage', 'context_percent']);
+  const metadata: Record<string, unknown> = {};
+  if (inputTokens !== undefined) metadata.inputTokens = inputTokens;
+  if (outputTokens !== undefined) metadata.outputTokens = outputTokens;
+  if (totalTokens !== undefined) metadata.totalTokens = totalTokens;
+  if (contextWindow !== undefined) metadata.contextWindow = contextWindow;
+  if (contextUsed !== undefined) metadata.contextUsed = contextUsed;
+  if (contextPercent !== undefined) metadata.contextPercent = contextPercent;
+  return Object.keys(metadata).length > 0 ? metadata : null;
+}
+
 function extractErrorMessage(value: unknown): string {
   if (typeof value === 'string') {
     return value;
@@ -161,11 +189,20 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     return;
   }
 
+  const usageMetadata = extractUsageMetadata(event);
+  if (usageMetadata) {
+    emit({ type: 'status', sessionId: active.sessionId, status: 'busy', message: 'Usage updated', metadata: usageMetadata });
+  }
+
   if (type === 'session_active' || type === 'session_metadata_update') {
     const state = isRecord(event.state) ? event.state : isRecord(event.metadata) ? event.metadata : event;
     const sessionName = extractSessionName(state.sessionName) ?? extractSessionName(event.sessionName);
     if (sessionName) {
       emit({ type: 'session_name', sessionId: active.sessionId, sessionName, timestamp: new Date().toISOString() });
+    }
+    const stateUsageMetadata = extractUsageMetadata(state);
+    if (stateUsageMetadata) {
+      emit({ type: 'status', sessionId: active.sessionId, status: 'busy', message: 'Usage updated', metadata: stateUsageMetadata });
     }
     return;
   }
@@ -349,6 +386,11 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       active.aborted = false;
       const rpcType = command.deliverAs === 'steer' ? 'steer' : command.deliverAs === 'followUp' ? 'follow_up' : 'prompt';
       await sendRpc(active, command.requestId, { type: rpcType, message: command.text });
+      if (active.assistantMessageId) {
+        emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId, aborted: active.aborted });
+        active.assistantMessageId = null;
+        active.aborted = false;
+      }
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       break;
     }

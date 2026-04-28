@@ -139,6 +139,24 @@
 }
 
 /* =============================================
+   TOOL BATCHES
+   ============================================= */
+
+.tool-batch-block {
+  overflow: hidden;
+}
+
+.tool-batch-content {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.5rem;
+}
+
+.tool-batch-content .tool-block {
+  margin: 0;
+}
+
+/* =============================================
    MESSAGE LIST VIRTUALIZATION HELPERS
    ============================================= */
 

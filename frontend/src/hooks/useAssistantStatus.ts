@@ -22,6 +22,23 @@ export interface AssistantStatusSnapshot {
   lifecyclePhase: StreamPhase | null;
 }
 
+function formatUsageMetadata(metadata: Record<string, unknown> | undefined): string | null {
+  if (!metadata) return null;
+  const numberValue = (key: string) => (typeof metadata[key] === 'number' ? metadata[key] as number : undefined);
+  const totalTokens = numberValue('totalTokens');
+  const inputTokens = numberValue('inputTokens');
+  const outputTokens = numberValue('outputTokens');
+  const contextUsed = numberValue('contextUsed');
+  const contextWindow = numberValue('contextWindow');
+  const contextPercent = numberValue('contextPercent');
+  const parts: string[] = [];
+  if (totalTokens !== undefined) parts.push(`${totalTokens.toLocaleString()} tok`);
+  else if (inputTokens !== undefined || outputTokens !== undefined) parts.push(`${inputTokens ?? 0}/${outputTokens ?? 0} tok`);
+  if (contextPercent !== undefined) parts.push(`${Math.round(contextPercent)}% ctx`);
+  else if (contextUsed !== undefined && contextWindow) parts.push(`${Math.round((contextUsed / contextWindow) * 100)}% ctx`);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
 function getLastAssistantRelatedItems(items: ConversationItem[]) {
   let activeToolName: string | undefined;
   let hasPendingTool = false;
@@ -117,10 +134,12 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       label = 'Idle';
     }
 
+    const usageText = formatUsageMetadata(sessionStatus?.metadata);
+
     return {
       activity,
       label,
-      statusText: sessionStatus?.message ?? null,
+      statusText: [sessionStatus?.message, usageText].filter(Boolean).join(' · ') || null,
       isWorking: activity !== 'idle' && activity !== 'complete',
       isStreaming: activity === 'streaming' || activity === 'tooling',
       isCooldown,
