@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import { useSessionUiStore } from '@/stores/sessionUiStore';
+import { useUIStore } from '@/stores/uiStore';
 import { useSessionPermissions, useSessionQuestions, useSessionStatus } from '@/sync/sync-context';
 import { getSessionStatusType } from '@/sync/sessionActivity';
 import { useStreamingSession, type StreamPhase } from '@/sync/streaming';
@@ -81,6 +82,7 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
   const selectedSessionId = useSessionUiStore((state) => state.selectedSessionId);
   const selectedDirectory = useSessionUiStore((state) => state.selectedDirectory);
   const currentSession = useSessionUiStore((state) => state.currentSession);
+  const activeModel = useUIStore((state) => state.models.find((model) => model.key === state.activeModelKey));
   const sessionStatus = useSessionStatus(selectedSessionId, selectedDirectory);
   const permissions = useSessionPermissions(selectedSessionId, selectedDirectory);
   const questions = useSessionQuestions(selectedSessionId, selectedDirectory);
@@ -134,7 +136,8 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       label = 'Idle';
     }
 
-    const usageText = formatUsageMetadata(sessionStatus?.metadata);
+    const modelContextText = activeModel?.contextWindow ? `${Math.round(activeModel.contextWindow / 1000)}k ctx window` : null;
+    const usageText = formatUsageMetadata(sessionStatus?.metadata) ?? modelContextText;
 
     return {
       activity,
@@ -149,5 +152,5 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       activeToolName,
       lifecyclePhase: streaming.phase,
     };
-  }, [conversation, currentSession?.status, permissions.length, questions.length, selectedDirectory, sessionStatus, streaming.phase]);
+  }, [activeModel?.contextWindow, conversation, currentSession?.status, permissions.length, questions.length, selectedDirectory, sessionStatus, streaming.phase]);
 }

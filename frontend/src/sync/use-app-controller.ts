@@ -210,6 +210,8 @@ export function useAppController(): AppController {
         active: Boolean(model.isSelected),
         provider: model.provider ? String(model.provider) : undefined,
         reasoning: Boolean(model.reasoning),
+        contextWindow: typeof model.contextWindow === 'number' ? model.contextWindow : undefined,
+        maxTokens: typeof model.maxTokens === 'number' ? model.maxTokens : undefined,
       };
     });
     setModels(mapped);

@@ -40,6 +40,8 @@ export interface ModelInfo {
   active: boolean;
   provider: string | undefined;
   reasoning: boolean;
+  contextWindow?: number;
+  maxTokens?: number;
 }
 
 export type StreamingState = 'idle' | 'connecting' | 'streaming' | 'error';

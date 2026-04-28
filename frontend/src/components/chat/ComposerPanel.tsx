@@ -109,6 +109,13 @@ function getModelLabel(model: ModelInfo): string {
   return model.label?.trim() || model.key.split('/').pop() || model.key || 'Select model';
 }
 
+function formatTokenWindow(value: number | undefined): string {
+  if (!value || !Number.isFinite(value)) return '';
+  if (value >= 1_000_000) return `${Math.round(value / 100_000) / 10}M`;
+  if (value >= 1_000) return `${Math.round(value / 1000)}k`;
+  return value.toLocaleString();
+}
+
 function normalizeSearchValue(value: string): { lower: string; compact: string; tokens: string[] } {
   const lower = value.toLowerCase().trim();
   return {
@@ -329,6 +336,11 @@ export function ComposerPanel({
   );
 
   const selectedModelLabel = selectedModel?.label?.trim() || (activeModelKey ? activeModelKey.split('/').pop() || activeModelKey : 'Select model');
+  const selectedModelContextLabel = formatTokenWindow(selectedModel?.contextWindow);
+  const selectedModelMaxTokenLabel = formatTokenWindow(selectedModel?.maxTokens);
+  const selectedModelMetaLabel = [selectedModelContextLabel ? `${selectedModelContextLabel} ctx` : '', selectedModelMaxTokenLabel ? `${selectedModelMaxTokenLabel} out` : '']
+    .filter(Boolean)
+    .join(' · ');
   const hasResults = favoriteModels.length > 0 || recentModelItems.length > 0 || filteredProviderGroups.length > 0;
   const forceExpandProviders = searchQuery.trim().length > 0;
 
@@ -900,8 +912,9 @@ export function ComposerPanel({
         ) : (
           <div className="composer-actions composer-actions-mobile composer-actions-mobile-minimal">
             <div className="composer-actions-right composer-actions-right-mobile">
-              <button type="button" className="composer-mobile-pill composer-mobile-model-pill" onClick={() => openMobileControls('model')}>
+              <button type="button" className="composer-mobile-pill composer-mobile-model-pill" onClick={() => openMobileControls('model')} title={selectedModelMetaLabel ? `${selectedModelLabel} · ${selectedModelMetaLabel}` : selectedModelLabel}>
                 <span className="truncate">{selectedModelLabel}</span>
+                {selectedModelContextLabel ? <span className="composer-model-context-chip">{selectedModelContextLabel}</span> : null}
                 <ChevronDown size={12} />
               </button>
               {canSelectThinkingLevel ? (
