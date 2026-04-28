@@ -416,14 +416,16 @@ export function SidebarPanel({
                     <span className="truncate">{formatProjectLabel(project, homeDirectory)}</span>
                     <span className="ml-auto text-[11px] opacity-60">{project.sessionCount}</span>
                   </button>
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                    <ProjectMenu
-                      project={project}
-                      isHomeProject={isHomeProject}
-                      onNewSession={onNewSession}
-                      onCloseProject={() => onProjectRemove(project.cwd)}
-                    />
-                  </div>
+                  {!mobileVariant ? (
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                      <ProjectMenu
+                        project={project}
+                        isHomeProject={isHomeProject}
+                        onNewSession={onNewSession}
+                        onCloseProject={() => onProjectRemove(project.cwd)}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -516,7 +518,7 @@ export function SidebarPanel({
                       </button>
                     )}
 
-                    {!isEditing ? (
+                    {!isEditing && !mobileVariant ? (
                       <div className="absolute right-1 top-1/2 -translate-y-1/2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

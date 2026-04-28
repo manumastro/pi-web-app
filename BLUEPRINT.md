@@ -1690,6 +1690,9 @@ NODE_PATH=/usr/bin/node
 - Mobile composer visual compactness pass: tightened mobile textarea/form padding and heights, reduced pill/send/control sizing, and softened border/background contrast in `frontend/src/styles/chat.css` so the mobile input area is lighter and less bulky while preserving touch-safe 16px typing.
 - PWA baseline for iPhone install: added `frontend/public/manifest.webmanifest`, `frontend/public/sw.js`, generated app icons (`frontend/public/icons/*` including `apple-touch-icon.png`), linked Apple/PWA meta tags + manifest in `frontend/index.html`, and registered the service worker in `frontend/src/main.tsx` (excluding `/api` and `/events` from SW caching).
 - Verification after mobile composer + PWA pass: `npm run lint --workspace=frontend` and `npm run build --workspace=frontend` are green.
+- Mobile UX follow-up: compact-layout composer is now ChatGPT-like minimal (textarea + model/thinking controls + send/stop only), mobile stop uses running-safe abort visibility (`streaming` or `connecting`), and mobile sidebar overlap was reduced by removing floating per-row overflow menus on mobile variant.
+- Additional small-screen + cache hotfix: mobile bottom controls now use a tighter grid to avoid overlap on very narrow widths, sidebar mobile action chips are 2-column/ellipsis-safe, and the PWA service worker is now network-first for app code with immediate activation (`SKIP_WAITING` + `controllerchange` reload) so closing/reopening shows updates promptly.
+- Verification after mobile UX/cache hotfix: `npm run lint --workspace=frontend` (and prior build) are green.
 
 #### Done (2026-04-21)
 - Fixed optimistic session merge ordering to sort messages chronologically by timestamp (with id fallback), preventing lexicographic-id reordering when multiple messages arrive.

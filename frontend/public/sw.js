@@ -1,8 +1,14 @@
-const CACHE_NAME = 'pi-web-v1';
-const CORE_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE_NAME = 'pi-web-v2';
+const CORE_ASSETS = ['/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {
@@ -20,18 +26,20 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
+    fetch(event.request)
+      .then((response) => {
+        const isStaticPwaAsset = url.origin === self.location.origin
+          && response.ok
+          && response.type === 'basic'
+          && (url.pathname === '/manifest.webmanifest' || url.pathname.startsWith('/icons/'));
 
-      return fetch(event.request)
-        .then((response) => {
-          if (url.origin === self.location.origin && response.ok && response.type === 'basic') {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match('/'));
-    }),
+        if (isStaticPwaAsset) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+
+        return response;
+      })
+      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/'))),
   );
 });

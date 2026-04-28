@@ -614,6 +614,23 @@
 }
 
 @media (max-width: 640px) {
+  .session-item {
+    gap: 0.4rem;
+  }
+
+  .session-status-badge {
+    max-width: 1.2rem;
+    padding-inline: 0.2rem;
+    justify-content: center;
+  }
+
+  .session-status-badge > span:last-child {
+    display: none;
+  }
+
+  .session-item-time {
+    font-size: 10px;
+  }
   .command-palette-dialog {
     width: calc(100vw - 1rem);
     max-width: calc(100vw - 1rem);
@@ -1358,7 +1375,7 @@
 
   .sidebar-mobile-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
   }
 
@@ -1367,14 +1384,22 @@
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    min-height: 2.5rem;
-    padding: 0 0.75rem;
+    min-height: 2.4rem;
+    min-width: 0;
+    padding: 0 0.6rem;
     border-radius: 0.95rem;
     border: 1px solid rgba(137, 110, 76, 0.14);
     background: color-mix(in oklab, var(--surface) 56%, transparent);
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 600;
     color: var(--foreground);
+  }
+
+  .sidebar-mobile-action span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .header-action-button {

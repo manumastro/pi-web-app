@@ -220,6 +220,7 @@ export function ComposerPanel({
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const isStreaming = streaming === 'streaming';
+  const canAbort = streaming === 'streaming' || streaming === 'connecting';
   const isCompactLayout = useMediaQuery('(max-width: 1024px)');
   const isEmpty = prompt.trim().length === 0;
   const canSelectThinkingLevel = availableThinkingLevels.length > 0 && typeof onThinkingLevelSelect === 'function';
@@ -872,7 +873,7 @@ export function ComposerPanel({
 
               <span className="composer-build-chip">Build</span>
 
-              {isStreaming ? (
+              {canAbort ? (
                 <button
                   type="button"
                   className="composer-send-button"
@@ -897,81 +898,41 @@ export function ComposerPanel({
             </div>
           </div>
         ) : (
-          <>
-            <div className="mobile-session-status-bar">
-              <button type="button" className="mobile-session-status-chip" onClick={() => openMobileControls('model')}>
-                <span className="mobile-session-status-label">Model</span>
-                <span className="mobile-session-status-value">{selectedModelLabel}</span>
+          <div className="composer-actions composer-actions-mobile composer-actions-mobile-minimal">
+            <div className="composer-actions-right composer-actions-right-mobile">
+              <button type="button" className="composer-mobile-pill" onClick={() => openMobileControls('model')}>
+                <span className="truncate">{selectedModelLabel}</span>
+                <ChevronDown size={12} />
               </button>
               {canSelectThinkingLevel ? (
-                <button type="button" className="mobile-session-status-chip" onClick={() => openMobileControls('thinking')}>
-                  <span className="mobile-session-status-label">Thinking</span>
-                  <span className="mobile-session-status-value">{formatThinkingLabel(selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium')}</span>
+                <button type="button" className="composer-mobile-pill" onClick={() => openMobileControls('thinking')}>
+                  {formatThinkingLabel(selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium')}
                 </button>
               ) : null}
-            </div>
-
-            <div className="composer-actions composer-actions-mobile">
-              <div className="composer-actions-left composer-actions-left-mobile">
+              {canAbort ? (
                 <button
                   type="button"
-                  className="btn btn-ghost btn-icon btn-sm"
-                  aria-label="Add attachment"
-                  title="Add attachment"
-                  onClick={() => {
-                    const fileInput = document.createElement('input');
-                    fileInput.type = 'file';
-                    fileInput.multiple = true;
-                    fileInput.click();
-                  }}
+                  className="composer-send-button"
+                  onClick={() => void onAbort()}
+                  aria-label="Stop"
+                  title="Stop"
                 >
-                  <Plus size={16} />
+                  <Square size={14} />
                 </button>
+              ) : (
                 <button
                   type="button"
-                  className="composer-mobile-pill"
-                  onClick={() => openMobileControls('overview')}
+                  className="composer-send-button"
+                  onClick={() => void onSend()}
+                  disabled={isEmpty}
+                  aria-label="Send"
+                  title="Send"
                 >
-                  <Settings2 size={14} />
-                  <span>Controls</span>
+                  <SendHorizontal size={14} />
                 </button>
-              </div>
-
-              <div className="composer-actions-right composer-actions-right-mobile">
-                <button type="button" className="composer-mobile-pill" onClick={() => openMobileControls('model')}>
-                  <span className="truncate">{selectedModelLabel}</span>
-                  <ChevronDown size={12} />
-                </button>
-                {canSelectThinkingLevel ? (
-                  <button type="button" className="composer-mobile-pill" onClick={() => openMobileControls('thinking')}>
-                    {formatThinkingLabel(selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium')}
-                  </button>
-                ) : null}
-                {isStreaming ? (
-                  <button
-                    type="button"
-                    className="composer-send-button"
-                    onClick={() => void onAbort()}
-                    aria-label="Stop"
-                    title="Stop"
-                  >
-                    <Square size={14} />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="composer-send-button"
-                    onClick={() => void onSend()}
-                    disabled={isEmpty}
-                    aria-label="Send"
-                    title="Send"
-                  >
-                    <SendHorizontal size={14} />
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-          </>
+          </div>
         )}
       </div>
 
