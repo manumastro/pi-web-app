@@ -900,19 +900,19 @@ export function ComposerPanel({
         ) : (
           <div className="composer-actions composer-actions-mobile composer-actions-mobile-minimal">
             <div className="composer-actions-right composer-actions-right-mobile">
-              <button type="button" className="composer-mobile-pill" onClick={() => openMobileControls('model')}>
+              <button type="button" className="composer-mobile-pill composer-mobile-model-pill" onClick={() => openMobileControls('model')}>
                 <span className="truncate">{selectedModelLabel}</span>
                 <ChevronDown size={12} />
               </button>
               {canSelectThinkingLevel ? (
-                <button type="button" className="composer-mobile-pill" onClick={() => openMobileControls('thinking')}>
+                <button type="button" className="composer-mobile-pill composer-mobile-thinking-pill" onClick={() => openMobileControls('thinking')}>
                   {formatThinkingLabel(selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium')}
                 </button>
               ) : null}
               {canAbort ? (
                 <button
                   type="button"
-                  className="composer-send-button"
+                  className="composer-send-button composer-mobile-submit-button"
                   onClick={() => void onAbort()}
                   aria-label="Stop"
                   title="Stop"
@@ -922,7 +922,7 @@ export function ComposerPanel({
               ) : (
                 <button
                   type="button"
-                  className="composer-send-button"
+                  className="composer-send-button composer-mobile-submit-button"
                   onClick={() => void onSend()}
                   disabled={isEmpty}
                   aria-label="Send"

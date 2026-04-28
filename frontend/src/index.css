@@ -2905,3 +2905,50 @@
     .piweb-header-right { gap: 0.25rem; }
   }
 }
+
+/* Final mobile/PWA composer lock: keep model, thinking, and send/stop on one row. */
+@media (max-width: 1024px) {
+  .composer-actions-mobile-minimal,
+  .composer-actions-mobile-minimal .composer-actions-right-mobile {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .composer-actions-mobile-minimal .composer-actions-right-mobile {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(3.9rem, 4.75rem) 2rem !important;
+    align-items: center !important;
+    gap: 0.25rem !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+  }
+
+  .composer-actions-mobile-minimal .composer-mobile-pill,
+  .composer-actions-mobile-minimal .composer-mobile-submit-button {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    white-space: nowrap !important;
+  }
+
+  .composer-actions-mobile-minimal .composer-mobile-model-pill {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+
+  .composer-actions-mobile-minimal .composer-mobile-thinking-pill {
+    width: 100% !important;
+    justify-content: center !important;
+    padding-inline: 0.45rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .composer-actions-mobile-minimal .composer-mobile-submit-button {
+    width: 2rem !important;
+    height: 2rem !important;
+    justify-self: end !important;
+    flex: 0 0 2rem !important;
+    order: 0 !important;
+  }
+}
