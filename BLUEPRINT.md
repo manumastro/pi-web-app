@@ -1692,6 +1692,7 @@ NODE_PATH=/usr/bin/node
 - Verification after mobile composer + PWA pass: `npm run lint --workspace=frontend` and `npm run build --workspace=frontend` are green.
 - Mobile UX follow-up: compact-layout composer is now ChatGPT-like minimal (textarea + model/thinking controls + send/stop only), mobile stop uses running-safe abort visibility (`streaming` or `connecting`), and mobile sidebar overlap was reduced by removing floating per-row overflow menus on mobile variant.
 - Additional small-screen + cache hotfix: mobile bottom controls now use a tighter grid to avoid overlap on very narrow widths, sidebar mobile action chips are 2-column/ellipsis-safe, and the PWA service worker is now network-first for app code with immediate activation (`SKIP_WAITING` + `controllerchange` reload) so closing/reopening shows updates promptly.
+- PWA narrow-width follow-up: enforced single-row mobile composer controls (`model | thinking | send/stop`) with explicit grid columns and standalone-mode overrides to prevent send button wrapping under iPhone PWA viewport quirks.
 - Verification after mobile UX/cache hotfix: `npm run lint --workspace=frontend` (and prior build) are green.
 
 #### Done (2026-04-21)

@@ -338,7 +338,18 @@
   }
 
   .composer-actions-mobile-minimal {
-    justify-content: flex-end;
+    display: block;
+    width: 100%;
+  }
+
+  .composer-actions-mobile-minimal .composer-actions-right-mobile {
+    width: 100%;
+    margin-left: 0;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto 1.95rem;
+    align-items: center;
+    gap: 0.375rem;
+    flex-wrap: nowrap !important;
   }
 
   .composer-actions-left-mobile {
@@ -350,7 +361,7 @@
     width: 100%;
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto 1.95rem;
     align-items: center;
     justify-content: flex-end;
     gap: 0.375rem;
@@ -545,11 +556,15 @@
   }
 
   .composer-actions-right-mobile {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto 1.9rem;
   }
 
   .composer-actions-right-mobile .composer-mobile-pill:last-of-type {
-    max-width: 4.75rem;
+    max-width: 4.5rem;
+  }
+
+  .composer-actions-mobile-minimal .composer-actions-right-mobile {
+    grid-template-columns: minmax(0, 1fr) auto 1.9rem;
   }
 
   .composer-actions-right > .relative {

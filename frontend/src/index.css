@@ -1728,6 +1728,21 @@
     gap: 0.5rem;
   }
 
+  .composer-actions-mobile-minimal {
+    display: block;
+    width: 100%;
+  }
+
+  .composer-actions-mobile-minimal .composer-actions-right-mobile {
+    width: 100%;
+    margin-left: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 1.95rem;
+    align-items: center;
+    gap: 0.375rem;
+    flex-wrap: nowrap;
+  }
+
   .composer-actions-left-mobile,
   .composer-actions-right-mobile {
     min-width: 0;
