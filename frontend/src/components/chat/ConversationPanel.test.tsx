@@ -249,6 +249,47 @@ describe('ConversationPanel', () => {
     expect(container.querySelectorAll('.history-record-static > .tool-block')).toHaveLength(0);
   });
 
+  it('keeps Writing placeholder anchored in the active turn after refresh while tools are still running', () => {
+    const refreshWhileRunningItems: ConversationItem[] = [
+      {
+        kind: 'message',
+        id: 'user-refresh',
+        messageId: 'turn-refresh',
+        role: 'user',
+        content: 'controlla il file',
+        timestamp: '2026-04-28T11:10:00.000Z',
+        status: 'complete',
+      },
+      {
+        kind: 'tool_call',
+        id: 'tool-refresh',
+        toolCallId: 'tool-refresh',
+        messageId: 'turn-refresh',
+        toolName: 'read',
+        input: 'frontend/src/index.css',
+        timestamp: '2026-04-28T11:10:01.000Z',
+      },
+      {
+        kind: 'message',
+        id: 'assistant-refresh',
+        messageId: 'turn-refresh',
+        role: 'assistant',
+        content: '',
+        timestamp: 'streaming',
+        status: 'streaming',
+      },
+    ];
+
+    const { container, getByText } = render(
+      <ConversationPanel items={refreshWhileRunningItems} isWorking workingLabel="Writing..." />,
+    );
+
+    expect(getByText('Writing...')).toBeInTheDocument();
+    expect(container.querySelector('.message-assistant-turn .working-placeholder')).not.toBeNull();
+    expect(container.querySelector('.conversation-working-tail')).toBeNull();
+    expect(container.querySelectorAll('.history-record-static > .tool-block')).toHaveLength(0);
+  });
+
   it('hides reasoning traces when disabled', () => {
     const { container, queryByText } = render(<ConversationPanel items={items} showReasoningTraces={false} />);
 

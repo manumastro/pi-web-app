@@ -50,7 +50,7 @@ describe('runner protocol', () => {
 
   it('accepts all command variants used by the orchestrator', () => {
     const commands = [
-      { type: 'start_session', requestId: '1', sessionId: 's', cwd: '/tmp' },
+      { type: 'start_session', requestId: '1', sessionId: 's', cwd: '/tmp', piSessionId: 'pi-session', piSessionFile: '/tmp/pi-session.jsonl' },
       { type: 'send_input', requestId: '2', sessionId: 's', text: 'hi' },
       { type: 'set_model', requestId: '3', sessionId: 's', model: { provider: 'p', id: 'm' } },
       { type: 'set_thinking_level', requestId: '4', sessionId: 's', level: 'medium' },

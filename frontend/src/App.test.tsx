@@ -47,6 +47,11 @@ const session: SessionInfo = {
   updatedAt: '2026-04-15T10:00:00.000Z',
 };
 
+const busySession: SessionInfo = {
+  ...session,
+  status: 'busy',
+};
+
 beforeEach(() => {
   vi.unstubAllGlobals();
   mockMatchMedia(false);
@@ -182,6 +187,50 @@ describe('App', () => {
     });
 
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeInTheDocument();
+  });
+
+  it('renders the working chat placeholder for a busy session', async () => {
+    apiGetMock.mockImplementation(async (path: string) => {
+      if (path === '/api/config') {
+        return { homeDir: '/tmp', piCwd: '/tmp', sessionsDir: '/tmp/.pi/agent/sessions' };
+      }
+      if (path === '/api/sessions') {
+        return { sessions: [busySession] };
+      }
+      if (path === '/api/sessions/session-1') {
+        return { session: busySession };
+      }
+      if (path === '/api/models?sessionId=session-1') {
+        return {
+          models: [
+            {
+              key: 'anthropic/claude-3-5-sonnet-20241022',
+              id: 'claude-3-5-sonnet-20241022',
+              name: 'Claude 3.5 Sonnet',
+              available: true,
+              isSelected: true,
+              provider: 'anthropic',
+              reasoning: true,
+            },
+          ],
+        };
+      }
+      if (path === '/api/models/session/thinking?sessionId=session-1') {
+        return {
+          currentLevel: 'medium',
+          availableLevels: ['minimal', 'low', 'medium', 'high'],
+        };
+      }
+      throw new Error(`Unexpected apiGet path: ${path}`);
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/writing/i)).toBeInTheDocument();
   });
 
   it('renders and can send a prompt', async () => {

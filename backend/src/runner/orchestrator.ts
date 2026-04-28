@@ -200,6 +200,8 @@ export function createRunnerOrchestrator(params: {
       cwd: session.cwd,
       ...(parsed ? { model: { provider: parsed.provider, id: parsed.modelId } } : {}),
       ...(session.thinkingLevel ? { thinkingLevel: session.thinkingLevel } : {}),
+      ...(session.piSessionId ? { piSessionId: session.piSessionId } : {}),
+      ...(session.piSessionFile ? { piSessionFile: session.piSessionFile } : {}),
       history: toRunnerHistory(session.messages),
     });
     if (!result.ok) throw new Error(result.error ?? 'Failed to start Pi runner session');
@@ -226,6 +228,8 @@ export function createRunnerOrchestrator(params: {
           cwd: event.cwd,
           ...(event.model ? { model: modelKey({ provider: event.model.provider, id: event.model.id }) } : {}),
           ...(event.thinkingLevel ? { thinkingLevel: event.thinkingLevel } : {}),
+          ...(event.piSessionId ? { piSessionId: event.piSessionId } : {}),
+          ...(event.piSessionFile ? { piSessionFile: event.piSessionFile } : {}),
         });
         break;
       case 'session_metadata_update':
@@ -233,6 +237,8 @@ export function createRunnerOrchestrator(params: {
         sessionStore.updateSession(event.sessionId, {
           ...(event.model ? { model: modelKey({ provider: event.model.provider, id: event.model.id }) } : {}),
           ...(event.thinkingLevel ? { thinkingLevel: event.thinkingLevel } : {}),
+          ...(event.piSessionId ? { piSessionId: event.piSessionId } : {}),
+          ...(event.piSessionFile ? { piSessionFile: event.piSessionFile } : {}),
         });
         break;
       case 'model_set_result':

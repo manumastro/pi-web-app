@@ -27,6 +27,8 @@ export interface Message {
   toolName?: string;
   toolCallId?: string;
   success?: boolean;
+  stopReason?: string;
+  errorMessage?: string;
 }
 
 export interface Session {
@@ -35,6 +37,8 @@ export interface Session {
   title?: string;
   model: string | undefined;
   thinkingLevel?: ThinkingLevel;
+  piSessionId?: string;
+  piSessionFile?: string;
   status: SessionStatus;
   messages: Message[];
   createdAt: string;

@@ -10,6 +10,9 @@ const session: Session = {
   id: 'session-persist-1',
   cwd: '/tmp/project',
   model: 'claude-3-5-sonnet-20241022',
+  thinkingLevel: 'medium',
+  piSessionId: 'pi-session-persist-1',
+  piSessionFile: '/tmp/pi-session-persist-1.jsonl',
   status: 'busy',
   messages: [
     { id: 'm1', role: 'user', content: 'hello', timestamp: '2026-04-15T10:00:00.000Z' },

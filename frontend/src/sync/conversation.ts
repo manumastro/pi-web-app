@@ -352,6 +352,7 @@ export function messagesToConversation(messages: SessionMessage[]): Conversation
   const conversation: ConversationItem[] = [];
   let activeTurnId: string | undefined;
   let lastToolCallId: string | undefined;
+  const turnIdByToolCallId = new Map<string, string>();
 
   for (const message of messages) {
     const role = normalizeSessionRole(message.role);
@@ -367,10 +368,12 @@ export function messagesToConversation(messages: SessionMessage[]): Conversation
       const turnId = message.messageId ?? activeTurnId ?? randomId('assistant-turn');
       activeTurnId = turnId;
       lastToolCallId = message.toolCallId ?? message.id;
+      const resolvedToolCallId = message.toolCallId ?? message.id;
+      turnIdByToolCallId.set(resolvedToolCallId, turnId);
       conversation.push({
         kind: 'tool_call',
         id: message.id,
-        toolCallId: message.toolCallId ?? message.id,
+        toolCallId: resolvedToolCallId,
         messageId: turnId,
         toolName: message.toolName ?? 'tool',
         input: formatToolText(message.content, message.toolName),
@@ -380,21 +383,31 @@ export function messagesToConversation(messages: SessionMessage[]): Conversation
     }
 
     if (role === 'tool_result') {
-      const turnId = message.messageId ?? activeTurnId ?? randomId('assistant-turn');
+      const resolvedToolCallId = message.toolCallId ?? lastToolCallId ?? message.id;
+      const turnId = message.messageId
+        ?? (typeof resolvedToolCallId === 'string' ? turnIdByToolCallId.get(resolvedToolCallId) : undefined)
+        ?? activeTurnId
+        ?? randomId('assistant-turn');
+
       const lastItem = conversation.at(-1);
       if (
         lastItem &&
         lastItem.kind === 'tool_result' &&
-        lastItem.messageId === turnId
+        lastItem.messageId === turnId &&
+        lastItem.toolCallId === resolvedToolCallId &&
+        lastItem.result === message.content
       ) {
         continue;
       }
 
       activeTurnId = turnId;
+      if (typeof resolvedToolCallId === 'string') {
+        turnIdByToolCallId.set(resolvedToolCallId, turnId);
+      }
       conversation.push({
         kind: 'tool_result',
         id: `${message.id}-result`,
-        toolCallId: message.toolCallId ?? lastToolCallId ?? message.id,
+        toolCallId: resolvedToolCallId,
         messageId: turnId,
         result: message.content,
         success: message.success ?? true,
@@ -499,9 +512,21 @@ export function rehydrateConversationForSession(
   }
 
   const lastUser = lastUserIndex >= 0 ? conversation[lastUserIndex] : undefined;
-  const assistantTurnId = lastUser && lastUser.kind === 'message' && lastUser.role === 'user' && lastUser.messageId
-    ? lastUser.messageId
-    : randomId('assistant-turn');
+  const latestTurnIdFromConversation = [...conversation].reverse().find((item) => {
+    if (!('messageId' in item)) {
+      return false;
+    }
+    const candidate = item.messageId;
+    return typeof candidate === 'string' && candidate.trim().length > 0;
+  });
+
+  const assistantTurnId = (
+    lastUser && lastUser.kind === 'message' && lastUser.role === 'user' && lastUser.messageId
+      ? lastUser.messageId
+      : undefined
+  )
+    ?? (latestTurnIdFromConversation && 'messageId' in latestTurnIdFromConversation ? latestTurnIdFromConversation.messageId : undefined)
+    ?? randomId('assistant-turn');
 
   return [
     ...conversation,
@@ -613,11 +638,15 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
 
   if (payload.type === 'tool_result') {
     const toolCallId = payload.toolCallId ?? randomId('tool-result');
+    const fallbackTurnId = conversation
+      .find((item): item is ToolCallItem => item.kind === 'tool_call' && item.toolCallId === toolCallId)
+      ?.messageId;
+
     return upsertById(conversation, {
       kind: 'tool_result',
       id: `${toolCallId}-result`,
       toolCallId,
-      messageId: payload.messageId,
+      messageId: payload.messageId ?? fallbackTurnId,
       result: payload.result ?? '',
       success: payload.success ?? true,
       timestamp: payload.timestamp ?? new Date().toISOString(),

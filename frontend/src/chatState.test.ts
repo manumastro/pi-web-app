@@ -42,6 +42,20 @@ describe('conversation', () => {
     expect(conversation[1]).toEqual(expect.objectContaining({ kind: 'message', role: 'assistant', status: 'streaming', content: 'Sto rispondendo...' }));
   });
 
+  it('rehydrates running tool turns by reusing latest turn messageId for synthetic assistant placeholder', () => {
+    const conversation = rehydrateConversationForSession(
+      [
+        { id: 'u1', role: 'user', content: 'leggi file', timestamp: '2026-04-28T09:00:00.000Z', messageId: 'turn-tools' },
+        { id: 't1', role: 'tool_call', content: '{"path":"frontend/src/index.css"}', timestamp: '2026-04-28T09:00:01.000Z', messageId: 'turn-tools', toolCallId: 'call-1', toolName: 'read' },
+      ],
+      'busy',
+    );
+
+    const streamingAssistant = conversation.find((item) => item.kind === 'message' && item.role === 'assistant' && item.status === 'streaming');
+    expect(streamingAssistant).toBeDefined();
+    expect(streamingAssistant).toEqual(expect.objectContaining({ messageId: 'turn-tools', content: '' }));
+  });
+
   it('keeps persisted assistant content intact and keeps tool calls/results attached to the same turn', () => {
     const conversation = messagesToConversation([
       { id: 'u1', role: 'user', content: 'hi', timestamp: '2026-04-15T10:00:00.000Z' },
@@ -74,6 +88,18 @@ describe('conversation', () => {
     }
 
     expect(conversation.some((item) => item.kind === 'thinking')).toBe(false);
+  });
+
+  it('attaches tool_result to the originating tool_call turn when messageId is missing', () => {
+    const conversation = messagesToConversation([
+      { id: 'u1', role: 'user', content: 'run', timestamp: '2026-04-28T10:00:00.000Z', messageId: 'turn-42' },
+      { id: 'tc1', role: 'tool_call', content: 'pwd', timestamp: '2026-04-28T10:00:01.000Z', messageId: 'turn-42', toolCallId: 'call-42', toolName: 'bash' },
+      { id: 'tr1', role: 'tool_result', content: '/home/manu/pi-web-app', timestamp: '2026-04-28T10:00:02.000Z', toolCallId: 'call-42', success: true },
+      { id: 'a1', role: 'assistant', content: 'ok', timestamp: '2026-04-28T10:00:03.000Z', messageId: 'turn-42' },
+    ] as SessionMessage[]);
+
+    const result = conversation.find((item) => item.kind === 'tool_result');
+    expect(result).toEqual(expect.objectContaining({ messageId: 'turn-42', toolCallId: 'call-42' }));
   });
 
   it('appends a prompt with thinking above the assistant draft', () => {

@@ -38,7 +38,7 @@ export const MessageBody: React.FC<MessageBodyProps> = React.memo(function Messa
 // Message content rendering with markdown support
 interface MessageContentProps {
   content: string;
-  status?: 'streaming' | 'complete' | 'aborted';
+  status?: 'streaming' | 'complete' | 'aborted' | 'error';
   role: 'user' | 'assistant' | 'system';
   className?: string;
 }

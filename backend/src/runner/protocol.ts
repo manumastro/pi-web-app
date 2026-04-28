@@ -38,6 +38,8 @@ export const RunnerCommandSchema = z.discriminatedUnion('type', [
     cwd: z.string().min(1),
     model: ModelRefSchema.optional(),
     thinkingLevel: ThinkingLevelSchema.optional(),
+    piSessionId: z.string().min(1).optional(),
+    piSessionFile: z.string().min(1).optional(),
     history: z.array(RunnerHistoryMessageSchema).optional(),
   }),
   BaseCommandSchema.extend({
@@ -98,6 +100,8 @@ export const RunnerEventSchema = z.discriminatedUnion('type', [
     model: ModelRefSchema.nullable(),
     thinkingLevel: ThinkingLevelSchema.optional(),
     availableModels: z.array(ModelInfoSchema),
+    piSessionId: z.string().optional(),
+    piSessionFile: z.string().optional(),
     messages: z.array(RunnerHistoryMessageSchema).optional(),
   }),
   z.object({
@@ -106,6 +110,8 @@ export const RunnerEventSchema = z.discriminatedUnion('type', [
     model: ModelRefSchema.nullable(),
     thinkingLevel: ThinkingLevelSchema.optional(),
     availableModels: z.array(ModelInfoSchema),
+    piSessionId: z.string().optional(),
+    piSessionFile: z.string().optional(),
   }),
   z.object({
     type: z.literal('model_set_result'),

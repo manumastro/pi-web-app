@@ -284,8 +284,9 @@ function handleRpcChunk(active: RpcSession, chunk: Buffer): void {
   }
 }
 
-function spawnRpcSession(sessionId: string, cwd: string): RpcSession {
-  const child = spawn(piCommand, ['--mode', 'rpc'], {
+function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: string): RpcSession {
+  const args = ['--mode', 'rpc', ...(resumeSession ? ['--session', resumeSession] : [])];
+  const child = spawn(piCommand, args, {
     cwd: path.resolve(cwd),
     env: process.env,
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -309,7 +310,7 @@ function spawnRpcSession(sessionId: string, cwd: string): RpcSession {
 }
 
 async function ensureSession(command: Extract<RunnerCommand, { type: 'start_session' }>): Promise<RpcSession> {
-  return sessions.get(command.sessionId) ?? spawnRpcSession(command.sessionId, command.cwd);
+  return sessions.get(command.sessionId) ?? spawnRpcSession(command.sessionId, command.cwd, command.piSessionFile ?? command.piSessionId);
 }
 
 async function emitSessionActive(active: RpcSession): Promise<void> {
@@ -326,6 +327,8 @@ async function emitSessionActive(active: RpcSession): Promise<void> {
     model: active.model,
     thinkingLevel: typeof data.thinkingLevel === 'string' && data.thinkingLevel !== 'off' ? data.thinkingLevel as never : undefined,
     availableModels: modelsFromUnknown(models?.data),
+    ...(typeof data.sessionId === 'string' ? { piSessionId: data.sessionId } : {}),
+    ...(typeof data.sessionFile === 'string' ? { piSessionFile: data.sessionFile } : {}),
   });
 }
 

@@ -7,6 +7,8 @@ export interface SessionMessage {
   toolName?: string;
   toolCallId?: string;
   success?: boolean;
+  stopReason?: string;
+  errorMessage?: string;
 }
 
 export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';

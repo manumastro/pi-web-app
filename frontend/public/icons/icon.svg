@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pi Web">
+  <rect width="512" height="512" rx="112" fill="#151313"/>
+  <rect x="64" y="64" width="384" height="384" rx="96" fill="#1f1c1b" stroke="#cecdc3" stroke-opacity="0.18"/>
+  <path d="M170 170h188v52h-68v120c0 31-20 49-53 49-12 0-24-3-33-8v-50c6 4 14 6 22 6 8 0 12-3 12-11V222h-68z" fill="#da702c"/>
+</svg>

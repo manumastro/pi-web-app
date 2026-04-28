@@ -181,6 +181,10 @@ export default function App() {
     </div>
   ) : null;
 
+  const isChatWorking = assistantStatus.isWorking || interactionStreaming === 'streaming' || interactionStreaming === 'connecting';
+  const chatWorkingLabel = interactionStreaming === 'connecting' ? 'Connecting...' : assistantStatus.label;
+  const chatWorkingStatusText = interactionStreaming === 'connecting' ? 'Connecting...' : assistantStatus.statusText;
+
   const chatContent = selectedSessionId ? (
     <ChatView sessionId={selectedSessionId}>
       {sessionErrorBanner}
@@ -188,9 +192,9 @@ export default function App() {
         items={conversation}
         error={error}
         showReasoningTraces={showReasoningTraces}
-        isWorking={interactionStreaming === 'streaming' || interactionStreaming === 'connecting'}
-        workingLabel={interactionStreaming === 'connecting' ? 'Connecting...' : assistantStatus.label}
-        workingStatusText={interactionStreaming === 'connecting' ? 'Connecting...' : assistantStatus.statusText}
+        isWorking={isChatWorking}
+        workingLabel={chatWorkingLabel}
+        workingStatusText={chatWorkingStatusText}
         workingActivity={assistantStatus.activity}
         activeStreamingMessageId={activeStreamingMessageId}
         activeStreamingPhase={activeStreamingPhase}

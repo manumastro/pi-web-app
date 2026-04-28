@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { Router, Request, Response } from 'express';
 import express from 'express';
 import type { SessionStore, Session } from '../sessions/store.js';
+import { readSessionFileSync } from '../sessions/persistence.js';
 
 function resolveCwd(input: string, homeDir: string): string {
   const trimmed = input.trim();
@@ -17,12 +18,46 @@ function resolveCwd(input: string, homeDir: string): string {
   return trimmed;
 }
 
+function refreshSessionFromPiSnapshot(sessionStore: SessionStore, session: Session): Session {
+  if (!session.piSessionFile) {
+    return session;
+  }
+
+  const snapshot = readSessionFileSync(session.piSessionFile);
+  if (!snapshot) {
+    return session;
+  }
+
+  const updates: Partial<Session> = {
+    status: snapshot.status,
+    messages: snapshot.messages,
+  };
+  if (snapshot.model !== undefined) {
+    updates.model = snapshot.model;
+  }
+  if (snapshot.thinkingLevel !== undefined) {
+    updates.thinkingLevel = snapshot.thinkingLevel;
+  }
+  if (snapshot.piSessionId !== undefined) {
+    updates.piSessionId = snapshot.piSessionId;
+  }
+  if (snapshot.piSessionFile !== undefined) {
+    updates.piSessionFile = snapshot.piSessionFile;
+  }
+  if (!session.title && snapshot.title) {
+    updates.title = snapshot.title;
+  }
+
+  return sessionStore.updateSession(session.id, updates) ?? session;
+}
+
 export function createSessionsRouter(sessionStore: SessionStore, homeDir: string): Router {
   const router = express.Router();
 
   router.get('/', (req: Request, res: Response) => {
     const cwd = typeof req.query.cwd === 'string' ? resolveCwd(req.query.cwd, homeDir) : undefined;
-    res.json({ sessions: sessionStore.listSessions(cwd) });
+    const sessions = sessionStore.listSessions(cwd).map((session) => refreshSessionFromPiSnapshot(sessionStore, session));
+    res.json({ sessions });
   });
 
   router.post('/', (req: Request, res: Response) => {
@@ -43,7 +78,7 @@ export function createSessionsRouter(sessionStore: SessionStore, homeDir: string
       res.status(404).json({ error: 'Session not found' });
       return;
     }
-    res.json({ session });
+    res.json({ session: refreshSessionFromPiSnapshot(sessionStore, session) });
   });
 
   router.get('/:id/messages', (req: Request, res: Response) => {
@@ -53,7 +88,7 @@ export function createSessionsRouter(sessionStore: SessionStore, homeDir: string
       res.status(404).json({ error: 'Session not found' });
       return;
     }
-    res.json({ messages: session.messages });
+    res.json({ messages: refreshSessionFromPiSnapshot(sessionStore, session).messages });
   });
 
   router.put('/:id', (req: Request, res: Response) => {

@@ -33,7 +33,7 @@ async function writeFakeRunner(): Promise<string> {
       if (command.type === 'start_session') {
         const model = command.model ?? { provider: 'p', id: 'a' };
         currentModels.set(command.sessionId, model);
-        out({ type: 'session_active', sessionId: command.sessionId, cwd: command.cwd, model, thinkingLevel: command.thinkingLevel ?? 'medium', availableModels: [{ provider: 'p', id: 'a', name: 'A' }] });
+        out({ type: 'session_active', sessionId: command.sessionId, cwd: command.cwd, model, thinkingLevel: command.thinkingLevel ?? 'medium', availableModels: [{ provider: 'p', id: 'a', name: 'A' }], piSessionId: 'pi-' + command.sessionId, piSessionFile: '/tmp/pi-' + command.sessionId + '.jsonl' });
         out({ type: 'command_result', requestId: command.requestId, ok: true });
         return;
       }
@@ -154,6 +154,8 @@ describe('RunnerOrchestrator', () => {
     const session = sessionStore.getSession('session-1');
     expect(session?.status).toBe('idle');
     expect(session?.title).toBe('Say hello');
+    expect(session?.piSessionId).toBe('pi-session-1');
+    expect(session?.piSessionFile).toBe('/tmp/pi-session-1.jsonl');
     expect(session?.messages.map((message) => [message.role, message.content])).toEqual([
       ['user', 'Say hello'],
       ['tool_call', '{"path":"x"}'],

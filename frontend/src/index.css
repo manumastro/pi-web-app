@@ -2167,10 +2167,12 @@
 }
 
 .working-placeholder {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   min-height: 1.5rem;
+  position: relative;
+  isolation: isolate;
   color: color-mix(in oklab, var(--foreground) 62%, transparent);
 }
 
@@ -2178,9 +2180,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .working-placeholder-label {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  position: static !important;
+  inset: auto !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  margin: 0;
+  line-height: 1.2;
+  white-space: nowrap;
   color: color-mix(in oklab, var(--foreground) 68%, transparent);
 }
 
