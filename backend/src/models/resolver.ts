@@ -105,6 +105,7 @@ export function summarizeModels(params: {
     : models;
 
   return [...visibleModels]
+    .sort((left, right) => left.provider.localeCompare(right.provider) || left.id.localeCompare(right.id))
     .map((model) => {
       const key = modelKey(model);
       return {

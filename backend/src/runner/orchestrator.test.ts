@@ -133,7 +133,7 @@ describe('RunnerOrchestrator', () => {
     expect(models.find((model) => model.key === 'p/a')?.available).toBe(true);
   });
 
-  it('honors configured enabled model order when listing capabilities', async () => {
+  it('filters configured enabled models but keeps CLI provider/model order', async () => {
     const homeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-orchestrator-home-'));
     await fs.mkdir(path.join(homeDir, '.pi', 'agent'), { recursive: true });
     await fs.writeFile(path.join(homeDir, '.pi', 'agent', 'settings.json'), JSON.stringify({ enabledModels: ['p/b', 'p/a'] }));
@@ -141,7 +141,7 @@ describe('RunnerOrchestrator', () => {
 
     const models = await orchestrator.listModels('p/a');
 
-    expect(models.map((model) => model.key)).toEqual(['p/b', 'p/a']);
+    expect(models.map((model) => model.key)).toEqual(['p/a', 'p/b']);
   });
 
   it('dispatches prompts, adapts events, and persists messages', async () => {

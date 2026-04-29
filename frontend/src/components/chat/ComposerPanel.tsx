@@ -167,13 +167,9 @@ function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
     .map(([providerKey, providerModels]) => ({
       providerKey,
       providerLabel: formatProviderLabel(providerKey),
-      models: providerModels.sort((left, right) => {
-        const leftLabel = getModelLabel(left);
-        const rightLabel = getModelLabel(right);
-        return leftLabel.localeCompare(rightLabel) || left.key.localeCompare(right.key);
-      }),
+      models: providerModels.sort((left, right) => left.id.localeCompare(right.id) || left.key.localeCompare(right.key)),
     }))
-    .sort((left, right) => left.providerLabel.localeCompare(right.providerLabel) || left.providerKey.localeCompare(right.providerKey));
+    .sort((left, right) => left.providerKey.localeCompare(right.providerKey));
 }
 
 function filterModelGroup(group: ModelGroup, query: string): ModelGroup | null {

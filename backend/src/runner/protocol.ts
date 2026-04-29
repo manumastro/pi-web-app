@@ -13,6 +13,7 @@ export const ModelInfoSchema = ModelRefSchema.extend({
   name: z.string().optional(),
   reasoning: z.boolean().optional(),
   contextWindow: z.number().optional(),
+  maxTokens: z.number().optional(),
 });
 export type RunnerModelInfo = z.infer<typeof ModelInfoSchema>;
 

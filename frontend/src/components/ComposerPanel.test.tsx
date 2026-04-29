@@ -114,6 +114,32 @@ describe('ComposerPanel', () => {
     expect(onModelSelect).toHaveBeenCalledWith('openai/gpt-4o');
   });
 
+  it('orders provider groups and models like the CLI', async () => {
+    render(
+      <ComposerPanel
+        prompt="hello world"
+        streaming="idle"
+        models={[
+          { key: 'openai/z-model', id: 'z-model', label: 'Z model', available: true, active: false, provider: 'openai', reasoning: false },
+          { key: 'anthropic/b-model', id: 'b-model', label: 'B model', available: true, active: false, provider: 'anthropic', reasoning: true },
+          { key: 'anthropic/a-model', id: 'a-model', label: 'A model', available: true, active: true, provider: 'anthropic', reasoning: true },
+        ]}
+        activeModelKey="anthropic/a-model"
+        onPromptChange={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+        onModelSelect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'A model' }));
+
+    const panel = await screen.findByLabelText('Search models');
+    const menuText = panel.closest('.absolute')?.textContent ?? '';
+    expect(menuText.indexOf('Anthropic')).toBeLessThan(menuText.indexOf('Openai'));
+    expect(menuText.indexOf('A model')).toBeLessThan(menuText.indexOf('B model'));
+  });
+
   it('opens mobile controls in a bottom sheet on compact layouts', async () => {
     mockMatchMedia(true);
 

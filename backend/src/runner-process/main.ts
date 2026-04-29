@@ -22,6 +22,7 @@ interface OfficialRpcClient {
   abort(): Promise<void>;
   getState(): Promise<unknown>;
   getAvailableModels(): Promise<unknown[]>;
+  getSessionStats(): Promise<unknown>;
   setModel(provider: string, modelId: string): Promise<unknown>;
   setThinkingLevel(level: string): Promise<void>;
   getStderr(): string;
@@ -83,7 +84,7 @@ function modelFromUnknown(value: unknown): RunnerModelRef | null {
   return provider && id ? { provider, id } : null;
 }
 
-function modelsFromUnknown(value: unknown): Array<RunnerModelRef & { name?: string; reasoning?: boolean; contextWindow?: number }> {
+function modelsFromUnknown(value: unknown): Array<RunnerModelRef & { name?: string; reasoning?: boolean; contextWindow?: number; maxTokens?: number }> {
   const raw = isRecord(value) && Array.isArray(value.models) ? value.models : Array.isArray(value) ? value : [];
   return raw.flatMap((entry) => {
     if (!isRecord(entry)) return [];
@@ -96,6 +97,7 @@ function modelsFromUnknown(value: unknown): Array<RunnerModelRef & { name?: stri
       ...(typeof entry.name === 'string' ? { name: entry.name } : {}),
       ...(typeof entry.reasoning === 'boolean' ? { reasoning: entry.reasoning } : {}),
       ...(typeof entry.contextWindow === 'number' ? { contextWindow: entry.contextWindow } : {}),
+      ...(typeof entry.maxTokens === 'number' ? { maxTokens: entry.maxTokens } : {}),
     }];
   });
 }
@@ -141,20 +143,38 @@ function pickNumber(record: Record<string, unknown>, keys: string[]): number | u
 function extractUsageMetadata(value: unknown): Record<string, unknown> | null {
   if (!isRecord(value)) return null;
   const source = isRecord(value.usage) ? value.usage : isRecord(value.metrics) ? value.metrics : isRecord(value.context) ? value.context : value;
-  const inputTokens = pickNumber(source, ['inputTokens', 'promptTokens', 'input_tokens', 'prompt_tokens']);
-  const outputTokens = pickNumber(source, ['outputTokens', 'completionTokens', 'output_tokens', 'completion_tokens']);
-  const totalTokens = pickNumber(source, ['totalTokens', 'tokens', 'total_tokens']);
-  const contextWindow = pickNumber(source, ['contextWindow', 'context_window', 'maxContextTokens']);
-  const contextUsed = pickNumber(source, ['contextUsed', 'contextTokens', 'context_used', 'usedTokens']);
-  const contextPercent = pickNumber(source, ['contextPercent', 'contextPercentage', 'context_percent']);
+  const contextUsage = isRecord(value.contextUsage) ? value.contextUsage : isRecord(source.contextUsage) ? source.contextUsage : undefined;
+  const tokenSource = isRecord(value.tokens) ? value.tokens : isRecord(source.tokens) ? source.tokens : source;
+  const inputTokens = pickNumber(tokenSource, ['inputTokens', 'promptTokens', 'input_tokens', 'prompt_tokens', 'input']);
+  const outputTokens = pickNumber(tokenSource, ['outputTokens', 'completionTokens', 'output_tokens', 'completion_tokens', 'output']);
+  const cacheReadTokens = pickNumber(tokenSource, ['cacheRead', 'cache_read']);
+  const cacheWriteTokens = pickNumber(tokenSource, ['cacheWrite', 'cache_write']);
+  const totalTokens = pickNumber(tokenSource, ['totalTokens', 'tokens', 'total_tokens', 'total']);
+  const contextWindow = contextUsage ? pickNumber(contextUsage, ['contextWindow', 'context_window', 'maxContextTokens']) : pickNumber(source, ['contextWindow', 'context_window', 'maxContextTokens']);
+  const contextUsed = contextUsage ? pickNumber(contextUsage, ['tokens', 'contextUsed', 'contextTokens', 'context_used', 'usedTokens']) : pickNumber(source, ['contextUsed', 'contextTokens', 'context_used', 'usedTokens']);
+  const contextPercent = contextUsage ? pickNumber(contextUsage, ['percent', 'contextPercent', 'contextPercentage', 'context_percent']) : pickNumber(source, ['contextPercent', 'contextPercentage', 'context_percent']);
   const metadata: Record<string, unknown> = {};
   if (inputTokens !== undefined) metadata.inputTokens = inputTokens;
   if (outputTokens !== undefined) metadata.outputTokens = outputTokens;
+  if (cacheReadTokens !== undefined) metadata.cacheReadTokens = cacheReadTokens;
+  if (cacheWriteTokens !== undefined) metadata.cacheWriteTokens = cacheWriteTokens;
   if (totalTokens !== undefined) metadata.totalTokens = totalTokens;
   if (contextWindow !== undefined) metadata.contextWindow = contextWindow;
   if (contextUsed !== undefined) metadata.contextUsed = contextUsed;
   if (contextPercent !== undefined) metadata.contextPercent = contextPercent;
   return Object.keys(metadata).length > 0 ? metadata : null;
+}
+
+async function emitSessionStats(active: RpcSession, status = 'idle'): Promise<void> {
+  try {
+    const stats = await active.client.getSessionStats();
+    const metadata = extractUsageMetadata(stats);
+    if (metadata) {
+      emit({ type: 'status', sessionId: active.sessionId, status, message: 'Context usage updated', metadata });
+    }
+  } catch {
+    // Session stats are best-effort; streaming should never fail because of them.
+  }
 }
 
 function extractErrorMessage(value: unknown): string {
@@ -282,6 +302,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
 
   if (type === 'agent_end') {
     completeTurn(active);
+    void emitSessionStats(active, 'idle');
   }
 }
 
@@ -351,6 +372,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
         active.thinkingLevel = requestedThinkingLevel;
       }
       if (!alreadyStarted || modelChanged || thinkingChanged) await emitSessionActive(active);
+      void emitSessionStats(active, 'idle');
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       break;
     }

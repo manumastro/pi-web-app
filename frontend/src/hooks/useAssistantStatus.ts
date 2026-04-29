@@ -23,21 +23,33 @@ export interface AssistantStatusSnapshot {
   lifecyclePhase: StreamPhase | null;
 }
 
+function formatTokens(count: number): string {
+  if (count < 1000) return count.toString();
+  if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+  if (count < 1000000) return `${Math.round(count / 1000)}k`;
+  if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
+  return `${Math.round(count / 1000000)}M`;
+}
+
 function formatUsageMetadata(metadata: Record<string, unknown> | undefined): string | null {
   if (!metadata) return null;
   const numberValue = (key: string) => (typeof metadata[key] === 'number' ? metadata[key] as number : undefined);
-  const totalTokens = numberValue('totalTokens');
   const inputTokens = numberValue('inputTokens');
   const outputTokens = numberValue('outputTokens');
-  const contextUsed = numberValue('contextUsed');
+  const cacheReadTokens = numberValue('cacheReadTokens');
+  const cacheWriteTokens = numberValue('cacheWriteTokens');
   const contextWindow = numberValue('contextWindow');
   const contextPercent = numberValue('contextPercent');
+  const contextUsed = numberValue('contextUsed');
+  const resolvedContextPercent = contextPercent ?? (contextUsed !== undefined && contextWindow ? (contextUsed / contextWindow) * 100 : undefined);
   const parts: string[] = [];
-  if (totalTokens !== undefined) parts.push(`${totalTokens.toLocaleString()} tok`);
-  else if (inputTokens !== undefined || outputTokens !== undefined) parts.push(`${inputTokens ?? 0}/${outputTokens ?? 0} tok`);
-  if (contextPercent !== undefined) parts.push(`${Math.round(contextPercent)}% ctx`);
-  else if (contextUsed !== undefined && contextWindow) parts.push(`${Math.round((contextUsed / contextWindow) * 100)}% ctx`);
-  return parts.length > 0 ? parts.join(' · ') : null;
+  if (inputTokens) parts.push(`↑${formatTokens(inputTokens)}`);
+  if (outputTokens) parts.push(`↓${formatTokens(outputTokens)}`);
+  if (cacheReadTokens) parts.push(`R${formatTokens(cacheReadTokens)}`);
+  if (cacheWriteTokens) parts.push(`W${formatTokens(cacheWriteTokens)}`);
+  if (resolvedContextPercent !== undefined && contextWindow) parts.push(`${resolvedContextPercent.toFixed(1)}%/${formatTokens(contextWindow)}`);
+  else if (contextWindow) parts.push(`?/${formatTokens(contextWindow)}`);
+  return parts.length > 0 ? parts.join(' ') : null;
 }
 
 function getLastAssistantRelatedItems(items: ConversationItem[]) {
