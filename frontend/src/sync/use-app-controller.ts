@@ -702,7 +702,7 @@ export function useAppController(): AppController {
   const handleSystemdRestart = useCallback(async (): Promise<void> => {
     setStatusMessage('Restarting service...');
     try {
-      await apiRequest<{ ok: boolean }>('/api/maintenance/systemd/restart', { method: 'POST' });
+      await apiRequest<{ ok: boolean }>('/api/maintenance/restart', { method: 'POST' });
       setStatusMessage('Service restarted');
       setError('');
     } catch (cause) {

@@ -512,7 +512,8 @@
   transform: none !important;
   margin: 0;
   line-height: 1.2;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   color: color-mix(in oklab, var(--foreground) 68%, transparent);
 }
 

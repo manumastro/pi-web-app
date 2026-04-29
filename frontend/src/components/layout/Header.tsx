@@ -89,6 +89,16 @@ export function Header({
         </div>
 
         <div className="app-header-mobile-right">
+          {systemdRestartEnabled ? (
+            <IconButton
+              title="Restart pi-web service"
+              label="Restart pi-web service"
+              onClick={onRestartService}
+              className="btn btn-ghost btn-icon btn-sm header-mobile-icon-button"
+            >
+              <RefreshCw size={18} />
+            </IconButton>
+          ) : null}
           <IconButton
             title="New session"
             label="New session"

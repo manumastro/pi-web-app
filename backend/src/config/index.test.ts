@@ -36,6 +36,7 @@ describe('config', () => {
       expect(config.sessionsDir).toBe(path.join(process.env.HOME ?? '/home/manu', '.pi/agent/sessions'));
       expect(config.piCwd).toBe(process.env.HOME ?? '/home/manu');
       expect(config.logLevel).toBe('info');
+      expect(config.restartStrategy).toBe('disabled');
     });
 
     it('should use provided env vars when set', async () => {
@@ -46,6 +47,8 @@ describe('config', () => {
       process.env.PI_MODEL = 'gpt-4';
       process.env.CORS_ORIGINS = 'http://example.com,https://app.example.com';
       process.env.LOG_LEVEL = 'debug';
+      process.env.PI_WEB_ALLOW_SYSTEMD_RESTART = 'true';
+      process.env.PI_WEB_RESTART_SCOPE = 'system';
 
       const { loadConfig } = await import('./index.js');
       const config = loadConfig();
@@ -57,6 +60,7 @@ describe('config', () => {
       expect(config.model).toBe('gpt-4');
       expect(config.corsOrigins).toEqual(['http://example.com', 'https://app.example.com']);
       expect(config.logLevel).toBe('debug');
+      expect(config.restartStrategy).toBe('systemd-system');
     });
 
     it('should parse CORS_ORIGINS as comma-separated array', async () => {
@@ -88,6 +92,18 @@ describe('config', () => {
       expect(() => loadConfig()).toThrow('Invalid LOG_LEVEL: must be one of');
     });
 
+    it('should use command restart strategy when command is configured', async () => {
+      process.env.PI_WEB_RESTART_COMMAND = 'echo restart';
+      process.env.PI_WEB_RESTART_STATUS_COMMAND = 'echo active';
+
+      const { loadConfig } = await import('./index.js');
+      const config = loadConfig();
+
+      expect(config.restartStrategy).toBe('command');
+      expect(config.restartCommand).toBe('echo restart');
+      expect(config.restartStatusCommand).toBe('echo active');
+    });
+
     it('should provide default session ID format', async () => {
       const { loadConfig } = await import('./index.js');
       const config = loadConfig();
@@ -110,6 +126,7 @@ describe('config', () => {
       expect(config).toHaveProperty('model');
       expect(config).toHaveProperty('corsOrigins');
       expect(config).toHaveProperty('logLevel');
+      expect(config).toHaveProperty('restartStrategy');
       expect(config).toHaveProperty('sessionIdPrefix');
       expect(config).toHaveProperty('generateSessionId');
     });

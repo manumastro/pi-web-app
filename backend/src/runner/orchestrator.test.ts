@@ -111,6 +111,7 @@ describe('RunnerOrchestrator', () => {
         logLevel: 'error',
         allowSystemdRestart: false,
         systemdServiceName: 'pi-web',
+        restartStrategy: 'disabled',
         sessionIdPrefix: 'test',
         generateSessionId: (() => {
           let index = 0;

@@ -38,8 +38,9 @@ export function createApp() {
       piCwd: config.piCwd,
       sessionsDir: config.sessionsDir,
       systemd: {
-        restartEnabled: config.allowSystemdRestart,
+        restartEnabled: config.restartStrategy !== 'disabled',
         service: config.systemdServiceName,
+        strategy: config.restartStrategy,
       },
     });
   });

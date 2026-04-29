@@ -154,7 +154,7 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
     return {
       activity,
       label,
-      statusText: [sessionStatus?.message, usageText].filter(Boolean).join(' · ') || null,
+      statusText: [usageText, sessionStatus?.message].filter(Boolean).join(' · ') || null,
       isWorking: activity !== 'idle' && activity !== 'complete',
       isStreaming: activity === 'streaming' || activity === 'tooling',
       isCooldown,

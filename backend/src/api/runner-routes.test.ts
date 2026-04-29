@@ -22,6 +22,7 @@ async function withServer(runner: RunnerOrchestrator, test: (baseUrl: string) =>
       logLevel: 'error',
       allowSystemdRestart: false,
       systemdServiceName: 'pi-web',
+      restartStrategy: 'disabled',
       sessionIdPrefix: 'test',
       generateSessionId: () => 'id-1',
     },
@@ -104,7 +105,7 @@ describe('runner-backed API routes', () => {
       const body = await response.json();
 
       expect(response.status).toBe(403);
-      expect(body).toEqual({ error: 'Systemd restart is disabled (set PI_WEB_ALLOW_SYSTEMD_RESTART=true)' });
+      expect(body).toEqual({ error: 'Restart is disabled (set PI_WEB_ALLOW_SYSTEMD_RESTART=true or PI_WEB_RESTART_COMMAND)' });
     });
   });
 });

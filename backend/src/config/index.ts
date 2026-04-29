@@ -17,6 +17,10 @@ export interface Config {
   logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
   allowSystemdRestart: boolean;
   systemdServiceName: string;
+  systemdUser?: string;
+  restartStrategy: 'disabled' | 'systemd-user' | 'systemd-system' | 'command';
+  restartCommand?: string;
+  restartStatusCommand?: string;
   sessionIdPrefix: string;
   generateSessionId: () => string;
 }
@@ -101,6 +105,15 @@ export function loadConfig(): Config {
   const logLevel = parseLogLevel(process.env.LOG_LEVEL);
   const allowSystemdRestart = (process.env.PI_WEB_ALLOW_SYSTEMD_RESTART ?? 'false').toLowerCase() === 'true';
   const systemdServiceName = (process.env.PI_WEB_SYSTEMD_SERVICE ?? 'pi-web').trim() || 'pi-web';
+  const systemdUser = process.env.PI_WEB_SYSTEMD_USER?.trim() || process.env.SUDO_USER?.trim() || undefined;
+  const restartCommand = process.env.PI_WEB_RESTART_COMMAND?.trim() || undefined;
+  const restartStatusCommand = process.env.PI_WEB_RESTART_STATUS_COMMAND?.trim() || undefined;
+  const restartScope = (process.env.PI_WEB_RESTART_SCOPE ?? 'user').trim().toLowerCase();
+  const restartStrategy: Config['restartStrategy'] = restartCommand
+    ? 'command'
+    : allowSystemdRestart
+      ? (restartScope === 'system' ? 'systemd-system' : 'systemd-user')
+      : 'disabled';
 
   return {
     port,
@@ -113,6 +126,10 @@ export function loadConfig(): Config {
     logLevel,
     allowSystemdRestart,
     systemdServiceName,
+    ...(systemdUser ? { systemdUser } : {}),
+    restartStrategy,
+    ...(restartCommand ? { restartCommand } : {}),
+    ...(restartStatusCommand ? { restartStatusCommand } : {}),
     sessionIdPrefix: DEFAULT_SESSION_ID_PREFIX,
     generateSessionId,
   };
