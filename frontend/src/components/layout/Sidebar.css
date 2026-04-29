@@ -1,1 +1,93 @@
-/* Styles for Sidebar.tsx */
+/* Styles for Sidebar.tsx — component-scoped */
+
+/* =============================================
+   SECTION & LIST LAYOUT
+   ============================================= */
+
+.pi-sidebar .sidebar-section {
+  margin-bottom: 0.75rem;
+}
+
+.pi-sidebar .sidebar-project-list,
+.pi-sidebar .sidebar-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* =============================================
+   ROW & ITEM GRID
+   ============================================= */
+
+.pi-sidebar .sidebar-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-height: 2.35rem;
+}
+
+/* Item layout: icon | title | meta */
+.pi-sidebar .directory-item,
+.pi-sidebar .session-item,
+.pi-sidebar .sidebar-project-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.56rem 0.7rem;
+  overflow: hidden;
+}
+
+/* Compact session variant */
+.pi-sidebar .session-item.compact {
+  min-height: 2.3rem;
+  padding-block: 0.4rem;
+}
+
+/* =============================================
+   TEXT TRUNCATION
+   ============================================= */
+
+.pi-sidebar .sidebar-item-title,
+.pi-sidebar .session-item-title {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.pi-sidebar .sidebar-item-meta,
+.pi-sidebar .session-item-time,
+.pi-sidebar .session-status-badge {
+  justify-self: end;
+  flex-shrink: 0;
+}
+
+/* =============================================
+   ROW MENU (kebab icon)
+   ============================================= */
+
+.pi-sidebar .sidebar-row-menu {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pi-sidebar .sidebar-row-menu-trigger {
+  opacity: 0;
+}
+
+.pi-sidebar .group:hover .sidebar-row-menu-trigger,
+.pi-sidebar .sidebar-row-menu-trigger:focus-visible {
+  opacity: 1;
+}

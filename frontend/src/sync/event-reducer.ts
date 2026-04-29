@@ -140,6 +140,7 @@ function transitionStatusForPayload(payload: SsePayload): SyncSessionStatus {
     return { type: payload.status ?? 'idle', timestamp: Date.now(), message: payload.message, metadata: payload.metadata };
   }
   if (payload.type === 'session_name') {
+    console.error('[event-reducer session_name]', payload.sessionName);
     return { type: 'busy', timestamp: Date.now(), message: 'Session renamed', metadata: { sessionName: payload.sessionName } };
   }
   // Unknown payload type — keep current status by returning 'idle'.
@@ -163,10 +164,23 @@ export function reduceSessionLifecyclePayloads(
     return currentConversation;
   }
 
+
   let updatedConversation = currentConversation;
   for (const payload of payloads) {
     updatedConversation = applySsePayload(updatedConversation, payload);
     applyStreamingPayloadState(payload.sessionId, payload, updatedConversation);
+
+    // Handle session_name inside the loop so it's processed regardless of batch position.
+    if (payload.type === 'session_name') {
+      const sessionName = payload.sessionName?.trim() ?? '';
+      if (sessionName) {
+        updateSessionAndSync(deps, payload.sessionId, {
+          title: sessionName,
+          updatedAt: payload.timestamp ?? new Date().toISOString(),
+        });
+      }
+      deps.setStatusMessage('Session renamed');
+    }
   }
 
   deps.setConversation(updatedConversation);
@@ -201,14 +215,7 @@ export function reduceSessionLifecyclePayloads(
       deps.setStreaming('idle');
     }
   } else if (finalPayload.type === 'session_name') {
-    const sessionName = finalPayload.sessionName?.trim() ?? '';
-    if (sessionName) {
-      updateSessionAndSync(deps, finalPayload.sessionId, {
-        title: sessionName,
-        updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
-      });
-    }
-    deps.setStatusMessage('Session renamed');
+    // Handled inside the loop above; nothing extra needed here.
   } else if (finalPayload.type === 'done') {
     updateSessionAndSync(deps, finalPayload.sessionId, { status: 'idle', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
     deps.setStreaming('idle');

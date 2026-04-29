@@ -171,6 +171,16 @@ export function useSessionStream({
             messageId: payload.messageId,
             status: payload.type === 'status' ? payload.status : undefined,
             contentPreview: typeof payload.content === 'string' ? payload.content.slice(-80) : undefined,
+            sessionName: payload.type === 'status' ? (payload.metadata as Record<string, unknown>)?.sessionName : undefined,
+          });
+        }
+        if (payload.type === 'session_name') {
+          emitForensicEvent({
+            type: 'sse_payload',
+            sessionId,
+            eventType: 'session_name',
+            eventId: payload.__eventId,
+            sessionName: payload.sessionName,
           });
         }
         if (payload.type === 'text_chunk') {

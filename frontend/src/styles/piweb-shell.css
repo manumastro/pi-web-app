@@ -351,6 +351,7 @@
     flex-direction: column;
     gap: 0.375rem;
     min-height: 0;
+    overflow: hidden;
   }
 
   .sidebar-section-title {
@@ -954,29 +955,9 @@
     font-weight: 600;
   }
 
-  .directory-item,
-  .session-item,
-  .sidebar-project-item {
-    border-radius: 0.55rem;
-    border: 1px solid transparent;
-    color: var(--muted-foreground);
-  }
+  /* Pi Web parity — sidebar items inherit base styles; only dark-theme-specific overrides here */
 
-  .directory-item:hover,
-  .session-item:hover,
-  .sidebar-project-item:hover {
-    background: var(--sidebar-accent);
-    color: var(--foreground);
-  }
-
-  .directory-item.active,
-  .session-item.active,
-  .sidebar-project-item.active {
-    background: var(--sidebar-accent);
-    color: var(--foreground);
-    border-color: var(--sidebar-border);
-  }
-
+  /* Working session spinner overlay (dark theme) */
   .session-item.active {
     position: relative;
     isolation: isolate;

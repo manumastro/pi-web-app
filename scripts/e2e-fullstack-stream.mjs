@@ -37,9 +37,10 @@ function sleep(ms) {
 
 const { chromium } = await import('playwright');
 
+// Create session WITHOUT a title so the backend auto-renames it after the first prompt.
 const create = await api('/api/sessions', {
   method: 'POST',
-  body: JSON.stringify({ cwd: CWD_PATH, title: 'e2e-fullstack-stream' }),
+  body: JSON.stringify({ cwd: CWD_PATH, title: '' }),
 });
 const sessionId = create.session.id;
 const forensicStartAt = new Date().toISOString();
@@ -98,11 +99,18 @@ try {
 
   const tokens = [];
   const lifecycleChecks = [];
+  const sessionRenameChecks = [];
 
   for (let i = 0; i < PROMPT_COUNT; i += 1) {
     const token = `STREAM_RENDER_OK_${Date.now()}_${i}`;
     tokens.push(token);
     const prompt = `Rispondi esattamente con: ${token}`;
+
+    // Capture session title in sidebar before sending prompt.
+    const titleBefore = await page.evaluate(() => {
+      const activeBtn = document.querySelector('.session-item.active');
+      return activeBtn?.querySelector('.session-item-title')?.textContent?.trim() ?? null;
+    });
 
     await page.waitForFunction(() => {
       const el = document.querySelector('#prompt-textarea');
@@ -169,6 +177,34 @@ try {
         forensicTailSample: forensicEventsNow.slice(-25),
       }, null, 2));
     }
+
+    // After prompt re-enables, verify session title was auto-renamed by backend.
+    // Only the first prompt in a fresh session should trigger a rename; subsequent prompts
+    // keep the existing title (backend doesn't override an already-titled session).
+    const shouldCheckRename = i === 0;
+    if (shouldCheckRename) {
+      try {
+        await page.waitForFunction((beforeTitle) => {
+          const activeBtn = document.querySelector('.session-item.active');
+          const titleEl = activeBtn?.querySelector('.session-item-title');
+          const currentTitle = titleEl?.textContent?.trim() ?? null;
+          return (
+            currentTitle !== null
+            && currentTitle !== beforeTitle
+            && currentTitle !== 'Untitled Session'
+          );
+        }, titleBefore, { timeout: 15000 });
+        const titleAfter = await page.evaluate(() => document.querySelector('.session-item.active .session-item-title')?.textContent?.trim() ?? null);
+        sessionRenameChecks.push({ token, renamed: true, titleBefore, titleAfter });
+      } catch {
+        const titleAfter = await page.evaluate(() => document.querySelector('.session-item.active .session-item-title')?.textContent?.trim() ?? null);
+        sessionRenameChecks.push({ token, renamed: false, titleBefore, titleAfter, error: 'session title did not update after first prompt' });
+      }
+    } else {
+      const titleAfter = await page.evaluate(() => document.querySelector('.session-item.active .session-item-title')?.textContent?.trim() ?? null);
+      sessionRenameChecks.push({ token, renamed: null, titleBefore, titleAfter, note: 'skipped — session already titled after first prompt' });
+    }
+
     await sleep(500);
   }
 
@@ -204,6 +240,7 @@ try {
   const forensicStatus = forensicEvents.filter((event) => event.type === 'sse_payload' && event.eventType === 'status');
   const busyStatusCount = forensicStatus.filter((event) => event.status === 'busy').length;
   const idleStatusCount = forensicStatus.filter((event) => event.status === 'idle').length;
+  const sessionRenameEvents = forensicEvents.filter((event) => event.type === 'sse_payload' && event.eventType === 'session_name');
   const chunkEventIds = forensicTextChunks
     .map((event) => Number.parseInt(String(event.eventId ?? ''), 10))
     .filter((value) => Number.isFinite(value));
@@ -218,6 +255,7 @@ try {
     || hasOutOfOrderChunkIds
     || busyStatusCount < PROMPT_COUNT
     || idleStatusCount < PROMPT_COUNT
+    || sessionRenameChecks.some((c) => c.renamed === false)
   ) {
     const screenshotPath = path.resolve(process.cwd(), 'screenshots', `e2e-fullstack-fail-${Date.now()}.png`);
     await fs.promises.mkdir(path.dirname(screenshotPath), { recursive: true });
@@ -237,23 +275,28 @@ try {
         idleStatusCount,
         lifecycleChecks,
       },
+      sessionRenameChecks,
       screenshotPath,
     }, null, 2));
   }
 
+  const sessionRenamesFailed = sessionRenameChecks.filter((c) => c.renamed === false);
   console.log(JSON.stringify({
-    ok: true,
+    ok: sessionRenamesFailed.length === 0,
     sessionId,
     promptsTested: PROMPT_COUNT,
     tokens,
     forensic: {
       eventsCount: forensicEvents.length,
       chunkEventIds,
-      gapEvents: 0,
+      gapEvents: forensicGaps.length,
       busyStatusCount,
       idleStatusCount,
       lifecycleChecks,
+      sessionRenameEvents: sessionRenameEvents.length,
     },
+    sessionRenameChecks,
+    sessionRenamesFailed,
   }, null, 2));
 } finally {
   await browser.close();

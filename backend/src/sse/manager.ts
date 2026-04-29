@@ -78,13 +78,12 @@ export function createSseManager(historyDir?: string): SseManager {
 
   function replayHistory(sessionId: string, response: ServerResponse, lastEventId?: string): void {
     const since = parseLastEventId(lastEventId);
-    if (since === undefined) {
-      return;
-    }
 
     const history = histories.get(sessionId) ?? [];
     for (const entry of history) {
-      if (entry.id > since) {
+      // Replay all events when lastEventId is undefined (fresh subscriber),
+      // otherwise replay only events after the last acknowledged eventId.
+      if (since === undefined || entry.id > since) {
         writeEvent(response, entry.id, entry.event);
       }
     }
