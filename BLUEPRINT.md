@@ -107,4 +107,4 @@ Earlier versions used a custom multi-layer CLI wrapper and broad OpenChamber UI 
 
 ## 8. Status Snapshot
 
-2026-04-29: Audit/fix pass completed in source: official Pi `RpcClient` bridge, sidebar scroll containment, model preferences persistence, selected-model preservation, CLI-ordered model lists, backend model capability caching, context-window usage metadata from Pi session stats, SSE no-replay fresh hydration, batched done reconcile, runner error persistence, simplified blueprint, and chat UX cleanup removing sticky user messages plus centering/boxing transient working feedback.
+2026-04-29: Audit/fix pass completed in source: official Pi `RpcClient` bridge, sidebar scroll containment, model preferences persistence, selected-model preservation, CLI-ordered model lists, backend model capability caching, context-window usage metadata from Pi session stats, optional guarded systemd restart API/UI control, SSE no-replay fresh hydration, batched done reconcile, runner error persistence, simplified blueprint, and chat UX cleanup removing sticky user messages plus centering/boxing transient working feedback.

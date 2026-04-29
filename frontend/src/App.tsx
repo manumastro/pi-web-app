@@ -117,6 +117,8 @@ export default function App() {
     handleSessionSelect,
     handleModelSelect,
     handleThinkingLevelSelect,
+    systemdRestartEnabled,
+    handleSystemdRestart,
   } = useAppController();
 
   const pendingQuestions = useSessionQuestions(selectedSessionId, selectedDirectory);
@@ -173,6 +175,8 @@ export default function App() {
       onToggleFiles={() => setWorkspacePanel((panel) => (panel === 'files' ? null : 'files'))}
       onToggleGit={() => setWorkspacePanel((panel) => (panel === 'git' ? null : 'git'))}
       onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+      systemdRestartEnabled={systemdRestartEnabled}
+      onRestartService={handleSystemdRestart}
     />
   ), [currentDirectoryLabel, currentSession?.title, handleCreateSession, relayConnected, relayStatusMessage, sidebarOpen, toggleSidebar]);
 

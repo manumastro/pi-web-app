@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, FolderTree, GitBranch, HardDrive, Keyboard, Menu, Moon, Plus, Settings, SquareTerminal, PanelRightClose } from 'lucide-react';
+import { Clock, FolderTree, GitBranch, HardDrive, Keyboard, Menu, Moon, Plus, RefreshCw, Settings, SquareTerminal, PanelRightClose } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { PiLogo } from '@/components/brand/PiLogo';
 import './Header.css';
@@ -16,6 +16,8 @@ interface HeaderProps {
   onToggleFiles?: () => void;
   onToggleGit?: () => void;
   onOpenCommandPalette?: () => void;
+  systemdRestartEnabled?: boolean;
+  onRestartService?: () => void;
 }
 
 function IconButton({
@@ -56,6 +58,8 @@ export function Header({
   onToggleFiles,
   onToggleGit,
   onOpenCommandPalette,
+  systemdRestartEnabled = false,
+  onRestartService,
 }: HeaderProps) {
   const title = sessionName.trim().length > 0 ? sessionName : 'Untitled Session';
   const isCompactLayout = useMediaQuery('(max-width: 1024px)');
@@ -164,6 +168,16 @@ export function Header({
         <IconButton title="API keys" label="API keys" className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"><HardDrive size={16} /></IconButton>
         <IconButton title="Keyboard shortcuts" label="Keyboard shortcuts" onClick={onOpenCommandPalette} className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"><Keyboard size={16} /></IconButton>
         <IconButton title="Preferences" label="Preferences" className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"><Settings size={16} /></IconButton>
+        {systemdRestartEnabled ? (
+          <IconButton
+            title="Restart pi-web service"
+            label="Restart pi-web service"
+            onClick={onRestartService}
+            className="btn btn-ghost btn-icon btn-sm header-action-button header-action-button--secondary"
+          >
+            <RefreshCw size={16} />
+          </IconButton>
+        ) : null}
         <IconButton
           title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
           label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}

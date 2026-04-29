@@ -109,6 +109,8 @@ describe('RunnerOrchestrator', () => {
         model: 'p/a',
         corsOrigins: [],
         logLevel: 'error',
+        allowSystemdRestart: false,
+        systemdServiceName: 'pi-web',
         sessionIdPrefix: 'test',
         generateSessionId: (() => {
           let index = 0;

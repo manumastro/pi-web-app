@@ -20,6 +20,8 @@ async function withServer(runner: RunnerOrchestrator, test: (baseUrl: string) =>
       model: 'p/a',
       corsOrigins: [],
       logLevel: 'error',
+      allowSystemdRestart: false,
+      systemdServiceName: 'pi-web',
       sessionIdPrefix: 'test',
       generateSessionId: () => 'id-1',
     },
@@ -91,6 +93,18 @@ describe('runner-backed API routes', () => {
 
       expect(response.status).toBe(503);
       expect(body).toEqual({ error: 'runner exited' });
+    });
+  });
+
+  it('rejects maintenance restart when disabled', async () => {
+    await withServer(fakeBridge(), async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/maintenance/systemd/restart`, {
+        method: 'POST',
+      });
+      const body = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(body).toEqual({ error: 'Systemd restart is disabled (set PI_WEB_ALLOW_SYSTEMD_RESTART=true)' });
     });
   });
 });

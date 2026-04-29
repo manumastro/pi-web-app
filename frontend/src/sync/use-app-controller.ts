@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { apiGet } from '@/api';
+import { apiGet, apiRequest } from '@/api';
 import type { SsePayload } from '@/sync/conversation';
 import { useSessionStream } from '@/hooks/useSessionStream';
 import { hydrateSelectedSessionSnapshot, normalizeSelectedSessionConversation, reconcileSessionDirectories, upsertDirectorySession } from './bootstrap';
@@ -40,6 +40,14 @@ interface RelayStatusPayload {
   sessions: Record<string, number>;
   transport: string;
   path: string;
+}
+
+interface AppConfigPayload {
+  homeDir: string;
+  systemd?: {
+    restartEnabled?: boolean;
+    service?: string;
+  };
 }
 
 // Module-level model cache to avoid redundant fetches on session switches.
@@ -99,6 +107,8 @@ export type AppController = {
   handleSessionSelect: (targetId: string) => Promise<void>;
   handleModelSelect: (modelKey: string) => Promise<void>;
   handleThinkingLevelSelect: (thinkingLevel: ThinkingLevel) => Promise<void>;
+  systemdRestartEnabled: boolean;
+  handleSystemdRestart: () => Promise<void>;
 };
 
 export function useAppController(): AppController {
@@ -164,6 +174,7 @@ export function useAppController(): AppController {
   const [thinkingLevelError, setThinkingLevelError] = useState('');
   const [relayStatusMessage, setRelayStatusMessage] = useState('Relay connecting');
   const [relayConnected, setRelayConnected] = useState(false);
+  const [systemdRestartEnabled, setSystemdRestartEnabled] = useState(false);
   const relayPollRef = useRef<{ intervalId: number | undefined; failures: number }>({ intervalId: undefined, failures: 0 });
   const doneReconcileAtRef = useRef<Map<string, number>>(new Map());
 
@@ -299,9 +310,10 @@ export function useAppController(): AppController {
     setStatusMessage('Loading');
     try {
       const [configPayload, sessionsPayload] = await Promise.all([
-        apiGet<{ homeDir: string }>('/api/config'),
+        apiGet<AppConfigPayload>('/api/config'),
         apiGet<{ sessions: SessionInfo[] }>('/api/sessions'),
       ]);
+      setSystemdRestartEnabled(Boolean(configPayload.systemd?.restartEnabled));
 
       hydrateProjects(configPayload.homeDir, sessionsPayload.sessions);
       setSessions(sessionsPayload.sessions);
@@ -687,6 +699,19 @@ export function useAppController(): AppController {
     setError('');
   }, [availableThinkingLevels, setError, setStatusMessage, setStreaming, setThinkingConfig, updateSessionThinkingLevel]);
 
+  const handleSystemdRestart = useCallback(async (): Promise<void> => {
+    setStatusMessage('Restarting service...');
+    try {
+      await apiRequest<{ ok: boolean }>('/api/maintenance/systemd/restart', { method: 'POST' });
+      setStatusMessage('Service restarted');
+      setError('');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setStatusMessage('Restart failed');
+      setError(message);
+    }
+  }, [setError, setStatusMessage]);
+
   return {
     conversation,
     streaming,
@@ -726,5 +751,7 @@ export function useAppController(): AppController {
     handleSessionSelect,
     handleModelSelect,
     handleThinkingLevelSelect,
+    systemdRestartEnabled,
+    handleSystemdRestart,
   };
 }

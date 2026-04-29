@@ -37,6 +37,10 @@ export function createApp() {
       homeDir: config.homeDir,
       piCwd: config.piCwd,
       sessionsDir: config.sessionsDir,
+      systemd: {
+        restartEnabled: config.allowSystemdRestart,
+        service: config.systemdServiceName,
+      },
     });
   });
 

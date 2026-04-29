@@ -15,6 +15,8 @@ export interface Config {
   model: string | undefined;
   corsOrigins: string[];
   logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+  allowSystemdRestart: boolean;
+  systemdServiceName: string;
   sessionIdPrefix: string;
   generateSessionId: () => string;
 }
@@ -97,6 +99,8 @@ export function loadConfig(): Config {
   const model = process.env.PI_MODEL?.trim() || undefined;
   const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGINS);
   const logLevel = parseLogLevel(process.env.LOG_LEVEL);
+  const allowSystemdRestart = (process.env.PI_WEB_ALLOW_SYSTEMD_RESTART ?? 'false').toLowerCase() === 'true';
+  const systemdServiceName = (process.env.PI_WEB_SYSTEMD_SERVICE ?? 'pi-web').trim() || 'pi-web';
 
   return {
     port,
@@ -107,6 +111,8 @@ export function loadConfig(): Config {
     model,
     corsOrigins,
     logLevel,
+    allowSystemdRestart,
+    systemdServiceName,
     sessionIdPrefix: DEFAULT_SESSION_ID_PREFIX,
     generateSessionId,
   };
