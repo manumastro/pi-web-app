@@ -79,4 +79,17 @@ describe('event reducer session-ui sync', () => {
     expect(useSessionUiStore.getState().currentSession?.status).toBe('idle');
     expect(useSessionUiStore.getState().visibleSessions.find((entry) => entry.id === 'session-1')?.status).toBe('idle');
   });
+
+  it('sets transport streaming state back to idle on status=idle payloads', () => {
+    const deps = createReducerDeps();
+
+    reduceSessionLifecyclePayload([], {
+      type: 'status',
+      sessionId: 'session-1',
+      status: 'idle',
+      message: 'CLI idle',
+    }, deps);
+
+    expect(deps.setStreaming).toHaveBeenCalledWith('idle');
+  });
 });

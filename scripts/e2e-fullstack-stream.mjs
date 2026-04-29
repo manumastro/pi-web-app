@@ -97,6 +97,7 @@ try {
   await promptBox.waitFor({ timeout: TIMEOUT_MS });
 
   const tokens = [];
+  const lifecycleChecks = [];
 
   for (let i = 0; i < PROMPT_COUNT; i += 1) {
     const token = `STREAM_RENDER_OK_${Date.now()}_${i}`;
@@ -110,6 +111,12 @@ try {
 
     await promptBox.fill(prompt);
     await page.getByRole('button', { name: 'Send' }).click();
+
+    // Prompt should disable while request is running.
+    await page.waitForFunction(() => {
+      const el = document.querySelector('#prompt-textarea');
+      return !!el && el.hasAttribute('disabled');
+    }, undefined, { timeout: 8000 });
 
     // Ensure streaming state appears.
     await page.waitForFunction(() => {
@@ -138,6 +145,30 @@ try {
       }, null, 2));
     }
 
+    // Prompt should re-enable once run is complete (guard against stuck busy/idle mismatch).
+    try {
+      await page.waitForFunction(() => {
+        const el = document.querySelector('#prompt-textarea');
+        return !!el && !el.hasAttribute('disabled');
+      }, undefined, { timeout: TIMEOUT_MS });
+      lifecycleChecks.push({ token, promptReenabled: true });
+    } catch (error) {
+      const screenshotPath = path.resolve(process.cwd(), 'screenshots', `e2e-fullstack-stuck-${Date.now()}.png`);
+      await fs.promises.mkdir(path.dirname(screenshotPath), { recursive: true });
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      const bodyText = await page.evaluate(() => document.body.innerText.slice(-4000));
+      const forensicTailNow = await api('/api/forensics/tail').catch(() => ({ events: [] }));
+      const forensicEventsNow = (forensicTailNow.events ?? []).filter((event) => event && event.sessionId === sessionId);
+      throw new Error(JSON.stringify({
+        sessionId,
+        phase: 'prompt-not-reenabled',
+        token,
+        error: String(error),
+        screenshotPath,
+        bodyTail: bodyText,
+        forensicTailSample: forensicEventsNow.slice(-25),
+      }, null, 2));
+    }
     await sleep(500);
   }
 
@@ -170,12 +201,24 @@ try {
 
   const forensicGaps = forensicEvents.filter((event) => event.type === 'sse_gap_detected');
   const forensicTextChunks = forensicEvents.filter((event) => event.type === 'sse_text_chunk');
+  const forensicStatus = forensicEvents.filter((event) => event.type === 'sse_payload' && event.eventType === 'status');
+  const busyStatusCount = forensicStatus.filter((event) => event.status === 'busy').length;
+  const idleStatusCount = forensicStatus.filter((event) => event.status === 'idle').length;
   const chunkEventIds = forensicTextChunks
     .map((event) => Number.parseInt(String(event.eventId ?? ''), 10))
     .filter((value) => Number.isFinite(value));
   const hasOutOfOrderChunkIds = chunkEventIds.some((id, index) => index > 0 && id < chunkEventIds[index - 1]);
 
-  if (runtimeErrors.length || consoleErrors.length || gapSignals.length || missing.length || forensicGaps.length || hasOutOfOrderChunkIds) {
+  if (
+    runtimeErrors.length
+    || consoleErrors.length
+    || gapSignals.length
+    || missing.length
+    || forensicGaps.length
+    || hasOutOfOrderChunkIds
+    || busyStatusCount < PROMPT_COUNT
+    || idleStatusCount < PROMPT_COUNT
+  ) {
     const screenshotPath = path.resolve(process.cwd(), 'screenshots', `e2e-fullstack-fail-${Date.now()}.png`);
     await fs.promises.mkdir(path.dirname(screenshotPath), { recursive: true });
     await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -190,6 +233,9 @@ try {
         gapEvents: forensicGaps,
         chunkEventIds,
         hasOutOfOrderChunkIds,
+        busyStatusCount,
+        idleStatusCount,
+        lifecycleChecks,
       },
       screenshotPath,
     }, null, 2));
@@ -204,6 +250,9 @@ try {
       eventsCount: forensicEvents.length,
       chunkEventIds,
       gapEvents: 0,
+      busyStatusCount,
+      idleStatusCount,
+      lifecycleChecks,
     },
   }, null, 2));
 } finally {

@@ -19,6 +19,7 @@ import { Toaster } from './components/ui';
 import { CommandPalette } from './components/command/CommandPalette';
 import { PiWorkspace, type WorkspacePanel } from './components/workspace/PiWorkspace';
 import { answerQuestion } from './sync/session-actions';
+import { isRunningSessionStatus } from './sync/sessionActivity';
 
 const WORKSPACE_PANEL_STORAGE_KEY = 'pi-web-app:workspace-panel';
 
@@ -184,6 +185,7 @@ export default function App() {
   const isChatWorking = assistantStatus.isWorking || interactionStreaming === 'streaming' || interactionStreaming === 'connecting';
   const chatWorkingLabel = interactionStreaming === 'connecting' ? 'Connecting...' : assistantStatus.label;
   const chatWorkingStatusText = interactionStreaming === 'connecting' ? 'Connecting...' : assistantStatus.statusText;
+  const isComposerInputLocked = interactionStreaming === 'connecting' || isRunningSessionStatus(currentSession?.status);
 
   const chatContent = selectedSessionId ? (
     <ChatView sessionId={selectedSessionId}>
@@ -208,6 +210,7 @@ export default function App() {
       <ComposerPanel
         prompt={prompt}
         streaming={interactionStreaming}
+        inputLocked={isComposerInputLocked}
         models={models}
         activeModelKey={activeModelKey}
         availableThinkingLevels={availableThinkingLevels}

@@ -46,4 +46,110 @@ describe('conversation fallback matching', () => {
     expect(thinkingItems).toHaveLength(1);
     expect(thinkingItems[0]?.content).toContain('Reasoning chunk');
   });
+
+  it('rebinds optimistic empty assistant placeholder to backend messageId on first chunk', () => {
+    const items = appendPrompt([], 'hello', 'turn-1');
+
+    const updated = applySsePayload(items, {
+      type: 'text_chunk',
+      sessionId: 'session-1',
+      messageId: 'backend-turn-1',
+      content: 'ciao',
+    });
+
+    const assistants = updated.filter((item) => item.kind === 'message' && item.role === 'assistant');
+    expect(assistants).toHaveLength(1);
+    const assistant = assistants[0];
+    if (assistant?.kind === 'message') {
+      expect(assistant.messageId).toBe('backend-turn-1');
+      expect(assistant.content).toBe('ciao');
+    }
+  });
+
+  it('ignores premature done without messageId when assistant is still an empty streaming placeholder', () => {
+    const items = appendPrompt([], 'hello', 'turn-1');
+
+    const updated = applySsePayload(items, {
+      type: 'done',
+      sessionId: 'session-1',
+      aborted: false,
+    });
+
+    const assistants = updated.filter((item) => item.kind === 'message' && item.role === 'assistant');
+    expect(assistants).toHaveLength(1);
+    const assistant = assistants[0];
+    if (assistant?.kind === 'message') {
+      expect(assistant.status).toBe('streaming');
+      expect(assistant.content).toBe('');
+    }
+  });
+
+  it('ignores premature done with mismatched messageId when optimistic assistant is still empty', () => {
+    const items = appendPrompt([], 'hello', 'turn-1');
+
+    const updated = applySsePayload(items, {
+      type: 'done',
+      sessionId: 'session-1',
+      messageId: 'old-turn-id',
+      aborted: false,
+    });
+
+    const assistants = updated.filter((item) => item.kind === 'message' && item.role === 'assistant');
+    expect(assistants).toHaveLength(1);
+    const assistant = assistants[0];
+    if (assistant?.kind === 'message') {
+      expect(assistant.status).toBe('streaming');
+      expect(assistant.content).toBe('');
+      expect(assistant.messageId).toBe('turn-1');
+    }
+  });
+
+  it('does not create duplicate assistant when done arrives before chunks', () => {
+    const optimistic = appendPrompt([], 'hello', 'turn-1');
+    const afterDone = applySsePayload(optimistic, {
+      type: 'done',
+      sessionId: 'session-1',
+      messageId: 'turn-1',
+      aborted: false,
+    });
+
+    const afterChunk = applySsePayload(afterDone, {
+      type: 'text_chunk',
+      sessionId: 'session-1',
+      messageId: 'backend-turn-1',
+      content: 'ciao',
+    });
+
+    const assistants = afterChunk.filter((item) => item.kind === 'message' && item.role === 'assistant');
+    expect(assistants).toHaveLength(1);
+    const assistant = assistants[0];
+    if (assistant?.kind === 'message') {
+      expect(assistant.content).toContain('ciao');
+      expect(assistant.messageId).toBe('backend-turn-1');
+    }
+  });
+
+  it('reuses placeholder assistant with transient Working text instead of appending duplicate', () => {
+    const optimistic = appendPrompt([], 'hello', 'turn-1').map((item) => {
+      if (item.kind === 'message' && item.role === 'assistant') {
+        return { ...item, content: 'Working · 272k ctx window', status: 'streaming' as const };
+      }
+      return item;
+    });
+
+    const afterChunk = applySsePayload(optimistic, {
+      type: 'text_chunk',
+      sessionId: 'session-1',
+      messageId: 'backend-turn-1',
+      content: 'ciao',
+    });
+
+    const assistants = afterChunk.filter((item) => item.kind === 'message' && item.role === 'assistant');
+    expect(assistants).toHaveLength(1);
+    const assistant = assistants[0];
+    if (assistant?.kind === 'message') {
+      expect(assistant.content).toContain('ciao');
+      expect(assistant.messageId).toBe('backend-turn-1');
+    }
+  });
 });

@@ -211,21 +211,22 @@ function lastMessageIndex(
   role: MessageItem['role'],
   messageId?: string,
 ): number {
-  let fallbackIndex = -1;
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
     if (!item || item.kind !== 'message' || item.role !== role) {
       continue;
     }
-
-    if (fallbackIndex < 0) {
-      fallbackIndex = index;
-    }
     if (!messageId || item.messageId === messageId) {
       return index;
     }
   }
-  return fallbackIndex;
+  return -1;
+}
+
+function isAssistantPlaceholderContent(value: string): boolean {
+  const text = value.trim();
+  if (!text) return true;
+  return /^(working|connecting|cli\s+idle)\b/i.test(text);
 }
 
 function updateLastAssistant(
@@ -602,6 +603,25 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
           return next;
         }
       }
+
+      const fallbackIndex = [...conversation].reverse().findIndex(
+        (entry) => entry.kind === 'message' && entry.role === 'assistant' && isAssistantPlaceholderContent(entry.content),
+      );
+      if (fallbackIndex >= 0) {
+        const targetIndex = conversation.length - 1 - fallbackIndex;
+        const item = conversation[targetIndex];
+        if (item && item.kind === 'message') {
+          const next = [...conversation];
+          next[targetIndex] = {
+            ...item,
+            messageId: resolvedMessageId,
+            content: `${item.content}${chunk}`,
+            status: 'streaming',
+            timestamp: 'streaming',
+          };
+          return next;
+        }
+      }
     }
 
     // No matching assistant — create a new one appended to the conversation.
@@ -682,10 +702,17 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
   }
 
   if (payload.type === 'done') {
+    const assistantIndex = lastMessageIndex(conversation, 'assistant', payload.messageId);
+    const currentAssistant = assistantIndex >= 0 ? conversation[assistantIndex] : undefined;
+
+    // Ignore premature done when the targeted assistant placeholder is still empty:
+    // text chunks for the same turn may arrive immediately after.
+    if (currentAssistant && currentAssistant.kind === 'message' && currentAssistant.role === 'assistant' && isAssistantPlaceholderContent(currentAssistant.content)) {
+      return conversation;
+    }
+
     // Resolve which messageId to use for updating the assistant and marking thinking done.
-    // If done has no messageId, derive it from the assistant message so we correctly
-    // mark only the thinking block that belongs to this turn.
-    const assistantIndex = lastMessageIndex(conversation, 'assistant', undefined);
+    // If done has no messageId, derive it from the latest assistant messageId.
     const assistantMessageId = payload.messageId
       ?? (assistantIndex >= 0 ? (conversation[assistantIndex] as MessageItem).messageId : undefined);
     return markThinkingDone(

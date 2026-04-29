@@ -107,6 +107,19 @@ function clearResolvedQuestion(directory: string | undefined, sessionId: string,
   }));
 }
 
+function hasPendingAssistantPlaceholder(conversation: ConversationItem[]): boolean {
+  const lastAssistant = [...conversation].reverse().find(
+    (item) => item.kind === 'message' && item.role === 'assistant',
+  );
+  return Boolean(
+    lastAssistant
+    && lastAssistant.kind === 'message'
+    && lastAssistant.role === 'assistant'
+    && lastAssistant.status === 'streaming'
+    && lastAssistant.content.trim().length === 0,
+  );
+}
+
 function transitionStatusForPayload(payload: SsePayload): SyncSessionStatus {
   if (payload.type === 'done') {
     return { type: 'idle', timestamp: Date.now() };
@@ -182,6 +195,10 @@ export function reduceSessionLifecyclePayloads(
     deps.setStatusMessage(finalPayload.message ?? finalPayload.status ?? 'Working');
     if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
       deps.setStreaming('streaming');
+    } else if (nextStatusType === 'idle' && hasPendingAssistantPlaceholder(updatedConversation)) {
+      deps.setStreaming('streaming');
+    } else {
+      deps.setStreaming('idle');
     }
   } else if (finalPayload.type === 'session_name') {
     const sessionName = finalPayload.sessionName?.trim() ?? '';

@@ -24,6 +24,7 @@ import type { ModelInfo, StreamingState, ThinkingLevel } from '@/types';
 interface ComposerPanelProps {
   prompt: string;
   streaming: StreamingState;
+  inputLocked?: boolean;
   models: ModelInfo[];
   activeModelKey: string;
   availableThinkingLevels?: ThinkingLevel[];
@@ -204,6 +205,7 @@ export function ComposerPanel({
   streaming,
   models,
   activeModelKey,
+  inputLocked,
   availableThinkingLevels = [],
   activeThinkingLevel,
   thinkingLevelError,
@@ -227,6 +229,7 @@ export function ComposerPanel({
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const isStreaming = streaming === 'streaming';
+  const isInputLocked = inputLocked ?? isStreaming;
   const canAbort = streaming === 'streaming' || streaming === 'connecting';
   const isCompactLayout = useMediaQuery('(max-width: 1024px)');
   const isEmpty = prompt.trim().length === 0;
@@ -765,7 +768,7 @@ export function ComposerPanel({
           onKeyDown={handleKeyDown}
           placeholder="@ for files/agents; / for commands; ! for shell"
           rows={4}
-          disabled={isStreaming}
+          disabled={isInputLocked}
           aria-label="Prompt"
           autoComplete="off"
           autoCorrect="off"
@@ -824,7 +827,7 @@ export function ComposerPanel({
                       className="composer-thinking-select"
                       value={selectedThinkingLevel ?? availableThinkingLevels[0] ?? 'medium'}
                       onChange={(event) => onThinkingLevelSelect?.(event.target.value as ThinkingLevel)}
-                      disabled={isStreaming}
+                      disabled={isInputLocked}
                       aria-invalid={Boolean(thinkingLevelError)}
                     >
                       {availableThinkingLevels.map((level) => (
@@ -850,7 +853,7 @@ export function ComposerPanel({
                     'inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-popover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
                     'max-w-[min(240px,40vw)]',
                   )}
-                  disabled={isStreaming}
+                  disabled={isInputLocked}
                   aria-label={selectedModelLabel}
                   title="Select model"
                   aria-expanded={menuOpen}
