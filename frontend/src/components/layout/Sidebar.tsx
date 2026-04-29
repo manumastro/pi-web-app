@@ -2,6 +2,7 @@ import React from 'react';
 import { SidebarPanel } from '@/components/session/SidebarPanel';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { DirectoryInfo, SessionInfo } from '@/types';
+import './Sidebar.css';
 
 interface SidebarProps {
   projects: DirectoryInfo[];

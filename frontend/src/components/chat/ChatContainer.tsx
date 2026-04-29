@@ -1,4 +1,5 @@
 import React from 'react';
+import './ChatContainer.css';
 
 interface ChatContainerProps {
   children: React.ReactNode;

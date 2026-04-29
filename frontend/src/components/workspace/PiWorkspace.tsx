@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronRight, FileText, Folder, FolderTree, GitBranch, RefreshCw, TerminalIcon, X } from 'lucide-react';
 import { apiGet, apiRequest } from '@/api';
 import { cn } from '@/lib/utils';
+import './PiWorkspace.css';
 type WorkspacePanel = 'terminal' | 'files' | 'git' | null;
 interface PiWorkspaceProps {
   children: React.ReactNode;

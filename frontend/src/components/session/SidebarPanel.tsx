@@ -31,6 +31,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PiLogo } from '@/components/brand/PiLogo';
+import './SidebarPanel.css';
 
 function formatSessionTime(iso: string): string {
   const date = new Date(iso);
@@ -198,15 +199,16 @@ export function SidebarPanel({
 
   const filteredSessions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    const scoped = sessions.filter((session) => session.cwd === selectedDirectory);
     if (!query) {
-      return sessions;
+      return scoped;
     }
 
-    return sessions.filter((session) => {
+    return scoped.filter((session) => {
       const title = (session.title || 'Untitled Session').toLowerCase();
       return title.includes(query) || session.cwd.toLowerCase().includes(query);
     });
-  }, [searchQuery, sessions]);
+  }, [searchQuery, sessions, selectedDirectory]);
 
   useEffect(() => {
     if (isSessionSearchOpen) {
@@ -243,7 +245,7 @@ export function SidebarPanel({
       />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
 
-      <div className={cn('sidebar-shell drawer-safe-area', mobileVariant && 'sidebar-shell-mobile')}>
+      <div className={cn('pi-sidebar sidebar-shell drawer-safe-area', mobileVariant && 'sidebar-shell-mobile')}>
         <div className="piweb-sidebar-brand-row">
           <div className="piweb-sidebar-brand">
             <PiLogo className="pi-logo-sidebar" />
@@ -395,29 +397,28 @@ export function SidebarPanel({
           title={activeProject?.cwd ?? homeDirectory}
         >
           <Folder size={14} className="flex-shrink-0" />
-          <span className="truncate sidebar-project-label">{projectLabel}</span>
-          <span className="sidebar-project-count">{projectCount}</span>
+          <span className="sidebar-item-title sidebar-project-label">{projectLabel}</span>          <span className="sidebar-project-count">{projectCount}</span>
         </button>
 
         <div className="sidebar-section">
           <p className="sidebar-section-title">Projects</p>
-          <div className="space-y-0.5">
+          <div className="sidebar-project-list">
             {projects.map((project) => {
               const isHomeProject = project.cwd === homeDirectory;
               return (
-                <div key={project.cwd} className="group relative">
+                <div key={project.cwd} className="sidebar-row group">
                   <button
                     type="button"
-                    className={cn('directory-item w-full pr-8', project.cwd === selectedDirectory && 'active')}
+                    className={cn('directory-item w-full', project.cwd === selectedDirectory && 'active')}
                     onClick={() => onDirectorySelect(project.cwd)}
                     title={project.cwd}
                   >
                     <Folder size={14} className="flex-shrink-0" />
-                    <span className="truncate">{formatProjectLabel(project, homeDirectory)}</span>
-                    <span className="ml-auto text-[11px] opacity-60">{project.sessionCount}</span>
+                    <span className="sidebar-item-title truncate">{formatProjectLabel(project, homeDirectory)}</span>
+                    <span className="sidebar-item-meta">{project.sessionCount}</span>
                   </button>
                   {!mobileVariant ? (
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                    <div className="sidebar-row-menu">
                       <ProjectMenu
                         project={project}
                         isHomeProject={isHomeProject}
@@ -445,14 +446,14 @@ export function SidebarPanel({
           {filteredSessions.length === 0 ? (
             <p className="sidebar-note">No sessions match this project.</p>
           ) : sessionsExpanded ? (
-            <div className="space-y-0.5">
+            <div className="sidebar-session-list">
               {filteredSessions.map((session) => {
                 const isEditing = editingSessionId === session.id;
                 const statusBadge = getSessionStatusBadge(session.status);
                 return (
-                  <div key={session.id} className="group relative">
+                  <div key={session.id} className="sidebar-row group">
                     {isEditing ? (
-                      <div className="session-item active w-full pr-8">
+                      <div className="session-item active w-full">
                         <Input
                           ref={editInputRef}
                           value={editingSessionTitle}
@@ -497,7 +498,7 @@ export function SidebarPanel({
                       <button
                         type="button"
                         className={cn(
-                          'session-item w-full pr-8',
+                          'session-item w-full',
                           compactSessions && 'compact',
                           session.id === selectedSessionId && 'active',
                           session.id === selectedSessionId && isSessionWorking(session.status) && 'session-item-working',
@@ -506,7 +507,7 @@ export function SidebarPanel({
                         title={session.title || 'Untitled Session'}
                       >
                         <MessageSquareText size={14} className="flex-shrink-0" />
-                        <span className="truncate flex-1 text-left">
+                        <span className="session-item-title sidebar-item-title text-left">
                           {session.title || 'Untitled Session'}
                         </span>
                         {statusBadge ? (
@@ -519,7 +520,7 @@ export function SidebarPanel({
                     )}
 
                     {!isEditing && !mobileVariant ? (
-                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                      <div className="sidebar-row-menu">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button

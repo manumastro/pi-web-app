@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import type { StreamingState } from '@/types';
+import './StatusChip.css';
 
 interface StatusChipProps {
   state: StreamingState;

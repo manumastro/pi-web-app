@@ -1,3 +1,4 @@
+import './ConnectionStatusBanner.css';
 interface ConnectionStatusBannerProps {
   streaming: 'idle' | 'connecting' | 'streaming' | 'error';
   statusMessage: string;

@@ -1,4 +1,5 @@
 import React from 'react';
+import './TurnActivity.css';
 
 interface TurnActivityProps {
   phase?: 'idle' | 'busy' | 'retry' | 'cooldown';

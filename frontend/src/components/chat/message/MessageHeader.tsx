@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { formatTimestampForDisplay } from './timeFormat';
+import './MessageHeader.css';
 
 type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 

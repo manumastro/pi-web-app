@@ -20,6 +20,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cacheGetItem, cacheSetItem } from '@/lib/frontend-cache';
 import { cn } from '@/lib/utils';
 import type { ModelInfo, StreamingState, ThinkingLevel } from '@/types';
+import './ComposerPanel.css';
 
 interface ComposerPanelProps {
   prompt: string;

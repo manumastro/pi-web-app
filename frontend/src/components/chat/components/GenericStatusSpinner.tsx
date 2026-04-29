@@ -1,4 +1,5 @@
 import React from 'react';
+import './GenericStatusSpinner.css';
 
 const COLS = 4;
 const ROWS = 4;

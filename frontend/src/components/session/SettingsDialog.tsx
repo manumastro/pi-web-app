@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useUIStore } from '@/stores/uiStore';
+import './SettingsDialog.css';
 
 interface SettingsDialogProps {
   open: boolean;

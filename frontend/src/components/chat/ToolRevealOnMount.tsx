@@ -1,4 +1,5 @@
 import React from 'react';
+import './ToolRevealOnMount.css';
 
 const WIPE_MASK =
   'linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 45%, rgba(0,0,0,0) 60%, rgba(0,0,0,0) 100%)';

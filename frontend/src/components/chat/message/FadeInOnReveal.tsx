@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import './FadeInOnReveal.css';
 
 interface FadeInOnRevealProps {
   children: React.ReactNode;

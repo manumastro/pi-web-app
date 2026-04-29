@@ -17,6 +17,7 @@ import { ToolPart } from './message/parts/ToolPart';
 import { ScrollToBottomButton } from './components/ScrollToBottomButton';
 import { WorkingPlaceholder } from './components/WorkingPlaceholder';
 import type { StreamPhase } from '@/sync/streaming';
+import './ConversationPanel.css';
 
 interface ConversationPanelProps {
   items: ConversationItem[];

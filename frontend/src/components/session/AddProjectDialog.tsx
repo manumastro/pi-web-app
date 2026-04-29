@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DirectoryTree } from './DirectoryTree';
 import { formatProjectPath, normalizeProjectPath } from '@/lib/path';
+import './AddProjectDialog.css';
 
 interface AddProjectDialogProps {
   open: boolean;

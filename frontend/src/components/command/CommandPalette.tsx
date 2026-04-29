@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import './CommandPalette.css';
 
 interface CommandPaletteProps {
   open: boolean;

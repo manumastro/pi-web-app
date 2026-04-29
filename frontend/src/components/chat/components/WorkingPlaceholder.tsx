@@ -1,6 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { GenericStatusSpinner } from './GenericStatusSpinner';
+import './WorkingPlaceholder.css';
 
 interface WorkingPlaceholderProps {
   label?: string;

@@ -16,6 +16,7 @@ import python from 'highlight.js/lib/languages/python';
 import { Check, Copy, Download, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
+import './MarkdownRenderer.css';
 
 interface SimpleMarkdownRendererProps {
   content: string;

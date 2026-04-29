@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import './AttentionPanel.css';
 
 function payloadField(payload: unknown, key: string): string {
   if (!payload || typeof payload !== 'object') return '';

@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, FolderTree, GitBranch, HardDrive, Keyboard, Menu, Moon, Plus, Settings, SquareTerminal, PanelRightClose } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { PiLogo } from '@/components/brand/PiLogo';
+import './Header.css';
 
 interface HeaderProps {
   sessionName: string;

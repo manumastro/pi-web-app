@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { ToolRevealOnMount } from '../../ToolRevealOnMount';
 import { formatTimestampForDisplay } from '../timeFormat';
 import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
+import './ToolPart.css';
 
 export type ToolStatus = 'running' | 'success' | 'error' | 'pending';
 

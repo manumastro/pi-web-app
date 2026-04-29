@@ -1,5 +1,6 @@
 import React from 'react';
 import { ErrorBoundary } from '@/components/ui';
+import './ChatErrorBoundary.css';
 
 interface ChatErrorBoundaryProps {
   sessionId?: string;

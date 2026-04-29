@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import './ScrollToBottomButton.css';
 
 interface ScrollToBottomButtonProps {
   visible: boolean;

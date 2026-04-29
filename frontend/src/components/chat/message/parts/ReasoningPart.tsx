@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
 import { useStreamingTextThrottle } from '../../hooks/useStreamingTextThrottle';
 import { useContentSettled } from '../../hooks/useContentSettled';
+import './ReasoningPart.css';
 
 type ReasoningVariant = 'thinking' | 'justification';
 

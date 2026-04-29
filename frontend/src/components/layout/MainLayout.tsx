@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { TooltipProvider } from '@/components/ui';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useMobileSidebarGesture } from '@/hooks/useMobileSidebarGesture';
+import './MainLayout.css';
 
 interface MainLayoutProps {
   sidebar: React.ReactNode;

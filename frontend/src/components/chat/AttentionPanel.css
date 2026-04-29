@@ -1,0 +1,100 @@
+/* Styles for AttentionPanel.tsx */
+/* =============================================
+   PERMISSION & QUESTION CARDS
+   ============================================= */
+
+.permission-card,
+.question-card {
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.permission-header,
+.question-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.permission-icon,
+.question-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 0.5rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.permission-title,
+.question-title {
+  font-size: var(--text-ui-label);
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.permission-content,
+.question-content {
+  padding: 1rem;
+}
+
+.permission-tool-info,
+.question-text {
+  font-size: var(--text-markdown);
+  color: var(--foreground);
+  margin-bottom: 1rem;
+}
+
+.question-answer-input {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--surface-2);
+  color: var(--foreground);
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  font-size: var(--text-ui-body);
+}
+
+.question-answer-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+.question-error {
+  margin-top: 0.45rem;
+  color: var(--destructive);
+  font-size: var(--text-ui-caption);
+}
+
+.permission-actions,
+.question-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.btn-approve {
+  background: var(--success);
+  color: #151313;
+  border: none;
+}
+
+.btn-deny {
+  background: transparent;
+  color: var(--destructive);
+  border: 1px solid var(--destructive);
+}
+

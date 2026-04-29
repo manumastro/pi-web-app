@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChatErrorBoundary } from '@/components/chat/ChatErrorBoundary';
 import { ChatContainer } from '@/components/chat/ChatContainer';
+import './ChatView.css';
 
 interface ChatViewProps {
   sessionId?: string | null;

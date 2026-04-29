@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Folder, ChevronRight, ChevronDown } from 'lucide-react';
 import { apiGet } from '@/api';
 import { cn } from '@/lib/utils';
+import './DirectoryTree.css';
 
 export interface DirectoryEntry {
   path: string;

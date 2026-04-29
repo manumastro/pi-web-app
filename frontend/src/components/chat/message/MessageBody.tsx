@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { ReasoningPart } from './parts/ReasoningPart';
 import { ToolPart } from './parts/ToolPart';
 import { AssistantTextPart } from './parts/AssistantTextPart';
+import './MessageBody.css';
 
 type MessageBodyProps = {
   item: ConversationItem;
