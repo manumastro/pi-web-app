@@ -152,6 +152,7 @@ export function createRunnerOrchestrator(params: {
   const globalAvailableModels: RunnerModelInfo[] = [];
   const activeTurns = new Map<string, ActiveTurn>();
   const hiddenModelKeys = getHiddenModelKeysFromEnv();
+  const pendingToolStatus = new Map<string, number>();
 
   runner.on('event', (event: RunnerEvent) => {
     handleRunnerEvent(event);
@@ -272,6 +273,13 @@ export function createRunnerOrchestrator(params: {
             recoverable: true,
             timestamp: now(),
           });
+          emit(sseManager, {
+            type: 'status',
+            sessionId: event.sessionId,
+            status: 'idle',
+            message: 'Model change failed',
+            timestamp: now(),
+          });
         }
         break;
       case 'status':
@@ -326,13 +334,20 @@ export function createRunnerOrchestrator(params: {
           input: event.input && typeof event.input === 'object' ? event.input as Record<string, unknown> : { value: event.input },
           timestamp: now(),
         });
-        emit(sseManager, {
-          type: 'status',
-          sessionId: event.sessionId,
-          status: 'busy',
-          message: `Running ${event.toolName}`,
-          timestamp: now(),
-        });
+        {
+          const key = `${event.sessionId}:${event.toolCallId}`;
+          const lastEmittedAt = pendingToolStatus.get(key) ?? 0;
+          if (Date.now() - lastEmittedAt > 500) {
+            pendingToolStatus.set(key, Date.now());
+            emit(sseManager, {
+              type: 'status',
+              sessionId: event.sessionId,
+              status: 'busy',
+              message: `Running ${event.toolName}`,
+              timestamp: now(),
+            });
+          }
+        }
         break;
       case 'tool_result':
         sessionStore.addMessage(event.sessionId, {
@@ -411,11 +426,24 @@ export function createRunnerOrchestrator(params: {
     const session = sessionIdOrKey ? sessionStore.getSession(sessionIdOrKey) : undefined;
     const sessionId = session?.id;
 
-    const result = await runner.send(sessionId
-      ? { type: 'get_capabilities', requestId: requestId(), sessionId }
-      : { type: 'get_capabilities', requestId: requestId() });
+    // Best effort: if per-session capabilities fail (stale runner session, restart, timeout),
+    // retry globally and finally fall back to cached models instead of bubbling a 503.
+    let result;
+    try {
+      result = await runner.send(sessionId
+        ? { type: 'get_capabilities', requestId: requestId(), sessionId }
+        : { type: 'get_capabilities', requestId: requestId() });
+    } catch {
+      if (sessionId) {
+        try {
+          result = await runner.send({ type: 'get_capabilities', requestId: requestId() });
+        } catch {
+          result = undefined;
+        }
+      }
+    }
 
-    if (result.ok && result.data && typeof result.data === 'object') {
+    if (result?.ok && result.data && typeof result.data === 'object') {
       const models = (result.data as { availableModels?: RunnerModelInfo[] }).availableModels ?? [];
       cacheModels(sessionId, models);
     }
@@ -460,6 +488,13 @@ export function createRunnerOrchestrator(params: {
     }
     sessionStore.addMessage(session.id, { role: 'user', content: request.message, messageId });
     activeTurns.set(session.id, { assistantMessageId: messageId, assistantContent: '' });
+    emit(sseManager, {
+      type: 'status',
+      sessionId: session.id,
+      status: 'busy',
+      message: 'Working',
+      timestamp: now(),
+    });
 
     await startSessionIfNeeded(sessionStore.getSession(session.id) ?? session);
     if (request.thinkingLevel) await setThinkingLevel(session.id, request.thinkingLevel);

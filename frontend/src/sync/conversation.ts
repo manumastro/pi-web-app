@@ -579,36 +579,45 @@ export function appendPrompt(conversation: ConversationItem[], text: string, tur
 export function applySsePayload(conversation: ConversationItem[], payload: SsePayload): ConversationItem[] {
   if (payload.type === 'text_chunk') {
     const chunk = payload.content ?? '';
-    const index = lastMessageIndex(conversation, 'assistant', payload.messageId);
-    if (index < 0) {
-      return [
-        ...conversation,
-        {
-          kind: 'message',
-          id: payload.messageId ?? randomId('assistant'),
-          role: 'assistant',
-          content: chunk,
-          timestamp: 'streaming',
-          status: 'streaming',
-          messageId: payload.messageId,
-        },
-      ];
+
+    // Resolve messageId: prefer explicit payload messageId, fall back to the
+    // last assistant in the conversation (handles out-of-order chunk delivery).
+    const assistantIndex = lastMessageIndex(conversation, 'assistant', undefined);
+    const resolvedMessageId = payload.messageId
+      ?? (assistantIndex >= 0 ? (conversation[assistantIndex] as MessageItem).messageId : undefined);
+
+    if (resolvedMessageId) {
+      const index = lastMessageIndex(conversation, 'assistant', resolvedMessageId);
+      if (index >= 0) {
+        const item = conversation[index];
+        if (item && item.kind === 'message') {
+          const next = [...conversation];
+          next[index] = {
+            ...item,
+            messageId: resolvedMessageId,
+            content: `${item.content}${chunk}`,
+            status: 'streaming',
+            timestamp: 'streaming',
+          };
+          return next;
+        }
+      }
     }
 
-    const item = conversation[index];
-    if (!item || item.kind !== 'message') {
-      return conversation;
-    }
-
-    const next = [...conversation];
-    next[index] = {
-      ...item,
-      messageId: payload.messageId ?? item.messageId,
-      content: `${item.content}${chunk}`,
-      status: 'streaming',
-      timestamp: 'streaming',
-    };
-    return next;
+    // No matching assistant — create a new one appended to the conversation.
+    // If later chunks arrive with a messageId, applySsePayload will update it.
+    return [
+      ...conversation,
+      {
+        kind: 'message',
+        id: resolvedMessageId ?? randomId('assistant'),
+        role: 'assistant',
+        content: chunk,
+        timestamp: 'streaming',
+        status: 'streaming',
+        messageId: resolvedMessageId,
+      },
+    ];
   }
 
   if (payload.type === 'thinking') {
@@ -638,10 +647,15 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
 
   if (payload.type === 'tool_result') {
     const toolCallId = payload.toolCallId ?? randomId('tool-result');
-    const fallbackTurnId = conversation
-      .find((item): item is ToolCallItem => item.kind === 'tool_call' && item.toolCallId === toolCallId)
-      ?.messageId;
+    const existingToolCall = conversation.find(
+      (item): item is ToolCallItem => item.kind === 'tool_call' && item.toolCallId === toolCallId,
+    );
+    const fallbackTurnId = existingToolCall?.messageId;
 
+    // If the tool_result arrives before the tool_call (out of order delivery),
+    // we still attach it using the toolCallId, and it will be grouped when the
+    // tool_call itself is added. The turnId is derived from the existing
+    // tool_call so both entries share the same turn in groupToolEntry.
     return upsertById(conversation, {
       kind: 'tool_result',
       id: `${toolCallId}-result`,
@@ -668,13 +682,19 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
   }
 
   if (payload.type === 'done') {
+    // Resolve which messageId to use for updating the assistant and marking thinking done.
+    // If done has no messageId, derive it from the assistant message so we correctly
+    // mark only the thinking block that belongs to this turn.
+    const assistantIndex = lastMessageIndex(conversation, 'assistant', undefined);
+    const assistantMessageId = payload.messageId
+      ?? (assistantIndex >= 0 ? (conversation[assistantIndex] as MessageItem).messageId : undefined);
     return markThinkingDone(
       updateLastAssistant(conversation, (item) => ({
         ...item,
         status: payload.aborted ? 'aborted' : 'complete',
         timestamp: new Date().toISOString(),
-      }), payload.messageId),
-      payload.messageId,
+      }), assistantMessageId),
+      assistantMessageId,
     );
   }
 

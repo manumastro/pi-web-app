@@ -150,7 +150,7 @@ describe('RunnerOrchestrator', () => {
     const result = await orchestrator.prompt({ sessionId: 'session-1', cwd: '/tmp/project', message: 'Say hello', messageId: 'message-1' });
 
     expect(result.sessionId).toBe('session-1');
-    expect(events.map((event) => event.type)).toEqual(['session_name', 'thinking', 'tool_call', 'status', 'tool_result', 'text_chunk', 'text_chunk', 'done', 'status']);
+    expect(events.map((event) => event.type)).toEqual(['session_name', 'status', 'thinking', 'tool_call', 'status', 'tool_result', 'text_chunk', 'text_chunk', 'done', 'status']);
     const session = sessionStore.getSession('session-1');
     expect(session?.status).toBe('idle');
     expect(session?.title).toBe('Say hello');

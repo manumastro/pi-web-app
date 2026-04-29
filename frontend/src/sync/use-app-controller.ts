@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiGet } from '@/api';
 import type { SsePayload } from '@/sync/conversation';
 import { useSessionStream } from '@/hooks/useSessionStream';
@@ -40,6 +40,24 @@ interface RelayStatusPayload {
   sessions: Record<string, number>;
   transport: string;
   path: string;
+}
+
+// Module-level model cache to avoid redundant fetches on session switches.
+const modelCacheBySession = new Map<string, { models: ModelInfo[]; at: number }>();
+const MODEL_CACHE_TTL_MS = 60_000;
+
+function getCachedModels(sessionId: string): ModelInfo[] | undefined {
+  const entry = modelCacheBySession.get(sessionId);
+  if (!entry) return undefined;
+  if (Date.now() - entry.at > MODEL_CACHE_TTL_MS) {
+    modelCacheBySession.delete(sessionId);
+    return undefined;
+  }
+  return entry.models;
+}
+
+function setCachedModels(sessionId: string, models: ModelInfo[]): void {
+  modelCacheBySession.set(sessionId, { models, at: Date.now() });
 }
 
 export type AppController = {
@@ -146,6 +164,8 @@ export function useAppController(): AppController {
   const [thinkingLevelError, setThinkingLevelError] = useState('');
   const [relayStatusMessage, setRelayStatusMessage] = useState('Relay connecting');
   const [relayConnected, setRelayConnected] = useState(false);
+  const relayPollRef = useRef<{ intervalId: number | undefined; failures: number }>({ intervalId: undefined, failures: 0 });
+  const doneReconcileAtRef = useRef<Map<string, number>>(new Map());
 
   const projectDirectories = useMemo<DirectoryInfo[]>(() => {
     const sessionCounts = new Map<string, number>();
@@ -199,6 +219,11 @@ export function useAppController(): AppController {
       setModels([]);
       return [];
     }
+    const cached = getCachedModels(selSessionId);
+    if (cached) {
+      setModels(cached);
+      return cached;
+    }
     const payload = await apiGet<{ models: unknown[] }>(`/api/models?sessionId=${encodeURIComponent(selSessionId)}`);
     const mapped: ModelInfo[] = (payload.models ?? []).map((m: unknown) => {
       const model = m as Record<string, unknown>;
@@ -214,9 +239,10 @@ export function useAppController(): AppController {
         maxTokens: typeof model.maxTokens === 'number' ? model.maxTokens : undefined,
       };
     });
+    setCachedModels(selSessionId, mapped);
     setModels(mapped);
     return mapped;
-  }, [setModels]);
+  }, []);
 
   const refreshThinkingLevels = useCallback(async (sessionId?: string): Promise<void> => {
     if (!sessionId) {
@@ -329,18 +355,36 @@ export function useAppController(): AppController {
       const payload = await apiGet<RelayStatusPayload>('/api/relay/status');
       setRelayConnected(true);
       setRelayStatusMessage(`Relay connected · ${payload.viewers} viewer${payload.viewers === 1 ? '' : 's'}`);
+      // Reset poll interval on success
+      if (relayPollRef.current.intervalId != null) {
+        clearInterval(relayPollRef.current.intervalId);
+        relayPollRef.current.intervalId = window.setInterval(() => { void refreshRelayStatus(); }, 15_000);
+        relayPollRef.current.failures = 0;
+      }
     } catch {
       setRelayConnected(false);
-      setRelayStatusMessage('Relay unavailable');
+      // Exponentially back off: 15s → 30s → 60s (capped)
+      const nextInterval = Math.min(15_000 * Math.pow(2, relayPollRef.current.failures), 60_000);
+      relayPollRef.current.failures += 1;
+      if (relayPollRef.current.intervalId != null) {
+        clearInterval(relayPollRef.current.intervalId);
+      }
+      relayPollRef.current.intervalId = window.setInterval(() => { void refreshRelayStatus(); }, nextInterval);
+      if (relayPollRef.current.failures === 1) {
+        setRelayStatusMessage('Relay unavailable');
+      }
     }
   }, []);
 
   useEffect(() => {
     void refreshRelayStatus();
-    const timer = window.setInterval(() => {
-      void refreshRelayStatus();
-    }, 15_000);
-    return () => window.clearInterval(timer);
+    relayPollRef.current.intervalId = window.setInterval(() => { void refreshRelayStatus(); }, 15_000);
+    return () => {
+      if (relayPollRef.current.intervalId != null) {
+        clearInterval(relayPollRef.current.intervalId);
+        relayPollRef.current.intervalId = undefined;
+      }
+    };
   }, [refreshRelayStatus]);
 
   useSessionStream({
@@ -356,6 +400,36 @@ export function useAppController(): AppController {
         setStatusMessage,
         setError,
       });
+
+      // Reconcile final assistant text from persisted session after done events.
+      // This heals rare missed early chunks (UI shows truncated assistant until reload).
+      const shouldReconcile = payload.sessionId
+        && (
+          payload.type === 'done'
+          || (payload.type === 'status' && payload.status === 'idle')
+        );
+
+      if (shouldReconcile && payload.sessionId) {
+        const nowTs = Date.now();
+        const lastTs = doneReconcileAtRef.current.get(payload.sessionId) ?? 0;
+        if (nowTs - lastTs > 500) {
+          doneReconcileAtRef.current.set(payload.sessionId, nowTs);
+          const reconcile = async (attempt = 0): Promise<void> => {
+            try {
+              await loadSession(payload.sessionId);
+            } catch {
+              // ignore and retry below
+            }
+            if (attempt < 3) {
+              const delayMs = attempt === 0 ? 120 : attempt === 1 ? 600 : 1400;
+              window.setTimeout(() => {
+                void reconcile(attempt + 1);
+              }, delayMs);
+            }
+          };
+          void reconcile();
+        }
+      }
     },
     onPayloadBatch: (payloads: SsePayload[]) => {
       if (payloads.length === 0) {
@@ -388,10 +462,9 @@ export function useAppController(): AppController {
     },
     onGapDetected: async ({ sessionId, lastEventId, nextEventId }) => {
       setStatusMessage('Recovering missed events');
-      setError(`Recovered stream gap (${lastEventId} → ${nextEventId})`);
+      console.warn(`[sse] Recovered stream gap (${lastEventId} → ${nextEventId}) for session ${sessionId}`);
       try {
         await loadSession(sessionId);
-        setError('');
       } catch (cause) {
         setStreaming('error');
         setStatusMessage('Recovery failed');
@@ -448,9 +521,9 @@ export function useAppController(): AppController {
     setQueryParams({ cwd: created.cwd, sessionId: created.id });
     setConversation([]);
     setStatusMessage('Session ready');
-    await refreshModels(created.id);
-    await refreshThinkingLevels(created.id);
-  }, [addProject, createSession, selectProject, setConversation, setStatusMessage, refreshModels, refreshThinkingLevels]);
+    // loadSession already calls refreshModels + refreshThinkingLevels — no need to call again here.
+    await loadSession(created.id);
+  }, [addProject, createSession, loadSession, selectProject, setConversation, setStatusMessage]);
 
   const handleDeleteSession = useCallback(async (targetId: string): Promise<void> => {
     const { selectedSessionId, selectedDirectory } = useSessionUiStore.getState();

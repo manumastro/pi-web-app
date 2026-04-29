@@ -44,10 +44,26 @@ function mergeTextPayload(left: SsePayload, right: SsePayload): SsePayload {
   };
 }
 
+function numericEventId(payload: SsePayload): number | null {
+  const id = payloadEventId(payload);
+  if (!id) return null;
+  const parsed = Number.parseInt(id, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function coalesceSsePayloads(payloads: SsePayload[], seenEventIds?: SeenEventIds): SsePayload[] {
+  // EventSource callbacks can occasionally deliver adjacent events out of order.
+  // Reorder by numeric SSE id when available to preserve stream text integrity.
+  const ordered = [...payloads].sort((left, right) => {
+    const leftId = numericEventId(left);
+    const rightId = numericEventId(right);
+    if (leftId === null || rightId === null || leftId === rightId) return 0;
+    return leftId - rightId;
+  });
+
   const deduped: SsePayload[] = [];
 
-  for (const payload of payloads) {
+  for (const payload of ordered) {
     const eventId = payloadEventId(payload);
     if (eventId && seenEventIds?.has(eventId)) {
       continue;

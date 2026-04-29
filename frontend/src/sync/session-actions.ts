@@ -232,13 +232,22 @@ export async function answerQuestion(sessionId: string, questionId: string, answ
 }
 
 export async function abortCurrentOperation(sessionId: string): Promise<void> {
+  // Optimistically clear the active turn state on the frontend immediately.
+  useChatStore.getState().setStreaming('idle');
+  useChatStore.getState().setStatusMessage('Stopping');
   try {
-    await apiRequest('/api/messages/abort', {
-      method: 'POST',
-      body: JSON.stringify({ sessionId }),
-    });
+    await Promise.race([
+      apiRequest('/api/messages/abort', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Abort request timed out')), 10_000),
+      ),
+    ]);
   } catch (error) {
     console.error('[session-actions] abort failed', error);
+    useChatStore.getState().setStatusMessage('Stop failed');
   }
 }
 
@@ -271,16 +280,8 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
     return false;
   }
 
-  const syncedSession = await updateSessionModel(sessionId, resolvedModel);
-  if (!syncedSession) {
-    const chat = useChatStore.getState();
-    chat.setStreaming('error');
-    chat.setStatusMessage('Error');
-    chat.setError('Unable to update session model');
-    return false;
-  }
-
-  const effectiveSession = syncedSession ?? currentSession;
+  syncActiveModel(resolvedModel, sessionId);
+  const effectiveSession = currentSession;
 
   const turnId = input.turnId && input.turnId.trim().length > 0 ? input.turnId : generateTurnId();
 
@@ -295,7 +296,7 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
     status: 'busy',
     updatedAt: optimisticUpdatedAt,
     ...(effectiveSession?.cwd ? { cwd: effectiveSession.cwd } : {}),
-    ...(effectiveSession?.model ? { model: effectiveSession.model } : {}),
+    model: resolvedModel,
   });
   syncSessionUiFromStore(sessionId);
 

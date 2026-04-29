@@ -118,10 +118,11 @@ export function applyStreamingPayloadState(sessionId: string, payload: SsePayloa
   }
 
   if (payload.type === 'done' || payload.type === 'error') {
-    if (resolvedMessageId) {
-      startCooldown(sessionId, resolvedMessageId, now);
+    clearCompletionTimer(sessionId);
+    const messageId = resolvedMessageId ?? currentMessageId;
+    if (messageId) {
+      startCooldown(sessionId, messageId, now);
     } else {
-      clearCompletionTimer(sessionId);
       setStreamingState(sessionId, null);
     }
   }

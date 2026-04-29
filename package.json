@@ -12,12 +12,14 @@
     "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
     "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
     "test:coverage": "npm run test:coverage --workspace=backend && npm run test:coverage --workspace=frontend",
+    "test:e2e:fullstack": "node scripts/e2e-fullstack-stream.mjs",
     "lint": "npm run lint --workspace=backend && npm run lint --workspace=frontend"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
     "autoprefixer": "^10.5.0",
     "concurrently": "^9.1.2",
+    "playwright": "^1.59.1",
     "postcss": "^8.5.10",
     "tailwindcss": "^4.2.2"
   }

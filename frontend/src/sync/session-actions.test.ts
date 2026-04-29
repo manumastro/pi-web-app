@@ -85,15 +85,9 @@ describe('session actions', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('updates the session model before sending a prompt', async () => {
+  it('optimistically sends a prompt without a model preflight request', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === '/api/models/session/model' && init?.method === 'PUT') {
-        return new Response(JSON.stringify({ session: sessionFixture }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
       if (url === '/api/messages/prompt' && init?.method === 'POST') {
         return new Response('', { status: 202 });
       }
@@ -128,18 +122,12 @@ describe('session actions', () => {
     expect(useChatStore.getState().streaming).toBe('streaming');
     expect(useSessionStore.getState().sessions.find((entry) => entry.id === 'session-1')?.status).toBe('busy');
     expect(useSessionUiStore.getState().currentSession?.status).toBe('busy');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('generates and reuses a turn id when none is provided', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === '/api/models/session/model' && init?.method === 'PUT') {
-        return new Response(JSON.stringify({ session: sessionFixture }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
       if (url === '/api/messages/prompt' && init?.method === 'POST') {
         return new Response('', { status: 202 });
       }
@@ -168,7 +156,7 @@ describe('session actions', () => {
     });
 
     expect(ok).toBe(true);
-    const [, promptCall] = fetchMock.mock.calls;
+    const [promptCall] = fetchMock.mock.calls;
     const promptBody = JSON.parse(String(promptCall?.[1]?.body ?? '{}')) as { messageId?: string };
     expect(typeof promptBody.messageId).toBe('string');
     expect(promptBody.messageId).toBeTruthy();

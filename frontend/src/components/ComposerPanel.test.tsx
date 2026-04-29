@@ -133,12 +133,15 @@ describe('ComposerPanel', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Controls/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Gemini Pro' }));
 
     const dialog = await screen.findByRole('dialog');
     const dialogScope = within(dialog);
     expect(dialog).toBeInTheDocument();
     expect(dialogScope.getByText('Controls')).toBeInTheDocument();
+    expect(dialogScope.getByText('Choose model')).toBeInTheDocument();
+
+    fireEvent.click(dialogScope.getByRole('button', { name: /Back/i }));
     expect(dialogScope.getByText('Model')).toBeInTheDocument();
     expect(dialogScope.getByText('Thinking')).toBeInTheDocument();
   });

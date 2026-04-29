@@ -124,11 +124,12 @@ function transitionStatusForPayload(payload: SsePayload): SyncSessionStatus {
     return { type: 'waiting_question', timestamp: Date.now(), message: payload.message };
   }
   if (payload.type === 'status') {
-    return { type: payload.status ?? 'busy', timestamp: Date.now(), message: payload.message, metadata: payload.metadata };
+    return { type: payload.status ?? 'idle', timestamp: Date.now(), message: payload.message, metadata: payload.metadata };
   }
   if (payload.type === 'session_name') {
     return { type: 'busy', timestamp: Date.now(), message: 'Session renamed', metadata: { sessionName: payload.sessionName } };
   }
+  // Unknown payload type — keep current status by returning 'idle'.
   return { type: 'idle', timestamp: Date.now() };
 }
 

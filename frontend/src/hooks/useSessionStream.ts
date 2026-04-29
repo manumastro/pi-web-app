@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { SsePayload } from '../sync/conversation';
 import { coalesceSsePayloads, createSeenEventIdWindow } from '../sync/event-coalescing';
+import { emitForensicEvent } from '../sync/forensics';
 
 interface UseSessionStreamOptions {
   sessionId: string | undefined;
@@ -123,6 +124,7 @@ export function useSessionStream({
 
       source.onopen = () => {
         lastPayloadAtRef.current = Date.now();
+        emitForensicEvent({ type: 'sse_open', sessionId, lastEventId: lastEventIdRef.current || undefined });
         callbacksRef.current.onConnected?.();
       };
 
@@ -142,6 +144,12 @@ export function useSessionStream({
           const currentId = Number.parseInt(event.lastEventId, 10);
           if (Number.isFinite(currentId)) {
             if (previousId !== null && currentId > previousId + 1) {
+              emitForensicEvent({
+                type: 'sse_gap_detected',
+                sessionId,
+                lastEventId: String(previousId),
+                nextEventId: event.lastEventId,
+              });
               callbacksRef.current.onGapDetected?.({
                 sessionId,
                 lastEventId: String(previousId),
@@ -154,6 +162,28 @@ export function useSessionStream({
           payload.__eventId = event.lastEventId;
         }
 
+        if (payload.type === 'done' || payload.type === 'error' || payload.type === 'status') {
+          emitForensicEvent({
+            type: 'sse_payload',
+            sessionId,
+            eventType: payload.type,
+            eventId: payload.__eventId,
+            messageId: payload.messageId,
+            status: payload.type === 'status' ? payload.status : undefined,
+            contentPreview: typeof payload.content === 'string' ? payload.content.slice(-80) : undefined,
+          });
+        }
+        if (payload.type === 'text_chunk') {
+          emitForensicEvent({
+            type: 'sse_text_chunk',
+            sessionId,
+            eventId: payload.__eventId,
+            messageId: payload.messageId,
+            chunkLen: (payload.content ?? '').length,
+            chunkTail: (payload.content ?? '').slice(-24),
+          });
+        }
+
         enqueuePayload(payload);
       };
 
@@ -164,6 +194,7 @@ export function useSessionStream({
       source.addEventListener('tool_call', handlePayload);
       source.addEventListener('tool_result', handlePayload);
       source.addEventListener('done', handlePayload);
+      source.addEventListener('status', handlePayload);
       source.addEventListener('session_name', handlePayload);
       source.addEventListener('error', handlePayload);
 
@@ -172,6 +203,7 @@ export function useSessionStream({
           return;
         }
         if (lastPayloadAtRef.current > 0 && Date.now() - lastPayloadAtRef.current > 60_000) {
+          emitForensicEvent({ type: 'sse_stale_timeout', sessionId });
           callbacksRef.current.onConnectionLost?.();
           source.close();
           eventSourceRef.current = null;
@@ -191,6 +223,11 @@ export function useSessionStream({
       }, 15_000);
 
       source.onerror = (event) => {
+        // Flush queued payloads even if this source is from an old generation —
+        // the flush is safe to call (it reads from closure refs, not source refs).
+        // If generation changed, reconnect will early-return in openSource anyway.
+        flushQueuedPayloads();
+
         if (generationRef.current !== generation) {
           return;
         }
@@ -209,7 +246,7 @@ export function useSessionStream({
           }
         }
 
-        flushQueuedPayloads();
+        emitForensicEvent({ type: 'sse_error_reconnect', sessionId, eventType: event.type });
         callbacksRef.current.onConnectionLost?.();
         source.close();
         eventSourceRef.current = null;

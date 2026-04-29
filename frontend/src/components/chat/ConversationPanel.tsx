@@ -108,7 +108,11 @@ function getToolEntryKey(entry: ToolTurnEntry): string {
 
 function groupToolEntry(entries: ToolTurnEntry[], item: ToolCallItem | ToolResultItem): void {
   const toolCallId = item.toolCallId;
-  const existing = entries.find((entry) => entry.kind === 'tool' && (entry.call?.toolCallId === toolCallId || entry.result?.toolCallId === toolCallId));
+  const existing = entries.find(
+    (entry) =>
+      entry.kind === 'tool'
+      && (entry.call?.toolCallId === toolCallId || entry.result?.toolCallId === toolCallId),
+  );
 
   if (item.kind === 'tool_call') {
     if (existing && existing.kind === 'tool') {
@@ -120,11 +124,15 @@ function groupToolEntry(entries: ToolTurnEntry[], item: ToolCallItem | ToolResul
     return;
   }
 
+  // item.kind === 'tool_result' — attach to existing entry if possible
   if (existing && existing.kind === 'tool') {
     existing.result = item;
     return;
   }
 
+  // tool_result arrived before tool_call (or no matching tool_call).
+  // Push a result-only entry; the call may arrive later via SSE and will
+  // be matched by toolCallId in the same groupToolEntry call.
   entries.push({ kind: 'tool', result: item });
 }
 
@@ -401,6 +409,8 @@ function shouldShowInlineWorkingPlaceholder(record: RenderRecord, isWorking: boo
       return false;
     }
 
+    // Only show the placeholder when the assistant entry has NO content yet.
+    // This prevents the flash when text chunks have already started arriving.
     const hasAssistantText = record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0);
     return !hasAssistantText;
   }

@@ -391,8 +391,10 @@
   align-items: center;
   gap: 0.5rem;
   width: 100%;
+  min-height: 2.05rem;
   padding: 0.5rem 0.625rem;
   font-size: var(--text-ui-label);
+  line-height: 1.2;
   color: var(--muted-foreground);
   background: transparent;
   border: none;
@@ -400,6 +402,8 @@
   cursor: pointer;
   text-align: left;
   transition: background-color 0.1s, color 0.1s;
+  position: relative;
+  overflow: hidden;
 }
 
 .session-item:hover {

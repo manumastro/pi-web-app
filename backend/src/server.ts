@@ -43,6 +43,16 @@ export function createApp() {
   registerApiRoutes(app, { runner, sessionStore, config });
   app.use('/api/events', createSseRouter(sseManager, sessionStore));
 
+  // Keep this before static SPA catch-all so frontend relay health checks never get index.html.
+  app.get('/api/relay/status', (_req, res) => {
+    res.json({
+      viewers: 0,
+      sessions: {},
+      transport: 'websocket',
+      path: '/api/relay',
+    });
+  });
+
   const disableFrontendHttpCache = (process.env.PI_WEB_DISABLE_FRONTEND_HTTP_CACHE ?? 'true').toLowerCase() !== 'false';
   const applyNoStoreHeaders = (res: express.Response): void => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -82,15 +92,6 @@ export function createHttpServer() {
     orchestrator: runtime.orchestrator,
     sessionStore: runtime.sessionStore,
     sseManager: runtime.sseManager,
-  });
-
-  runtime.app.get('/api/relay/status', (_req, res) => {
-    res.json({
-      viewers: relay.viewerCount(),
-      sessions: relay.sessionViewerCounts(),
-      transport: 'websocket',
-      path: '/api/relay',
-    });
   });
 
   return { ...runtime, server, relay };

@@ -357,25 +357,52 @@ async function emitSessionActive(active: RpcSession): Promise<void> {
   ]);
   const data = isRecord(state?.data) ? state.data : {};
   active.model = modelFromUnknown(data.model) ?? active.model;
+  if (typeof data.thinkingLevel === 'string' && data.thinkingLevel !== 'off') {
+    active.thinkingLevel = data.thinkingLevel;
+  }
   emit({
     type: 'session_active',
     sessionId: active.sessionId,
     cwd: active.cwd,
     model: active.model,
-    thinkingLevel: typeof data.thinkingLevel === 'string' && data.thinkingLevel !== 'off' ? data.thinkingLevel as never : undefined,
+    ...(active.thinkingLevel ? { thinkingLevel: active.thinkingLevel as never } : {}),
     availableModels: modelsFromUnknown(models?.data),
     ...(typeof data.sessionId === 'string' ? { piSessionId: data.sessionId } : {}),
     ...(typeof data.sessionFile === 'string' ? { piSessionFile: data.sessionFile } : {}),
   });
 }
 
+function sameModel(left: RunnerModelRef | null | undefined, right: RunnerModelRef | null | undefined): boolean {
+  return !!left && !!right && left.provider === right.provider && left.id === right.id;
+}
+
+function finishPrompt(active: RpcSession): void {
+  if (!active.assistantMessageId) return;
+  emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId, aborted: active.aborted });
+  active.assistantMessageId = null;
+  active.aborted = false;
+}
+
 async function handleCommand(command: RunnerCommand): Promise<void> {
   switch (command.type) {
     case 'start_session': {
+      const alreadyStarted = sessions.has(command.sessionId);
       const active = await ensureSession(command);
-      if (command.model) await sendRpc(active, command.requestId, { type: 'set_model', provider: command.model.provider, modelId: command.model.id });
-      if (command.thinkingLevel) await sendRpc(active, command.requestId, { type: 'set_thinking_level', level: command.thinkingLevel });
-      await emitSessionActive(active);
+      const requestedModel = command.model;
+      const requestedThinkingLevel = command.thinkingLevel;
+      const modelChanged = !!requestedModel && !sameModel(active.model, requestedModel);
+      const thinkingChanged = !!requestedThinkingLevel && active.thinkingLevel !== requestedThinkingLevel;
+      if (modelChanged) {
+        await sendRpc(active, command.requestId, { type: 'set_model', provider: requestedModel.provider, modelId: requestedModel.id });
+        active.model = requestedModel;
+      }
+      if (thinkingChanged) {
+        await sendRpc(active, command.requestId, { type: 'set_thinking_level', level: requestedThinkingLevel });
+        active.thinkingLevel = requestedThinkingLevel;
+      }
+      if (!alreadyStarted || modelChanged || thinkingChanged) {
+        await emitSessionActive(active);
+      }
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       break;
     }
@@ -385,13 +412,14 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       active.assistantMessageId = command.messageId ?? crypto.randomUUID();
       active.aborted = false;
       const rpcType = command.deliverAs === 'steer' ? 'steer' : command.deliverAs === 'followUp' ? 'follow_up' : 'prompt';
-      await sendRpc(active, command.requestId, { type: rpcType, message: command.text });
-      if (active.assistantMessageId) {
-        emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId, aborted: active.aborted });
-        active.assistantMessageId = null;
-        active.aborted = false;
-      }
       commandResult(command.requestId, true, { sessionId: command.sessionId });
+      void sendRpc(active, command.requestId, { type: rpcType, message: command.text })
+        .then(() => finishPrompt(active))
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          emit({ type: 'error', sessionId: active.sessionId, error: message, message, fatal: false });
+          finishPrompt(active);
+        });
       break;
     }
     case 'answer_question': {
