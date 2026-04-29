@@ -77,6 +77,9 @@ export function createSseManager(historyDir?: string): SseManager {
   }
 
   function replayHistory(sessionId: string, response: ServerResponse, lastEventId?: string): void {
+    if (lastEventId === 'latest') {
+      return;
+    }
     const since = parseLastEventId(lastEventId);
 
     const history = histories.get(sessionId) ?? [];

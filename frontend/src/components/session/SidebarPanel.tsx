@@ -390,17 +390,19 @@ export function SidebarPanel({
           </div>
         ) : null}
 
-        <button
-          type="button"
-          className={cn('directory-item sidebar-project-item', 'active')}
-          onClick={() => onDirectorySelect(activeProject?.cwd ?? homeDirectory)}
-          title={activeProject?.cwd ?? homeDirectory}
-        >
-          <Folder size={14} className="flex-shrink-0" />
-          <span className="sidebar-item-title sidebar-project-label">{projectLabel}</span>          <span className="sidebar-project-count">{projectCount}</span>
-        </button>
+        <div className="sidebar-scroll-area">
+          <button
+            type="button"
+            className={cn('directory-item sidebar-project-item', 'active')}
+            onClick={() => onDirectorySelect(activeProject?.cwd ?? homeDirectory)}
+            title={activeProject?.cwd ?? homeDirectory}
+          >
+            <Folder size={14} className="flex-shrink-0" />
+            <span className="sidebar-item-title sidebar-project-label">{projectLabel}</span>
+            <span className="sidebar-project-count">{projectCount}</span>
+          </button>
 
-        <div className="sidebar-section">
+          <div className="sidebar-section">
           <p className="sidebar-section-title">Projects</p>
           <div className="sidebar-project-list">
             {projects.map((project) => {
@@ -553,6 +555,8 @@ export function SidebarPanel({
               })}
             </div>
           ) : null}
+        </div>
+
         </div>
 
         <div className="sidebar-footer">

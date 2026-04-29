@@ -14,7 +14,7 @@
   flex-direction: column;
   gap: 0.35rem;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* =============================================

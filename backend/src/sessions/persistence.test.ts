@@ -106,4 +106,17 @@ describe('persistence', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('loads session files from nested CLI-style directories', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'pi-web-sessions-nested-'));
+    try {
+      const nestedDir = path.join(dir, '--home-manu-project--');
+      await writeSessionFile(nestedDir, { ...baseSession, id: 'nested-session-1' });
+
+      const sessions = await loadSessionsFromDir(dir);
+      expect(sessions.some((session) => session.id === 'nested-session-1')).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

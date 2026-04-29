@@ -387,6 +387,30 @@ export function useAppController(): AppController {
     };
   }, [refreshRelayStatus]);
 
+  const scheduleDoneReconcile = useCallback((sessionId: string): void => {
+    const nowTs = Date.now();
+    const lastTs = doneReconcileAtRef.current.get(sessionId) ?? 0;
+    if (nowTs - lastTs <= 500) {
+      return;
+    }
+    doneReconcileAtRef.current.set(sessionId, nowTs);
+    const reconcile = async (attempt = 0): Promise<void> => {
+      try {
+        await loadSession(sessionId);
+        return;
+      } catch {
+        // ignore and retry below
+      }
+      if (attempt < 3) {
+        const delayMs = attempt === 0 ? 120 : attempt === 1 ? 600 : 1400;
+        window.setTimeout(() => {
+          void reconcile(attempt + 1);
+        }, delayMs);
+      }
+    };
+    void reconcile();
+  }, [loadSession]);
+
   useSessionStream({
     sessionId: selectedSessionId || undefined,
     onPayload: (payload: SsePayload) => {
@@ -410,25 +434,7 @@ export function useAppController(): AppController {
         );
 
       if (shouldReconcile && payload.sessionId) {
-        const nowTs = Date.now();
-        const lastTs = doneReconcileAtRef.current.get(payload.sessionId) ?? 0;
-        if (nowTs - lastTs > 500) {
-          doneReconcileAtRef.current.set(payload.sessionId, nowTs);
-          const reconcile = async (attempt = 0): Promise<void> => {
-            try {
-              await loadSession(payload.sessionId);
-            } catch {
-              // ignore and retry below
-            }
-            if (attempt < 3) {
-              const delayMs = attempt === 0 ? 120 : attempt === 1 ? 600 : 1400;
-              window.setTimeout(() => {
-                void reconcile(attempt + 1);
-              }, delayMs);
-            }
-          };
-          void reconcile();
-        }
+        scheduleDoneReconcile(payload.sessionId);
       }
     },
     onPayloadBatch: (payloads: SsePayload[]) => {
@@ -445,6 +451,14 @@ export function useAppController(): AppController {
         setStatusMessage,
         setError,
       });
+
+      const reconcilePayload = payloads.find((payload) => payload.sessionId && (
+        payload.type === 'done'
+        || (payload.type === 'status' && payload.status === 'idle')
+      ));
+      if (reconcilePayload?.sessionId) {
+        scheduleDoneReconcile(reconcilePayload.sessionId);
+      }
     },
     onConnected: () => {
       const currentState = useChatStore.getState().streaming;
@@ -626,9 +640,14 @@ export function useAppController(): AppController {
   const handleModelSelect = useCallback(async (modelKey: string): Promise<void> => {
     const currentSessionId = useSessionUiStore.getState().selectedSessionId;
     const currentModels = useUIStore.getState().models;
+    const optimisticModels = currentModels.map((m) => ({ ...m, active: m.key === modelKey }));
+
+    setModels(optimisticModels);
+    if (currentSessionId) {
+      setCachedModels(currentSessionId, optimisticModels);
+    }
 
     if (!currentSessionId) {
-      setModels(currentModels.map((m) => ({ ...m, active: m.key === modelKey })));
       return;
     }
 
@@ -637,12 +656,13 @@ export function useAppController(): AppController {
       setStreaming('error');
       setStatusMessage('Error');
       setError('Unable to update session model');
+      void refreshModels(currentSessionId);
       return;
     }
 
     setQueryParams({ cwd: payload.cwd, sessionId: payload.id });
-    await refreshModels(payload.id);
-    await refreshThinkingLevels(payload.id);
+    void refreshModels(payload.id);
+    void refreshThinkingLevels(payload.id);
     setError('');
   }, [refreshModels, refreshThinkingLevels, setError, setModels, setStatusMessage, setStreaming, updateSessionModel]);
 

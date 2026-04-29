@@ -153,6 +153,9 @@ export function createRunnerOrchestrator(params: {
   const activeTurns = new Map<string, ActiveTurn>();
   const hiddenModelKeys = getHiddenModelKeysFromEnv();
   const pendingToolStatus = new Map<string, number>();
+  const capabilitiesFetchedAtBySession = new Map<string, number>();
+  let globalCapabilitiesFetchedAt = 0;
+  const CAPABILITIES_CACHE_TTL_MS = 30_000;
 
   runner.on('event', (event: RunnerEvent) => {
     handleRunnerEvent(event);
@@ -408,6 +411,10 @@ export function createRunnerOrchestrator(params: {
         break;
       }
       case 'error':
+        if (event.sessionId) {
+          sessionStore.updateSession(event.sessionId, { status: 'error' });
+          activeTurns.delete(event.sessionId);
+        }
         emit(sseManager, {
           type: 'error',
           sessionId: event.sessionId ?? 'runner',
@@ -426,26 +433,35 @@ export function createRunnerOrchestrator(params: {
     const session = sessionIdOrKey ? sessionStore.getSession(sessionIdOrKey) : undefined;
     const sessionId = session?.id;
 
-    // Best effort: if per-session capabilities fail (stale runner session, restart, timeout),
-    // retry globally and finally fall back to cached models instead of bubbling a 503.
-    let result;
-    try {
-      result = await runner.send(sessionId
-        ? { type: 'get_capabilities', requestId: requestId(), sessionId }
-        : { type: 'get_capabilities', requestId: requestId() });
-    } catch {
-      if (sessionId) {
-        try {
-          result = await runner.send({ type: 'get_capabilities', requestId: requestId() });
-        } catch {
-          result = undefined;
+    const cachedAt = sessionId ? (capabilitiesFetchedAtBySession.get(sessionId) ?? 0) : globalCapabilitiesFetchedAt;
+    const hasUsableCache = sessionId
+      ? Boolean(availableModelsBySession.get(sessionId)?.length || globalAvailableModels.length)
+      : globalAvailableModels.length > 0;
+
+    // Best effort: avoid spawning/probing Pi on every model-menu open. Use the
+    // official RPC client only when the cache is cold/stale, then refresh cache.
+    if (!hasUsableCache || Date.now() - cachedAt > CAPABILITIES_CACHE_TTL_MS) {
+      let result;
+      try {
+        result = await runner.send(sessionId
+          ? { type: 'get_capabilities', requestId: requestId(), sessionId }
+          : { type: 'get_capabilities', requestId: requestId() });
+      } catch {
+        if (sessionId) {
+          try {
+            result = await runner.send({ type: 'get_capabilities', requestId: requestId() });
+          } catch {
+            result = undefined;
+          }
         }
       }
-    }
 
-    if (result?.ok && result.data && typeof result.data === 'object') {
-      const models = (result.data as { availableModels?: RunnerModelInfo[] }).availableModels ?? [];
-      cacheModels(sessionId, models);
+      if (result?.ok && result.data && typeof result.data === 'object') {
+        const models = (result.data as { availableModels?: RunnerModelInfo[] }).availableModels ?? [];
+        cacheModels(sessionId, models);
+        if (sessionId) capabilitiesFetchedAtBySession.set(sessionId, Date.now());
+        else globalCapabilitiesFetchedAt = Date.now();
+      }
     }
 
     const modelsSource = sessionId
@@ -536,6 +552,7 @@ export function createRunnerOrchestrator(params: {
       sessionId,
       model: { provider: parsed.provider, id: parsed.modelId },
     });
+    capabilitiesFetchedAtBySession.delete(sessionId);
     if (!result.ok) throw new Error(result.error ?? 'Pi runner model switch failed');
   }
 

@@ -115,7 +115,7 @@ export function useSessionStream({
         staleTimerRef.current = null;
       }
 
-      const params = new URLSearchParams({ sessionId });
+      const params = new URLSearchParams({ sessionId, replay: lastEventIdRef.current ? '1' : '0' });
       if (lastEventIdRef.current) {
         params.set('lastEventId', lastEventIdRef.current);
       }

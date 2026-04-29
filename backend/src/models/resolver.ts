@@ -99,7 +99,12 @@ export function summarizeModels(params: {
   selectedKey?: string;
 }): ModelSummary[] {
   const { models, availableKeys, selectedKey } = params;
-  return [...models]
+  const selectedRef = parseModelKey(selectedKey);
+  const visibleModels = selectedRef && !models.some((model) => modelKey(model) === selectedRef.key)
+    ? [{ provider: selectedRef.provider, id: selectedRef.modelId }, ...models]
+    : models;
+
+  return [...visibleModels]
     .map((model) => {
       const key = modelKey(model);
       return {

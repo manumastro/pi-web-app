@@ -140,7 +140,6 @@ function transitionStatusForPayload(payload: SsePayload): SyncSessionStatus {
     return { type: payload.status ?? 'idle', timestamp: Date.now(), message: payload.message, metadata: payload.metadata };
   }
   if (payload.type === 'session_name') {
-    console.error('[event-reducer session_name]', payload.sessionName);
     return { type: 'busy', timestamp: Date.now(), message: 'Session renamed', metadata: { sessionName: payload.sessionName } };
   }
   // Unknown payload type — keep current status by returning 'idle'.

@@ -63,15 +63,16 @@ export const useUIStore = create<UIState>((set) => ({
     set({ showReasoningTraces });
   },
 
-  setModels: (models) => {
-    const active = models.find((m) => m.active && m.available)
+  setModels: (models) => set((state) => {
+    const active = models.find((m) => m.active)
+      ?? models.find((m) => m.key === state.activeModelKey)
       ?? models.find((m) => m.available)
       ?? models[0];
-    set({
+    return {
       models,
-      activeModelKey: active?.key ?? '',
-    });
-  },
+      activeModelKey: active?.key ?? state.activeModelKey ?? '',
+    };
+  }),
 
   setActiveModel: (activeModelKey) => set({ activeModelKey }),
   setThinkingConfig: (availableThinkingLevels, activeThinkingLevel) => set({ availableThinkingLevels, activeThinkingLevel }),

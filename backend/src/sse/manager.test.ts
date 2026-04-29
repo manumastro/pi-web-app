@@ -58,4 +58,21 @@ describe('sse manager', () => {
     expect(replay.chunks.join('')).toContain('event: done');
     expect(replay.chunks.join('')).not.toContain('event: text_chunk\n');
   });
+
+  it('can skip replay for freshly hydrated subscribers', () => {
+    const manager = createSseManager();
+    manager.broadcast({
+      type: 'text_chunk',
+      sessionId: 's1',
+      messageId: 'm1',
+      content: 'Already loaded from REST',
+      timestamp: '2026-04-15T10:00:00.000Z',
+    });
+
+    const replay = createResponseRecorder();
+    manager.subscribe('s1', replay.response, 'latest');
+
+    expect(replay.chunks.join('')).toContain(': connected');
+    expect(replay.chunks.join('')).not.toContain('event: text_chunk\n');
+  });
 });

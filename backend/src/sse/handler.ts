@@ -18,11 +18,13 @@ export function createSseRouter(sseManager: SseManager, sessionStore: SessionSto
       return;
     }
 
-    const lastEventId = typeof req.header('last-event-id') === 'string'
-      ? req.header('last-event-id')
-      : typeof req.query.lastEventId === 'string'
-        ? req.query.lastEventId
-        : undefined;
+    const lastEventId = req.query.replay === '0'
+      ? 'latest'
+      : typeof req.header('last-event-id') === 'string'
+        ? req.header('last-event-id')
+        : typeof req.query.lastEventId === 'string'
+          ? req.query.lastEventId
+          : undefined;
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');

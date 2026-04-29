@@ -1103,8 +1103,12 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
       ) : null}
 
       {showConversationWorkingTail ? (
-        <div className="conversation-working-tail">
-          <WorkingPlaceholder label={workingLabel} statusText={workingStatusText} activity={workingActivity} className="mt-1" />
+        <div className="conversation-working-tail" data-streaming-tail="working">
+          <FadeInOnReveal animate>
+            <article className={cn('message', 'message-assistant-turn', 'conversation-working-message', 'streaming')}>
+              <WorkingPlaceholder label={workingLabel} statusText={workingStatusText} activity={workingActivity} />
+            </article>
+          </FadeInOnReveal>
         </div>
       ) : null}
 

@@ -267,21 +267,40 @@ export function readSessionFileSync(filePath: string): Session | undefined {
   }
 }
 
-export function loadSessionsFromDirSync(sessionsDir: string): Session[] {
+function collectSessionFilesRecursively(baseDir: string): string[] {
   let entries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(sessionsDir, { withFileTypes: true });
+    entries = fs.readdirSync(baseDir, { withFileTypes: true });
   } catch {
     return [];
   }
-  const sessions: Session[] = [];
+
+  const files: string[] = [];
 
   for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.jsonl')) {
+    const fullPath = path.join(baseDir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name.startsWith('.')) {
+        continue;
+      }
+      files.push(...collectSessionFilesRecursively(fullPath));
       continue;
     }
 
-    const session = readSessionFileSync(path.join(sessionsDir, entry.name));
+    if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+}
+
+export function loadSessionsFromDirSync(sessionsDir: string): Session[] {
+  const sessionFiles = collectSessionFilesRecursively(sessionsDir);
+  const sessions: Session[] = [];
+
+  for (const filePath of sessionFiles) {
+    const session = readSessionFileSync(filePath);
     if (session) {
       sessions.push(session);
     }

@@ -1,33 +1,49 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { RunnerCommandSchema, type RunnerCommand, type RunnerEvent, type RunnerModelRef } from '../runner/protocol.js';
 
-interface RpcResponse {
-  type: 'response';
-  id?: string;
-  command?: string;
-  success: boolean;
-  data?: unknown;
-  error?: string;
+interface RpcClientOptions {
+  cliPath?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  model?: string;
+  args?: string[];
 }
+
+interface OfficialRpcClient {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  onEvent(listener: (event: unknown) => void): () => void;
+  prompt(message: string): Promise<void>;
+  steer(message: string): Promise<void>;
+  followUp(message: string): Promise<void>;
+  abort(): Promise<void>;
+  getState(): Promise<unknown>;
+  getAvailableModels(): Promise<unknown[]>;
+  setModel(provider: string, modelId: string): Promise<unknown>;
+  setThinkingLevel(level: string): Promise<void>;
+  getStderr(): string;
+}
+
+type RpcClientCtor = new (options?: RpcClientOptions) => OfficialRpcClient;
 
 interface RpcSession {
   sessionId: string;
   cwd: string;
-  child: ChildProcessWithoutNullStreams;
+  client: OfficialRpcClient;
+  unsubscribe: (() => void) | null;
   assistantMessageId: string | null;
   aborted: boolean;
   model: RunnerModelRef | null;
   thinkingLevel?: string;
-  pending: Map<string, { resolve: (response: RpcResponse) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>;
-  buffer: string;
   suppressExitError?: boolean;
 }
 
 const sessions = new Map<string, RpcSession>();
 const runnerId = crypto.randomUUID();
-const piCommand = process.env.PI_WEB_PI_COMMAND || 'pi';
+let rpcClientCtorPromise: Promise<{ RpcClient: RpcClientCtor; cliPath: string }> | null = null;
 
 function emit(event: RunnerEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -39,6 +55,25 @@ function commandResult(requestId: string, ok: boolean, data?: unknown, error?: s
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object';
+}
+
+async function loadOfficialRpcClient(): Promise<{ RpcClient: RpcClientCtor; cliPath: string }> {
+  if (rpcClientCtorPromise) return rpcClientCtorPromise;
+
+  rpcClientCtorPromise = (async () => {
+    const require = createRequire(import.meta.url);
+    const indexPath = require.resolve('@mariozechner/pi-coding-agent');
+    const distDir = path.dirname(indexPath);
+    const modulePath = path.join(distDir, 'modes', 'rpc', 'rpc-client.js');
+    const cliPath = process.env.PI_WEB_PI_CLI_PATH || path.join(distDir, 'cli.js');
+    const module = await import(pathToFileURL(modulePath).href) as { RpcClient?: RpcClientCtor };
+    if (!module.RpcClient) {
+      throw new Error('Official Pi RpcClient export not found');
+    }
+    return { RpcClient: module.RpcClient, cliPath };
+  })();
+
+  return rpcClientCtorPromise;
 }
 
 function modelFromUnknown(value: unknown): RunnerModelRef | null {
@@ -63,39 +98,6 @@ function modelsFromUnknown(value: unknown): Array<RunnerModelRef & { name?: stri
       ...(typeof entry.contextWindow === 'number' ? { contextWindow: entry.contextWindow } : {}),
     }];
   });
-}
-
-function nextRpcId(requestId: string): string {
-  return `${requestId}:${crypto.randomUUID()}`;
-}
-
-function sendRpc(active: RpcSession, requestId: string, payload: Record<string, unknown>): Promise<RpcResponse> {
-  const id = nextRpcId(requestId);
-  const message = { id, ...payload };
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      active.pending.delete(id);
-      reject(new Error(`pi rpc command timed out: ${String(payload.type)}`));
-    }, 120_000);
-    active.pending.set(id, { resolve, reject, timer });
-    active.child.stdin.write(`${JSON.stringify(message)}\n`, (error) => {
-      if (error) {
-        clearTimeout(timer);
-        active.pending.delete(id);
-        reject(error);
-      }
-    });
-  });
-}
-
-function handleRpcResponse(active: RpcSession, response: RpcResponse): void {
-  if (!response.id) return;
-  const pending = active.pending.get(response.id);
-  if (!pending) return;
-  active.pending.delete(response.id);
-  clearTimeout(pending.timer);
-  if (response.success) pending.resolve(response);
-  else pending.reject(new Error(response.error || `${response.command || 'rpc'} failed`));
 }
 
 function extractText(value: unknown): string {
@@ -156,38 +158,34 @@ function extractUsageMetadata(value: unknown): Record<string, unknown> | null {
 }
 
 function extractErrorMessage(value: unknown): string {
-  if (typeof value === 'string') {
-    return value;
-  }
+  if (typeof value === 'string') return value;
 
   if (isRecord(value)) {
     for (const key of ['message', 'error', 'reason', 'description']) {
       const nested = value[key];
-      if (typeof nested === 'string' && nested.trim().length > 0) {
-        return nested;
-      }
+      if (typeof nested === 'string' && nested.trim().length > 0) return nested;
     }
 
     for (const key of ['error', 'cause', 'details']) {
       if (value[key] !== undefined) {
         const nestedMessage = extractErrorMessage(value[key]);
-        if (nestedMessage.trim().length > 0) {
-          return nestedMessage;
-        }
+        if (nestedMessage.trim().length > 0) return nestedMessage;
       }
     }
   }
 
-  const fallback = extractText(value).trim();
-  return fallback;
+  return extractText(value).trim();
+}
+
+function completeTurn(active: RpcSession): void {
+  if (!active.assistantMessageId) return;
+  emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId, aborted: active.aborted });
+  active.assistantMessageId = null;
+  active.aborted = false;
 }
 
 function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): void {
   const type = typeof event.type === 'string' ? event.type : '';
-  if (type === 'response') {
-    handleRpcResponse(active, event as unknown as RpcResponse);
-    return;
-  }
 
   const usageMetadata = extractUsageMetadata(event);
   if (usageMetadata) {
@@ -197,13 +195,9 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
   if (type === 'session_active' || type === 'session_metadata_update') {
     const state = isRecord(event.state) ? event.state : isRecord(event.metadata) ? event.metadata : event;
     const sessionName = extractSessionName(state.sessionName) ?? extractSessionName(event.sessionName);
-    if (sessionName) {
-      emit({ type: 'session_name', sessionId: active.sessionId, sessionName, timestamp: new Date().toISOString() });
-    }
+    if (sessionName) emit({ type: 'session_name', sessionId: active.sessionId, sessionName, timestamp: new Date().toISOString() });
     const stateUsageMetadata = extractUsageMetadata(state);
-    if (stateUsageMetadata) {
-      emit({ type: 'status', sessionId: active.sessionId, status: 'busy', message: 'Usage updated', metadata: stateUsageMetadata });
-    }
+    if (stateUsageMetadata) emit({ type: 'status', sessionId: active.sessionId, status: 'busy', message: 'Usage updated', metadata: stateUsageMetadata });
     return;
   }
 
@@ -224,9 +218,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     } else if (updateType === 'toolcall_end' && isRecord(update.toolCall)) {
       const toolCall = update.toolCall;
       const toolName = typeof toolCall.name === 'string' ? toolCall.name : 'tool';
-      if (toolName === 'set_session_name') {
-        return;
-      }
+      if (toolName === 'set_session_name') return;
       emit({
         type: 'tool_call',
         sessionId: active.sessionId,
@@ -241,9 +233,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
 
   if (type === 'tool_execution_start') {
     const toolName = typeof event.toolName === 'string' ? event.toolName : 'tool';
-    if (toolName === 'set_session_name') {
-      return;
-    }
+    if (toolName === 'set_session_name') return;
     if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
     emit({
       type: 'tool_call',
@@ -261,9 +251,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     if (toolName === 'set_session_name') {
       const payload = type === 'tool_execution_update' ? event.partialResult : event.result;
       const sessionName = extractSessionName(payload) ?? extractSessionName(event.args);
-      if (sessionName) {
-        emit({ type: 'session_name', sessionId: active.sessionId, sessionName, timestamp: new Date().toISOString() });
-      }
+      if (sessionName) emit({ type: 'session_name', sessionId: active.sessionId, sessionName, timestamp: new Date().toISOString() });
       return;
     }
 
@@ -281,13 +269,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
 
   if (type === 'error' || type === 'agent_error' || type === 'fatal_error') {
     const message = extractErrorMessage(event.error ?? event.message ?? event.details ?? event) || 'Unknown Pi error';
-    emit({
-      type: 'error',
-      sessionId: active.sessionId,
-      message,
-      error: message,
-      fatal: type === 'fatal_error' || event.fatal === true,
-    });
+    emit({ type: 'error', sessionId: active.sessionId, message, error: message, fatal: type === 'fatal_error' || event.fatal === true });
     return;
   }
 
@@ -299,63 +281,38 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
   }
 
   if (type === 'agent_end') {
-    emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId ?? crypto.randomUUID(), aborted: active.aborted });
-    active.assistantMessageId = null;
-    active.aborted = false;
+    completeTurn(active);
   }
 }
 
-function handleRpcChunk(active: RpcSession, chunk: Buffer): void {
-  active.buffer += chunk.toString('utf8');
-  for (;;) {
-    const index = active.buffer.indexOf('\n');
-    if (index < 0) break;
-    const line = active.buffer.slice(0, index).replace(/\r$/, '');
-    active.buffer = active.buffer.slice(index + 1);
-    if (!line.trim()) continue;
-    try {
-      handleRpcEvent(active, JSON.parse(line) as Record<string, unknown>);
-    } catch (error) {
-      emit({ type: 'error', sessionId: active.sessionId, error: error instanceof Error ? error.message : String(error), fatal: false });
-    }
-  }
-}
-
-function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: string): RpcSession {
-  const args = ['--mode', 'rpc', ...(resumeSession ? ['--session', resumeSession] : [])];
-  const child = spawn(piCommand, args, {
+async function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: string): Promise<RpcSession> {
+  const { RpcClient, cliPath } = await loadOfficialRpcClient();
+  const args = resumeSession ? ['--session', resumeSession] : [];
+  const client = new RpcClient({
+    cliPath,
     cwd: path.resolve(cwd),
-    env: process.env,
-    stdio: ['pipe', 'pipe', 'pipe'],
+    env: process.env as Record<string, string>,
+    args,
   });
-  const active: RpcSession = { sessionId, cwd, child, assistantMessageId: null, aborted: false, model: null, pending: new Map(), buffer: '' };
-  child.stdout.on('data', (chunk: Buffer) => handleRpcChunk(active, chunk));
-  child.stderr.on('data', (chunk: Buffer) => process.stderr.write(chunk));
-  child.on('exit', (code, signal) => {
-    for (const pending of active.pending.values()) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error(`pi rpc exited with code ${String(code)} signal ${String(signal)}`));
-    }
-    active.pending.clear();
-    sessions.delete(sessionId);
-    if (!active.suppressExitError) {
-      emit({ type: 'error', sessionId, error: `pi rpc exited with code ${String(code)} signal ${String(signal)}`, fatal: false });
-    }
-  });
+  const active: RpcSession = { sessionId, cwd, client, unsubscribe: null, assistantMessageId: null, aborted: false, model: null };
+  active.unsubscribe = client.onEvent((event) => handleRpcEvent(active, isRecord(event) ? event : { type: 'unknown' }));
+  await client.start();
   sessions.set(sessionId, active);
   return active;
 }
 
 async function ensureSession(command: Extract<RunnerCommand, { type: 'start_session' }>): Promise<RpcSession> {
-  return sessions.get(command.sessionId) ?? spawnRpcSession(command.sessionId, command.cwd, command.piSessionFile ?? command.piSessionId);
+  const existing = sessions.get(command.sessionId);
+  if (existing) return existing;
+  return spawnRpcSession(command.sessionId, command.cwd, command.piSessionFile ?? command.piSessionId);
 }
 
 async function emitSessionActive(active: RpcSession): Promise<void> {
   const [state, models] = await Promise.all([
-    sendRpc(active, 'state', { type: 'get_state' }).catch(() => null),
-    sendRpc(active, 'models', { type: 'get_available_models' }).catch(() => null),
+    active.client.getState().catch(() => null),
+    active.client.getAvailableModels().catch(() => []),
   ]);
-  const data = isRecord(state?.data) ? state.data : {};
+  const data = isRecord(state) ? state : {};
   active.model = modelFromUnknown(data.model) ?? active.model;
   if (typeof data.thinkingLevel === 'string' && data.thinkingLevel !== 'off') {
     active.thinkingLevel = data.thinkingLevel;
@@ -366,7 +323,7 @@ async function emitSessionActive(active: RpcSession): Promise<void> {
     cwd: active.cwd,
     model: active.model,
     ...(active.thinkingLevel ? { thinkingLevel: active.thinkingLevel as never } : {}),
-    availableModels: modelsFromUnknown(models?.data),
+    availableModels: modelsFromUnknown(models),
     ...(typeof data.sessionId === 'string' ? { piSessionId: data.sessionId } : {}),
     ...(typeof data.sessionFile === 'string' ? { piSessionFile: data.sessionFile } : {}),
   });
@@ -374,13 +331,6 @@ async function emitSessionActive(active: RpcSession): Promise<void> {
 
 function sameModel(left: RunnerModelRef | null | undefined, right: RunnerModelRef | null | undefined): boolean {
   return !!left && !!right && left.provider === right.provider && left.id === right.id;
-}
-
-function finishPrompt(active: RpcSession): void {
-  if (!active.assistantMessageId) return;
-  emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId, aborted: active.aborted });
-  active.assistantMessageId = null;
-  active.aborted = false;
 }
 
 async function handleCommand(command: RunnerCommand): Promise<void> {
@@ -393,16 +343,14 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       const modelChanged = !!requestedModel && !sameModel(active.model, requestedModel);
       const thinkingChanged = !!requestedThinkingLevel && active.thinkingLevel !== requestedThinkingLevel;
       if (modelChanged) {
-        await sendRpc(active, command.requestId, { type: 'set_model', provider: requestedModel.provider, modelId: requestedModel.id });
+        await active.client.setModel(requestedModel.provider, requestedModel.id);
         active.model = requestedModel;
       }
       if (thinkingChanged) {
-        await sendRpc(active, command.requestId, { type: 'set_thinking_level', level: requestedThinkingLevel });
+        await active.client.setThinkingLevel(requestedThinkingLevel);
         active.thinkingLevel = requestedThinkingLevel;
       }
-      if (!alreadyStarted || modelChanged || thinkingChanged) {
-        await emitSessionActive(active);
-      }
+      if (!alreadyStarted || modelChanged || thinkingChanged) await emitSessionActive(active);
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       break;
     }
@@ -411,15 +359,17 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
       active.assistantMessageId = command.messageId ?? crypto.randomUUID();
       active.aborted = false;
-      const rpcType = command.deliverAs === 'steer' ? 'steer' : command.deliverAs === 'followUp' ? 'follow_up' : 'prompt';
       commandResult(command.requestId, true, { sessionId: command.sessionId });
-      void sendRpc(active, command.requestId, { type: rpcType, message: command.text })
-        .then(() => finishPrompt(active))
-        .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error);
-          emit({ type: 'error', sessionId: active.sessionId, error: message, message, fatal: false });
-          finishPrompt(active);
-        });
+      const send = command.deliverAs === 'steer'
+        ? active.client.steer(command.text)
+        : command.deliverAs === 'followUp'
+          ? active.client.followUp(command.text)
+          : active.client.prompt(command.text);
+      void send.catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        emit({ type: 'error', sessionId: active.sessionId, error: message, message, fatal: false });
+        completeTurn(active);
+      });
       break;
     }
     case 'answer_question': {
@@ -427,7 +377,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
       active.assistantMessageId = crypto.randomUUID();
       active.aborted = false;
-      await sendRpc(active, command.requestId, { type: 'prompt', message: command.answer });
+      await active.client.prompt(command.answer);
       emit({ type: 'question_resolved', sessionId: command.sessionId, questionId: command.questionId });
       commandResult(command.requestId, true, { sessionId: command.sessionId, questionId: command.questionId });
       break;
@@ -435,7 +385,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
     case 'set_model': {
       const active = sessions.get(command.sessionId);
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
-      await sendRpc(active, command.requestId, { type: 'set_model', provider: command.model.provider, modelId: command.model.id });
+      await active.client.setModel(command.model.provider, command.model.id);
       active.model = command.model;
       emit({ type: 'model_set_result', sessionId: command.sessionId, requestId: command.requestId, ok: true, model: command.model });
       await emitSessionActive(active);
@@ -445,7 +395,8 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
     case 'set_thinking_level': {
       const active = sessions.get(command.sessionId);
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
-      await sendRpc(active, command.requestId, { type: 'set_thinking_level', level: command.level });
+      await active.client.setThinkingLevel(command.level);
+      active.thinkingLevel = command.level;
       await emitSessionActive(active);
       commandResult(command.requestId, true, { thinkingLevel: command.level });
       break;
@@ -454,7 +405,8 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       const active = sessions.get(command.sessionId);
       if (active) {
         active.aborted = true;
-        await sendRpc(active, command.requestId, { type: 'abort' }).catch(() => undefined);
+        await active.client.abort().catch(() => undefined);
+        completeTurn(active);
       }
       commandResult(command.requestId, true);
       break;
@@ -462,26 +414,34 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
     case 'get_capabilities': {
       const active = command.sessionId ? sessions.get(command.sessionId) : undefined;
       if (active) {
-        const response = await sendRpc(active, command.requestId, { type: 'get_available_models' });
-        commandResult(command.requestId, true, { model: active.model, availableModels: modelsFromUnknown(response.data) });
+        const response = await active.client.getAvailableModels();
+        commandResult(command.requestId, true, { model: active.model, availableModels: modelsFromUnknown(response) });
       } else {
-        const probe = spawnRpcSession(`capabilities-${crypto.randomUUID()}`, process.cwd());
+        const probe = await spawnRpcSession(`capabilities-${crypto.randomUUID()}`, process.cwd());
         probe.suppressExitError = true;
-        const response = await sendRpc(probe, command.requestId, { type: 'get_available_models' });
-        probe.child.kill('SIGTERM');
-        commandResult(command.requestId, true, { model: null, availableModels: modelsFromUnknown(response.data) });
+        try {
+          const response = await probe.client.getAvailableModels();
+          commandResult(command.requestId, true, { model: null, availableModels: modelsFromUnknown(response) });
+        } finally {
+          probe.unsubscribe?.();
+          await probe.client.stop().catch(() => undefined);
+          sessions.delete(probe.sessionId);
+        }
       }
       break;
     }
     case 'shutdown': {
       commandResult(command.requestId, true);
-      for (const active of sessions.values()) active.child.kill('SIGTERM');
+      for (const active of sessions.values()) {
+        active.unsubscribe?.();
+        await active.client.stop().catch(() => undefined);
+      }
       process.exit(0);
     }
   }
 }
 
-emit({ type: 'ready', runnerId, pid: process.pid, version: '0.2.0-rpc' });
+emit({ type: 'ready', runnerId, pid: process.pid, version: '0.3.0-official-rpc-client' });
 
 let stdinBuffer = '';
 process.stdin.on('data', (chunk: Buffer) => {

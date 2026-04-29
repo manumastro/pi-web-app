@@ -182,20 +182,13 @@
 }
 
 .turn-user-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: var(--background);
+  position: static;
+  z-index: auto;
+  background: transparent;
 }
 
 .turn-user-header::after {
-  content: '';
-  position: absolute;
-  inset-x: 0;
-  top: 100%;
-  height: 1rem;
-  background: linear-gradient(to bottom, var(--background), transparent);
-  pointer-events: none;
+  content: none;
 }
 
 .turn-assistant-block {

@@ -17,7 +17,6 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { cacheGetItem, cacheSetItem } from '@/lib/frontend-cache';
 import { cn } from '@/lib/utils';
 import type { ModelInfo, StreamingState, ThinkingLevel } from '@/types';
 import './ComposerPanel.css';
@@ -69,17 +68,13 @@ function formatThinkingLabel(level: ThinkingLevel): string {
 }
 
 function readStoredList(key: string): string[] {
-  const raw = cacheGetItem(key);
-  if (!raw) {
-    return [];
-  }
+  if (typeof window === 'undefined') return [];
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return [];
 
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
+    if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((entry): entry is string => typeof entry === 'string')
       .map((entry) => entry.trim())
@@ -90,7 +85,12 @@ function readStoredList(key: string): string[] {
 }
 
 function writeStoredList(key: string, values: string[]): void {
-  cacheSetItem(key, JSON.stringify(values));
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(values));
+  } catch {
+    // keep model preferences best-effort only
+  }
 }
 
 function formatProviderLabel(providerKey: string | undefined): string {

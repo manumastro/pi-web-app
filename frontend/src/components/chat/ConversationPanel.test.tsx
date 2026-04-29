@@ -181,8 +181,8 @@ describe('ConversationPanel', () => {
 
     const { container, getByText } = render(<ConversationPanel items={streamingTurnItems} isWorking workingLabel="Working..." />);
 
-    expect(container.querySelector('.message-assistant-turn .working-placeholder')).toBeNull();
     expect(container.querySelector('.conversation-working-tail')).not.toBeNull();
+    expect(container.querySelector('.conversation-working-tail .working-placeholder')).not.toBeNull();
     expect(getByText('Working...')).toBeInTheDocument();
   });
 
