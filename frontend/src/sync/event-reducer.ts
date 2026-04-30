@@ -186,8 +186,14 @@ export function reduceSessionLifecyclePayloads(
 
   const finalPayload = payloads[payloads.length - 1]!;
   const nextStatus = transitionStatusForPayload(finalPayload);
-  const nextStatusType = getSessionStatusType(nextStatus) ?? 'idle';
-  patchSessionStatus(deps.directory, finalPayload.sessionId, nextStatus);
+  const previousDirectoryState = deps.directory ? getDirectoryState(deps.directory) : undefined;
+  const previousStatus = previousDirectoryState?.session_status?.[finalPayload.sessionId];
+  const mergedStatus = {
+    ...nextStatus,
+    metadata: nextStatus.metadata ?? previousStatus?.metadata,
+  };
+  const nextStatusType = getSessionStatusType(mergedStatus) ?? 'idle';
+  patchSessionStatus(deps.directory, finalPayload.sessionId, mergedStatus);
 
   if (finalPayload.type === 'permission' || finalPayload.type === 'question') {
     updateSessionAndSync(deps, finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
@@ -195,18 +201,18 @@ export function reduceSessionLifecyclePayloads(
     deps.setStreaming('streaming');
     deps.setStatusMessage(finalPayload.message ?? (finalPayload.type === 'permission' ? 'Permission needed' : 'Question pending'));
   } else if (finalPayload.type === 'status') {
-    const resolvedQuestionId = typeof finalPayload.metadata?.resolvedQuestionId === 'string' ? finalPayload.metadata.resolvedQuestionId : '';
+    const resolvedQuestionId = typeof mergedStatus.metadata?.resolvedQuestionId === 'string' ? mergedStatus.metadata.resolvedQuestionId : '';
     if (resolvedQuestionId) {
       clearResolvedQuestion(deps.directory, finalPayload.sessionId, resolvedQuestionId);
     }
-    const sessionName = typeof finalPayload.metadata?.sessionName === 'string' ? finalPayload.metadata.sessionName.trim() : '';
+    const sessionName = typeof mergedStatus.metadata?.sessionName === 'string' ? mergedStatus.metadata.sessionName.trim() : '';
     updateSessionAndSync(deps, finalPayload.sessionId, {
       status: nextStatusType,
       ...(sessionName ? { title: sessionName } : {}),
       updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
     });
     deps.setStatusMessage(finalPayload.message ?? finalPayload.status ?? 'Working');
-    if (isRunningSessionStatus(getSessionStatusType(nextStatus))) {
+    if (isRunningSessionStatus(getSessionStatusType(mergedStatus))) {
       deps.setStreaming('streaming');
     } else if (nextStatusType === 'idle' && hasPendingAssistantPlaceholder(updatedConversation)) {
       deps.setStreaming('streaming');

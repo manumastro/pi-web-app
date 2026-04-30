@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { reduceSessionLifecyclePayload } from './event-reducer';
+import { ChildStoreManager } from './child-store';
+import { setSyncRefs, getDirectoryState } from './sync-refs';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSessionUiStore } from '@/stores/sessionUiStore';
 import type { SessionInfo } from '@/types';
@@ -15,8 +17,9 @@ const sessionFixture: SessionInfo = {
   updatedAt: '2026-04-20T00:00:00.000Z',
 };
 
-function createReducerDeps() {
+function createReducerDeps(directory?: string) {
   return {
+    directory,
     setConversation: vi.fn(),
     updateSession: (id: string, updates: Partial<SessionInfo>) => {
       useSessionStore.getState().updateSession(id, updates);
@@ -91,5 +94,32 @@ describe('event reducer session-ui sync', () => {
     }, deps);
 
     expect(deps.setStreaming).toHaveBeenCalledWith('idle');
+  });
+
+  it('preserves previous status metadata when later status payload omits metadata', () => {
+    const directory = '/workspace/demo';
+    const childStores = new ChildStoreManager();
+    setSyncRefs(childStores, directory);
+    childStores.ensureChild(directory, { bootstrap: false });
+    childStores.update(directory, (state) => ({
+      ...state,
+      session_status: {
+        ...state.session_status,
+        'session-1': {
+          type: 'busy',
+          metadata: { contextPercent: 42.1, contextWindow: 128000 },
+        },
+      },
+    }));
+
+    const deps = createReducerDeps(directory);
+    reduceSessionLifecyclePayload([], {
+      type: 'status',
+      sessionId: 'session-1',
+      status: 'busy',
+      message: 'Working',
+    }, deps);
+
+    expect(getDirectoryState(directory)?.session_status['session-1']?.metadata).toEqual({ contextPercent: 42.1, contextWindow: 128000 });
   });
 });

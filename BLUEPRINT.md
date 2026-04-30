@@ -63,13 +63,16 @@ Important rule: backend code must not reimplement Pi protocol details beyond nor
 
 ### REST
 
-- `GET /api/config`
+- `GET /api/config` (includes restart capability info)
 - `GET /api/directories`
 - `GET /api/sessions`, `GET /api/sessions/:id`, `POST /api/sessions`, `PUT /api/sessions/:id`, `DELETE /api/sessions/:id`
 - `POST /api/messages/prompt`, `POST /api/messages/abort`
 - `GET /api/models?sessionId=...`
 - `PUT /api/models/session/model`
 - `GET/PUT /api/models/session/thinking`
+- `GET /api/maintenance/systemd`
+- `POST /api/maintenance/restart` (primary)
+- `POST /api/maintenance/systemd/restart` (compat alias)
 
 ### SSE events
 
@@ -93,6 +96,28 @@ Fresh EventSource connections should normally use `replay=0` after REST hydratio
 - Production service: `systemctl --user restart pi-web` after production-impacting changes.
 - If build fails with EACCES in `dist/public`, fix ownership: `sudo chown -R manu:manu /home/manu/pi-web-app/dist`.
 
+### Restart controls (web + backend)
+
+Restart is config-driven and guarded. Backend exposes `/api/maintenance/restart` and frontend shows a restart action only when enabled.
+
+Supported restart strategies:
+- `disabled` (default)
+- `systemd-user` (`systemctl --user restart <service>`)
+- `systemd-system` (`systemctl restart <service>`)
+- `command` (custom shell command)
+
+Environment variables:
+- `PI_WEB_ALLOW_SYSTEMD_RESTART=true` enables systemd-based restart.
+- `PI_WEB_RESTART_SCOPE=user|system` selects user/system systemd scope.
+- `PI_WEB_SYSTEMD_SERVICE=pi-web` selects service name.
+- `PI_WEB_SYSTEMD_USER=<user>` optional root→user fallback for agent/sandbox environments.
+- `PI_WEB_RESTART_COMMAND="..."` enables command strategy (overrides systemd strategy).
+- `PI_WEB_RESTART_STATUS_COMMAND="..."` optional command to report active status.
+
+Notes:
+- In sandbox/root agents, plain `systemctl --user` may fail due to missing user DBus env; root→user fallback is implemented in backend.
+- Manual fallback command pattern: `sudo -u <user> env XDG_RUNTIME_DIR=/run/user/<uid> DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus systemctl --user restart <service>`. 
+
 ## 6. Known history / why code looks this way
 
 Earlier versions used a custom multi-layer CLI wrapper and broad OpenChamber UI migration. That left some duplicated CSS and conservative compatibility code. The current direction is to simplify around Pi's official RPC client while preserving the existing REST/SSE web contract.
@@ -107,4 +132,4 @@ Earlier versions used a custom multi-layer CLI wrapper and broad OpenChamber UI 
 
 ## 8. Status Snapshot
 
-2026-04-29: Audit/fix pass completed in source: official Pi `RpcClient` bridge, sidebar scroll containment, model preferences persistence, selected-model preservation, CLI-ordered model lists, backend model capability caching, context-window usage metadata from Pi session stats (now mobile-visible in working feedback), optional guarded restart API/UI control with strategy support (`systemd --user`, `systemd` system scope, or custom command) including root-to-user systemd restart fallback for agent environments and a mobile header action, SSE no-replay fresh hydration, batched done reconcile, runner error persistence, simplified blueprint, and chat UX cleanup removing sticky user messages plus centering/boxing transient working feedback.
+2026-04-30: Follow-up integration pass in source: restart is now documented and exposed via guarded API/UI with strategy support (`systemd --user`, `systemd` system scope, custom command, root→user fallback for agents), mobile header now includes restart action, context-window usage metadata rendering is retained across status updates, and the app continues using the official Pi `RpcClient` bridge and existing SSE/session architecture.
