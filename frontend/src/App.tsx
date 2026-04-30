@@ -84,6 +84,7 @@ export default function App() {
     streaming,
     statusMessage,
     error,
+    scrollToBottomRevision,
     sidebarOpen,
     toggleSidebar,
     models,
@@ -204,6 +205,7 @@ export default function App() {
         workingActivity={assistantStatus.activity}
         activeStreamingMessageId={activeStreamingMessageId}
         activeStreamingPhase={activeStreamingPhase}
+        scrollToBottomRevision={scrollToBottomRevision}
       />
       <AttentionPanel
         sessionId={selectedSessionId}

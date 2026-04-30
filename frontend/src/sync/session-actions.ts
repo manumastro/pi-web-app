@@ -290,6 +290,7 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
   chat.setStreaming('streaming');
   chat.setStatusMessage('Working');
   chat.appendPrompt(input.message, resolvedModel, turnId);
+  chat.requestScrollToBottom();
 
   const optimisticUpdatedAt = new Date().toISOString();
   useSessionStore.getState().updateSession(sessionId, {

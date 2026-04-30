@@ -1,0 +1,1091 @@
+{
+  "baseUrl": "http://127.0.0.1:3210",
+  "prompt": "E2E prompt 1: rispondi con una riga 'ok 1'",
+  "pollMs": 120,
+  "quietMs": 1200,
+  "maxDurationMs": 30000,
+  "maxShots": 120,
+  "frames": 120,
+  "timeline": [
+    {
+      "t": 1777549681136,
+      "file": "0001-1777549680822.png",
+      "mutationCount": 2,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 1
+    },
+    {
+      "t": 1777549681302,
+      "file": "0002-1777549681136.png",
+      "mutationCount": 2,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 2
+    },
+    {
+      "t": 1777549681606,
+      "file": "0003-1777549681432.png",
+      "mutationCount": 7,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 3
+    },
+    {
+      "t": 1777549681759,
+      "file": "0004-1777549681606.png",
+      "mutationCount": 7,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 4
+    },
+    {
+      "t": 1777549681994,
+      "file": "0005-1777549681759.png",
+      "mutationCount": 7,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 5
+    },
+    {
+      "t": 1777549682186,
+      "file": "0006-1777549681994.png",
+      "mutationCount": 7,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 6
+    },
+    {
+      "t": 1777549682382,
+      "file": "0007-1777549682186.png",
+      "mutationCount": 7,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 7
+    },
+    {
+      "t": 1777549682697,
+      "file": "0008-1777549682515.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 8
+    },
+    {
+      "t": 1777549682909,
+      "file": "0009-1777549682697.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 9
+    },
+    {
+      "t": 1777549683195,
+      "file": "0010-1777549682909.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 10
+    },
+    {
+      "t": 1777549683583,
+      "file": "0011-1777549683195.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 11
+    },
+    {
+      "t": 1777549683773,
+      "file": "0012-1777549683583.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 12
+    },
+    {
+      "t": 1777549683926,
+      "file": "0013-1777549683773.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 13
+    },
+    {
+      "t": 1777549684124,
+      "file": "0014-1777549683926.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 14
+    },
+    {
+      "t": 1777549684383,
+      "file": "0015-1777549684124.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 15
+    },
+    {
+      "t": 1777549684681,
+      "file": "0016-1777549684383.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 16
+    },
+    {
+      "t": 1777549684965,
+      "file": "0017-1777549684681.png",
+      "mutationCount": 17,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "flow-test\n4h\ne2e-sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\nERROR\nNo model selected\nDefault\nSelect model\nBuild",
+      "mutationIndex": 17
+    },
+    {
+      "t": 1777549685336,
+      "file": "0018-1777549685100.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 18
+    },
+    {
+      "t": 1777549685502,
+      "file": "0019-1777549685336.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 19
+    },
+    {
+      "t": 1777549685664,
+      "file": "0020-1777549685502.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 20
+    },
+    {
+      "t": 1777549685891,
+      "file": "0021-1777549685664.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 21
+    },
+    {
+      "t": 1777549686347,
+      "file": "0022-1777549685891.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 22
+    },
+    {
+      "t": 1777549686663,
+      "file": "0023-1777549686347.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 23
+    },
+    {
+      "t": 1777549686825,
+      "file": "0024-1777549686663.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 24
+    },
+    {
+      "t": 1777549687007,
+      "file": "0025-1777549686825.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 25
+    },
+    {
+      "t": 1777549687195,
+      "file": "0026-1777549687007.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 26
+    },
+    {
+      "t": 1777549687328,
+      "file": "0027-1777549687195.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 27
+    },
+    {
+      "t": 1777549687477,
+      "file": "0028-1777549687328.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 28
+    },
+    {
+      "t": 1777549687622,
+      "file": "0029-1777549687477.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 29
+    },
+    {
+      "t": 1777549687761,
+      "file": "0030-1777549687622.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 30
+    },
+    {
+      "t": 1777549687918,
+      "file": "0031-1777549687761.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 31
+    },
+    {
+      "t": 1777549688107,
+      "file": "0032-1777549687918.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 32
+    },
+    {
+      "t": 1777549688270,
+      "file": "0033-1777549688107.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 33
+    },
+    {
+      "t": 1777549688510,
+      "file": "0034-1777549688270.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 34
+    },
+    {
+      "t": 1777549688708,
+      "file": "0035-1777549688510.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 35
+    },
+    {
+      "t": 1777549688861,
+      "file": "0036-1777549688708.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 36
+    },
+    {
+      "t": 1777549689008,
+      "file": "0037-1777549688861.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 37
+    },
+    {
+      "t": 1777549689134,
+      "file": "0038-1777549689008.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 38
+    },
+    {
+      "t": 1777549689287,
+      "file": "0039-1777549689134.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 39
+    },
+    {
+      "t": 1777549689463,
+      "file": "0040-1777549689287.png",
+      "mutationCount": 40,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 40
+    },
+    {
+      "t": 1777549689752,
+      "file": "0041-1777549689593.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 41
+    },
+    {
+      "t": 1777549689959,
+      "file": "0042-1777549689752.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 42
+    },
+    {
+      "t": 1777549690178,
+      "file": "0043-1777549689959.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 43
+    },
+    {
+      "t": 1777549690368,
+      "file": "0044-1777549690178.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 44
+    },
+    {
+      "t": 1777549690583,
+      "file": "0045-1777549690368.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 45
+    },
+    {
+      "t": 1777549690840,
+      "file": "0046-1777549690583.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 46
+    },
+    {
+      "t": 1777549691043,
+      "file": "0047-1777549690840.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 47
+    },
+    {
+      "t": 1777549691230,
+      "file": "0048-1777549691043.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 48
+    },
+    {
+      "t": 1777549691447,
+      "file": "0049-1777549691230.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 49
+    },
+    {
+      "t": 1777549691707,
+      "file": "0050-1777549691447.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 50
+    },
+    {
+      "t": 1777549691978,
+      "file": "0051-1777549691707.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 51
+    },
+    {
+      "t": 1777549692245,
+      "file": "0052-1777549691978.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 52
+    },
+    {
+      "t": 1777549692608,
+      "file": "0053-1777549692245.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 53
+    },
+    {
+      "t": 1777549692839,
+      "file": "0054-1777549692608.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 54
+    },
+    {
+      "t": 1777549693117,
+      "file": "0055-1777549692839.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 55
+    },
+    {
+      "t": 1777549693288,
+      "file": "0056-1777549693117.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 56
+    },
+    {
+      "t": 1777549693475,
+      "file": "0057-1777549693288.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 57
+    },
+    {
+      "t": 1777549693665,
+      "file": "0058-1777549693475.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 58
+    },
+    {
+      "t": 1777549693871,
+      "file": "0059-1777549693665.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 59
+    },
+    {
+      "t": 1777549694082,
+      "file": "0060-1777549693871.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 60
+    },
+    {
+      "t": 1777549694278,
+      "file": "0061-1777549694082.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 61
+    },
+    {
+      "t": 1777549694489,
+      "file": "0062-1777549694278.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 62
+    },
+    {
+      "t": 1777549694660,
+      "file": "0063-1777549694489.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 63
+    },
+    {
+      "t": 1777549694827,
+      "file": "0064-1777549694660.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 64
+    },
+    {
+      "t": 1777549695018,
+      "file": "0065-1777549694827.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 65
+    },
+    {
+      "t": 1777549695324,
+      "file": "0066-1777549695018.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 66
+    },
+    {
+      "t": 1777549695544,
+      "file": "0067-1777549695324.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 67
+    },
+    {
+      "t": 1777549695667,
+      "file": "0068-1777549695544.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 68
+    },
+    {
+      "t": 1777549695814,
+      "file": "0069-1777549695667.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 69
+    },
+    {
+      "t": 1777549696018,
+      "file": "0070-1777549695814.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 70
+    },
+    {
+      "t": 1777549696171,
+      "file": "0071-1777549696018.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 71
+    },
+    {
+      "t": 1777549696308,
+      "file": "0072-1777549696171.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 72
+    },
+    {
+      "t": 1777549696448,
+      "file": "0073-1777549696308.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 73
+    },
+    {
+      "t": 1777549696603,
+      "file": "0074-1777549696448.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 74
+    },
+    {
+      "t": 1777549696769,
+      "file": "0075-1777549696604.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 75
+    },
+    {
+      "t": 1777549696935,
+      "file": "0076-1777549696769.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 76
+    },
+    {
+      "t": 1777549697075,
+      "file": "0077-1777549696935.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 77
+    },
+    {
+      "t": 1777549697225,
+      "file": "0078-1777549697075.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 78
+    },
+    {
+      "t": 1777549697373,
+      "file": "0079-1777549697225.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 79
+    },
+    {
+      "t": 1777549697548,
+      "file": "0080-1777549697373.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 80
+    },
+    {
+      "t": 1777549697708,
+      "file": "0081-1777549697548.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 81
+    },
+    {
+      "t": 1777549697838,
+      "file": "0082-1777549697708.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 82
+    },
+    {
+      "t": 1777549698006,
+      "file": "0083-1777549697838.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 83
+    },
+    {
+      "t": 1777549698159,
+      "file": "0084-1777549698006.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 84
+    },
+    {
+      "t": 1777549698284,
+      "file": "0085-1777549698159.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 85
+    },
+    {
+      "t": 1777549698438,
+      "file": "0086-1777549698284.png",
+      "mutationCount": 86,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 86
+    },
+    {
+      "t": 1777549698705,
+      "file": "0087-1777549698567.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 87
+    },
+    {
+      "t": 1777549698865,
+      "file": "0088-1777549698705.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 88
+    },
+    {
+      "t": 1777549699004,
+      "file": "0089-1777549698865.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 89
+    },
+    {
+      "t": 1777549699172,
+      "file": "0090-1777549699005.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 90
+    },
+    {
+      "t": 1777549699360,
+      "file": "0091-1777549699172.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 91
+    },
+    {
+      "t": 1777549699508,
+      "file": "0092-1777549699360.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 92
+    },
+    {
+      "t": 1777549699647,
+      "file": "0093-1777549699508.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 93
+    },
+    {
+      "t": 1777549699771,
+      "file": "0094-1777549699647.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 94
+    },
+    {
+      "t": 1777549699911,
+      "file": "0095-1777549699771.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 95
+    },
+    {
+      "t": 1777549700064,
+      "file": "0096-1777549699911.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 96
+    },
+    {
+      "t": 1777549700214,
+      "file": "0097-1777549700064.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 97
+    },
+    {
+      "t": 1777549700357,
+      "file": "0098-1777549700214.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 98
+    },
+    {
+      "t": 1777549700482,
+      "file": "0099-1777549700357.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 99
+    },
+    {
+      "t": 1777549700607,
+      "file": "0100-1777549700482.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 100
+    },
+    {
+      "t": 1777549700724,
+      "file": "0101-1777549700607.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 101
+    },
+    {
+      "t": 1777549700861,
+      "file": "0102-1777549700724.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 102
+    },
+    {
+      "t": 1777549701023,
+      "file": "0103-1777549700861.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 103
+    },
+    {
+      "t": 1777549701178,
+      "file": "0104-1777549701023.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 104
+    },
+    {
+      "t": 1777549701301,
+      "file": "0105-1777549701178.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 105
+    },
+    {
+      "t": 1777549701456,
+      "file": "0106-1777549701301.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 106
+    },
+    {
+      "t": 1777549701581,
+      "file": "0107-1777549701456.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 107
+    },
+    {
+      "t": 1777549701731,
+      "file": "0108-1777549701581.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 108
+    },
+    {
+      "t": 1777549701898,
+      "file": "0109-1777549701731.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 109
+    },
+    {
+      "t": 1777549702031,
+      "file": "0110-1777549701898.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 110
+    },
+    {
+      "t": 1777549702176,
+      "file": "0111-1777549702031.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 111
+    },
+    {
+      "t": 1777549702303,
+      "file": "0112-1777549702176.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 112
+    },
+    {
+      "t": 1777549702432,
+      "file": "0113-1777549702303.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 113
+    },
+    {
+      "t": 1777549702585,
+      "file": "0114-1777549702432.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 114
+    },
+    {
+      "t": 1777549702717,
+      "file": "0115-1777549702585.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 115
+    },
+    {
+      "t": 1777549702857,
+      "file": "0116-1777549702717.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 116
+    },
+    {
+      "t": 1777549702993,
+      "file": "0117-1777549702857.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 117
+    },
+    {
+      "t": 1777549703143,
+      "file": "0118-1777549702993.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 118
+    },
+    {
+      "t": 1777549703287,
+      "file": "0119-1777549703143.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 119
+    },
+    {
+      "t": 1777549703510,
+      "file": "0120-1777549703287.png",
+      "mutationCount": 178,
+      "promptDisabled": false,
+      "statusText": null,
+      "bodyTextTail": "sse-test\n4h\ne2e-sse-local\n4h\nciao\n4h\nUntitled Session\n17h\nUntitled Session\n18h\nUntitled Session\n20h\nUntitled Session\n1d\nUntitled Session\n1d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nhi\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\n2d\nUntitled Session\nError\nUntitled Session\nError\nPi Web\nRelay connected · 0 viewers\nUntitled Session\n~\nNew\n272k ctx\nDefault\nMinimal\nLow\nMedium\nHigh\nX-High\nGPT-5.3 Codex\nBuild",
+      "mutationIndex": 120
+    }
+  ]
+}

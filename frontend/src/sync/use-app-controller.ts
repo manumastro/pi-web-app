@@ -73,6 +73,7 @@ export type AppController = {
   streaming: StreamingState;
   statusMessage: string;
   error: string;
+  scrollToBottomRevision: number;
   sidebarOpen: boolean;
   toggleSidebar: () => void;
   models: ModelInfo[];
@@ -117,6 +118,7 @@ export function useAppController(): AppController {
     streaming,
     statusMessage,
     error,
+    scrollToBottomRevision,
     setConversation,
     setStreaming,
     setStatusMessage,
@@ -439,11 +441,7 @@ export function useAppController(): AppController {
 
       // Reconcile final assistant text from persisted session after done events.
       // This heals rare missed early chunks (UI shows truncated assistant until reload).
-      const shouldReconcile = payload.sessionId
-        && (
-          payload.type === 'done'
-          || (payload.type === 'status' && payload.status === 'idle')
-        );
+      const shouldReconcile = payload.sessionId && payload.type === 'done';
 
       if (shouldReconcile && payload.sessionId) {
         scheduleDoneReconcile(payload.sessionId);
@@ -464,10 +462,7 @@ export function useAppController(): AppController {
         setError,
       });
 
-      const reconcilePayload = payloads.find((payload) => payload.sessionId && (
-        payload.type === 'done'
-        || (payload.type === 'status' && payload.status === 'idle')
-      ));
+      const reconcilePayload = payloads.find((payload) => payload.sessionId && payload.type === 'done');
       if (reconcilePayload?.sessionId) {
         scheduleDoneReconcile(reconcilePayload.sessionId);
       }
@@ -475,8 +470,18 @@ export function useAppController(): AppController {
     onConnected: () => {
       const currentState = useChatStore.getState().streaming;
       const sessionRunning = currentSessionActivity.isWorking;
-      setStreaming(sessionRunning ? 'streaming' : (currentState === 'error' ? 'error' : 'idle'));
-      setStatusMessage(sessionRunning ? 'Working' : 'Connected');
+
+      // Important: never downgrade an optimistic in-flight send from streaming→idle
+      // during SSE connect handshake, otherwise UI flashes (assistant disappears and
+      // reappears when first thinking/text events arrive).
+      if (currentState === 'streaming') {
+        setStreaming('streaming');
+        setStatusMessage('Working');
+      } else {
+        setStreaming(sessionRunning ? 'streaming' : (currentState === 'error' ? 'error' : 'idle'));
+        setStatusMessage(sessionRunning ? 'Working' : 'Connected');
+      }
+
       setRelayConnected(true);
       void refreshRelayStatus();
     },
@@ -717,6 +722,7 @@ export function useAppController(): AppController {
     streaming,
     statusMessage,
     error,
+    scrollToBottomRevision,
     sidebarOpen,
     toggleSidebar,
     models,

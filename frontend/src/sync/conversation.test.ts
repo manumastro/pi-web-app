@@ -47,7 +47,7 @@ describe('conversation fallback matching', () => {
     expect(thinkingItems[0]?.content).toContain('Reasoning chunk');
   });
 
-  it('rebinds optimistic empty assistant placeholder to backend messageId on first chunk', () => {
+  it('preserves optimistic messageId on first chunk when SSE messageId differs', () => {
     const items = appendPrompt([], 'hello', 'turn-1');
 
     const updated = applySsePayload(items, {
@@ -61,7 +61,9 @@ describe('conversation fallback matching', () => {
     expect(assistants).toHaveLength(1);
     const assistant = assistants[0];
     if (assistant?.kind === 'message') {
-      expect(assistant.messageId).toBe('backend-turn-1');
+      // The messageId is preserved as the optimistic turnId so the assistant
+      // stays in the same turn as its paired thinking item in buildRenderRecords.
+      expect(assistant.messageId).toBe('turn-1');
       expect(assistant.content).toBe('ciao');
     }
   });
@@ -125,7 +127,8 @@ describe('conversation fallback matching', () => {
     const assistant = assistants[0];
     if (assistant?.kind === 'message') {
       expect(assistant.content).toContain('ciao');
-      expect(assistant.messageId).toBe('backend-turn-1');
+      // messageId is preserved to keep the thinking and assistant paired.
+      expect(assistant.messageId).toBe('turn-1');
     }
   });
 
@@ -149,7 +152,8 @@ describe('conversation fallback matching', () => {
     const assistant = assistants[0];
     if (assistant?.kind === 'message') {
       expect(assistant.content).toContain('ciao');
-      expect(assistant.messageId).toBe('backend-turn-1');
+      // messageId is preserved to keep the thinking and assistant paired.
+      expect(assistant.messageId).toBe('turn-1');
     }
   });
 });

@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { RunnerCommandSchema, type RunnerCommand, type RunnerEvent, type RunnerModelRef } from '../runner/protocol.js';
 
@@ -62,11 +61,9 @@ async function loadOfficialRpcClient(): Promise<{ RpcClient: RpcClientCtor; cliP
   if (rpcClientCtorPromise) return rpcClientCtorPromise;
 
   rpcClientCtorPromise = (async () => {
-    const require = createRequire(import.meta.url);
-    const indexPath = require.resolve('@mariozechner/pi-coding-agent');
-    const distDir = path.dirname(indexPath);
-    const modulePath = path.join(distDir, 'modes', 'rpc', 'rpc-client.js');
-    const cliPath = process.env.PI_WEB_PI_CLI_PATH || path.join(distDir, 'cli.js');
+    const packageDir = path.resolve(process.cwd(), 'node_modules', '@mariozechner', 'pi-coding-agent');
+    const modulePath = path.join(packageDir, 'dist', 'modes', 'rpc', 'rpc-client.js');
+    const cliPath = process.env.PI_WEB_PI_CLI_PATH || path.join(packageDir, 'dist', 'cli.js');
     const module = await import(pathToFileURL(modulePath).href) as { RpcClient?: RpcClientCtor };
     if (!module.RpcClient) {
       throw new Error('Official Pi RpcClient export not found');
@@ -150,6 +147,7 @@ function extractUsageMetadata(value: unknown): Record<string, unknown> | null {
   const cacheReadTokens = pickNumber(tokenSource, ['cacheRead', 'cache_read']);
   const cacheWriteTokens = pickNumber(tokenSource, ['cacheWrite', 'cache_write']);
   const totalTokens = pickNumber(tokenSource, ['totalTokens', 'tokens', 'total_tokens', 'total']);
+  const cost = pickNumber(source, ['cost', 'totalCost', 'total_cost']);
   const contextWindow = contextUsage ? pickNumber(contextUsage, ['contextWindow', 'context_window', 'maxContextTokens']) : pickNumber(source, ['contextWindow', 'context_window', 'maxContextTokens']);
   const contextUsed = contextUsage ? pickNumber(contextUsage, ['tokens', 'contextUsed', 'contextTokens', 'context_used', 'usedTokens']) : pickNumber(source, ['contextUsed', 'contextTokens', 'context_used', 'usedTokens']);
   const contextPercent = contextUsage ? pickNumber(contextUsage, ['percent', 'contextPercent', 'contextPercentage', 'context_percent']) : pickNumber(source, ['contextPercent', 'contextPercentage', 'context_percent']);
@@ -159,6 +157,7 @@ function extractUsageMetadata(value: unknown): Record<string, unknown> | null {
   if (cacheReadTokens !== undefined) metadata.cacheReadTokens = cacheReadTokens;
   if (cacheWriteTokens !== undefined) metadata.cacheWriteTokens = cacheWriteTokens;
   if (totalTokens !== undefined) metadata.totalTokens = totalTokens;
+  if (cost !== undefined) metadata.cost = cost;
   if (contextWindow !== undefined) metadata.contextWindow = contextWindow;
   if (contextUsed !== undefined) metadata.contextUsed = contextUsed;
   if (contextPercent !== undefined) metadata.contextPercent = contextPercent;
@@ -167,9 +166,23 @@ function extractUsageMetadata(value: unknown): Record<string, unknown> | null {
 
 async function emitSessionStats(active: RpcSession, status = 'idle'): Promise<void> {
   try {
-    const stats = await active.client.getSessionStats();
-    const metadata = extractUsageMetadata(stats);
-    if (metadata) {
+    const [stats, state] = await Promise.all([
+      active.client.getSessionStats().catch(() => null),
+      active.client.getState().catch(() => null),
+    ]);
+
+    const statsMetadata = extractUsageMetadata(stats);
+    const stateMetadata = extractUsageMetadata(state);
+    const metadata: Record<string, unknown> = {
+      ...(statsMetadata ?? {}),
+      ...(stateMetadata ?? {}),
+    };
+
+    if (isRecord(state) && typeof state.autoCompactionEnabled === 'boolean') {
+      metadata.autoCompactionEnabled = state.autoCompactionEnabled;
+    }
+
+    if (Object.keys(metadata).length > 0) {
       emit({ type: 'status', sessionId: active.sessionId, status, message: 'Context usage updated', metadata });
     }
   } catch {

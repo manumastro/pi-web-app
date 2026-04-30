@@ -25,6 +25,7 @@ function Probe() {
     <div>
       <div data-testid="activity">{status.activity}</div>
       <div data-testid="label">{status.label}</div>
+      <div data-testid="statusText">{status.statusText ?? ''}</div>
       <div data-testid="working">{status.isWorking ? 'yes' : 'no'}</div>
     </div>
   );
@@ -108,6 +109,38 @@ describe('useAssistantStatus', () => {
 
     expect(screen.getByTestId('activity')).toHaveTextContent('streaming');
     expect(screen.getByTestId('label')).toHaveTextContent('Writing...');
+    expect(screen.getByTestId('working')).toHaveTextContent('yes');
+  });
+
+  it('shows live thinking previews instead of context window metadata', () => {
+    useSessionStatusMock.mockReturnValue({ type: 'busy', message: 'Context usage updated', metadata: { contextWindow: 128000 } });
+    useChatStore.setState({
+      conversation: [
+        {
+          kind: 'message',
+          id: 'user-3',
+          role: 'user',
+          content: 'scrivi un riepilogo',
+          timestamp: '2026-04-27T17:41:00.000Z',
+          status: 'complete',
+          messageId: 'turn-3',
+        },
+        {
+          kind: 'thinking',
+          id: 'thinking-3',
+          messageId: 'turn-3',
+          content: 'Sto analizzando il progetto\npoi preparo la sintesi',
+          done: false,
+          timestamp: '2026-04-27T17:41:01.000Z',
+        },
+      ],
+    });
+
+    render(<Probe />);
+
+    expect(screen.getByTestId('label')).toHaveTextContent('Thinking...');
+    expect(screen.getByTestId('statusText')).toHaveTextContent('Thinking · Sto analizzando il progetto');
+    expect(screen.getByTestId('statusText')).not.toHaveTextContent('128k ctx window');
     expect(screen.getByTestId('working')).toHaveTextContent('yes');
   });
 

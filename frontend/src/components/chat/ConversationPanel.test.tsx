@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
 import type { ConversationItem } from '@/sync/conversation';
 import { ConversationPanel } from './ConversationPanel';
@@ -59,6 +59,34 @@ const items: ConversationItem[] = [
 ];
 
 describe('ConversationPanel', () => {
+  let originalScrollIntoView: unknown;
+
+  beforeEach(() => {
+    originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: originalScrollIntoView,
+    });
+    vi.restoreAllMocks();
+  });
+
+  it('scrolls to the bottom when a new scroll request arrives', () => {
+    const { rerender } = render(<ConversationPanel items={items} scrollToBottomRevision={0} />);
+
+    expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+
+    rerender(<ConversationPanel items={items} scrollToBottomRevision={1} />);
+
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
   it('renders a grouped turn with collapsed reasoning/tool blocks and preserves arrival order', () => {
     const { container, getByText } = render(<ConversationPanel items={items} />);
 
@@ -158,7 +186,7 @@ describe('ConversationPanel', () => {
     expect(container.querySelector('.tool-block')).not.toBeNull();
   });
 
-  it('keeps a compact working tail visible while streamed assistant text is already present', () => {
+  it('keeps streamed assistant turns anchored inline without detached working tail cards', () => {
     const streamingTurnItems: ConversationItem[] = [
       {
         kind: 'message',
@@ -181,12 +209,11 @@ describe('ConversationPanel', () => {
 
     const { container, getByText } = render(<ConversationPanel items={streamingTurnItems} isWorking workingLabel="Working..." />);
 
-    expect(container.querySelector('.conversation-working-tail')).not.toBeNull();
-    expect(container.querySelector('.conversation-working-tail .working-placeholder')).not.toBeNull();
-    expect(getByText('Working...')).toBeInTheDocument();
+    expect(container.querySelector('.conversation-working-tail')).toBeNull();
+    expect(getByText('Sto generando')).toBeInTheDocument();
   });
 
-  it('shows inline working feedback for standalone assistant streaming placeholders', () => {
+  it('shows working tail feedback for a streaming assistant placeholder', () => {
     const standaloneStreamingItems: ConversationItem[] = [
       {
         kind: 'message',
@@ -200,7 +227,9 @@ describe('ConversationPanel', () => {
 
     const { container, getByText } = render(<ConversationPanel items={standaloneStreamingItems} isWorking workingLabel="Writing..." />);
 
+    // Finché l'assistant non ha ancora testo, il placeholder resta inline nel turno.
     expect(container.querySelector('.message-assistant .working-placeholder')).not.toBeNull();
+    expect(container.querySelector('.conversation-working-tail .working-placeholder')).toBeNull();
     expect(getByText('Writing...')).toBeInTheDocument();
   });
 
@@ -249,7 +278,7 @@ describe('ConversationPanel', () => {
     expect(container.querySelectorAll('.history-record-static > .tool-block')).toHaveLength(0);
   });
 
-  it('keeps Writing placeholder anchored in the active turn after refresh while tools are still running', () => {
+  it('keeps Writing placeholder inline in the active turn after refresh while tools are still running', () => {
     const refreshWhileRunningItems: ConversationItem[] = [
       {
         kind: 'message',
@@ -285,8 +314,10 @@ describe('ConversationPanel', () => {
     );
 
     expect(getByText('Writing...')).toBeInTheDocument();
-    expect(container.querySelector('.message-assistant-turn .working-placeholder')).not.toBeNull();
-    expect(container.querySelector('.conversation-working-tail')).toBeNull();
+    // Con assistant vuoto in streaming, il placeholder resta inline nel turno attivo
+    // (ancorato nella history statica, non staccato nel trailing tail).
+    expect(container.querySelector('.history-record-static .working-placeholder')).not.toBeNull();
+    expect(container.querySelector('.conversation-working-tail .working-placeholder')).toBeNull();
     expect(container.querySelectorAll('.history-record-static > .tool-block')).toHaveLength(0);
   });
 

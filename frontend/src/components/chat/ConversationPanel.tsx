@@ -16,6 +16,7 @@ import { ReasoningPart } from './message/parts/ReasoningPart';
 import { ToolPart } from './message/parts/ToolPart';
 import { ScrollToBottomButton } from './components/ScrollToBottomButton';
 import { WorkingPlaceholder } from './components/WorkingPlaceholder';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 import type { StreamPhase } from '@/sync/streaming';
 import './ConversationPanel.css';
 
@@ -29,6 +30,7 @@ interface ConversationPanelProps {
   workingActivity?: 'idle' | 'streaming' | 'tooling' | 'permission' | 'retry' | 'cooldown' | 'complete';
   activeStreamingMessageId?: string;
   activeStreamingPhase?: StreamPhase;
+  scrollToBottomRevision?: number;
 }
 
 type AssistantMessageItem = MessageItem & { role: 'assistant' };
@@ -365,6 +367,17 @@ function hasStreamingTurnEntry(entry: ToolTurnEntry): boolean {
   return !entry.result;
 }
 
+function hasEmptyStreamingAssistantInTurn(record: RenderRecord | undefined): boolean {
+  if (!record || record.kind !== 'turn') {
+    return false;
+  }
+  return record.entries.some((entry) => (
+    entry.kind === 'assistant'
+    && entry.item.status === 'streaming'
+    && entry.item.content.trim().length === 0
+  ));
+}
+
 function isStreamingRecord(record: RenderRecord | undefined, activeStreamingMessageId?: string, activeStreamingPhase?: StreamPhase): boolean {
   if (activeStreamingMessageId && (activeStreamingPhase === 'streaming' || activeStreamingPhase === 'cooldown')) {
     if (record?.kind === 'turn') {
@@ -410,8 +423,8 @@ function shouldShowInlineWorkingPlaceholder(record: RenderRecord, isWorking: boo
       return false;
     }
 
-    // Only show the placeholder when the assistant entry has NO content yet.
-    // This prevents the flash when text chunks have already started arriving.
+    // Keep the indicator inside the active assistant turn until the first
+    // text chunk arrives, so we avoid showing a detached working card.
     const hasAssistantText = record.entries.some((entry) => entry.kind === 'assistant' && entry.item.content.trim().length > 0);
     return !hasAssistantText;
   }
@@ -961,12 +974,15 @@ const StreamingTailContent = React.memo(function StreamingTailContent({
     && prev.record === next.record;
 });
 
-export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...', workingStatusText, workingActivity = 'streaming', activeStreamingMessageId, activeStreamingPhase }: ConversationPanelProps) {
+// ── ConversationPanel component ──────────────────────────────────────────
+
+export function ConversationPanel({ items, error: errorMsg, showReasoningTraces = true, isWorking = false, workingLabel = 'Working...', workingStatusText, workingActivity = 'streaming', activeStreamingMessageId, activeStreamingPhase, scrollToBottomRevision }: ConversationPanelProps) {
   const records = React.useMemo(() => buildRenderRecords(items), [items]);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const bottomAnchorRef = React.useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = React.useRef(true);
   const [showScrollButton, setShowScrollButton] = React.useState(false);
+  const lastScrollToBottomRevisionRef = React.useRef<number | undefined>(scrollToBottomRevision ?? undefined);
 
   const scrollToBottom = React.useCallback((instant = false) => {
     const anchor = bottomAnchorRef.current;
@@ -1023,6 +1039,14 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     };
   }, [items, scrollToBottom]);
 
+  React.useEffect(() => {
+    if (scrollToBottomRevision === undefined || lastScrollToBottomRevisionRef.current === scrollToBottomRevision) {
+      return;
+    }
+    lastScrollToBottomRevisionRef.current = scrollToBottomRevision;
+    scrollToBottom(true);
+  }, [scrollToBottom, scrollToBottomRevision]);
+
   const handleScrollToBottom = React.useCallback(() => {
     shouldAutoScrollRef.current = true;
     setShowScrollButton(false);
@@ -1033,12 +1057,23 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     if (activeStreamingMessageId && (activeStreamingPhase === 'streaming' || activeStreamingPhase === 'cooldown')) {
       const matched = records.find((record) => isStreamingRecord(record, activeStreamingMessageId, activeStreamingPhase));
       if (matched) {
+        // Best-practice anti-flicker: never move assistant turns between
+        // containers (history ↔ trailing tail). Keep turn records anchored.
+        if (matched.kind === 'turn') {
+          return undefined;
+        }
         return matched;
       }
     }
 
     const lastRecord = records.at(-1);
-    return isStreamingRecord(lastRecord, activeStreamingMessageId, activeStreamingPhase) ? lastRecord : undefined;
+    if (isStreamingRecord(lastRecord, activeStreamingMessageId, activeStreamingPhase)) {
+      if (lastRecord?.kind === 'turn') {
+        return undefined;
+      }
+      return lastRecord;
+    }
+    return undefined;
   }, [activeStreamingMessageId, activeStreamingPhase, records]);
 
   const historyRecords = React.useMemo(() => {
@@ -1052,11 +1087,21 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     if (!isWorking || items.length === 0) {
       return false;
     }
+
+    const lastRecord = records.at(-1);
+    // Keep active assistant turns fully inline; no detached bottom working card.
+    if (lastRecord?.kind === 'turn' && isStreamingRecord(lastRecord, activeStreamingMessageId, activeStreamingPhase)) {
+      return false;
+    }
+
     if (!trailingStreamingRecord) {
       return true;
     }
     return !shouldShowInlineWorkingPlaceholder(trailingStreamingRecord, isWorking);
-  }, [isWorking, items.length, trailingStreamingRecord]);
+  }, [isWorking, items.length, records, trailingStreamingRecord, activeStreamingMessageId, activeStreamingPhase]);
+
+  // Context usage data streams via SyncSessionStatus.metadata from the SSE handler.
+  // Display lives in ComposerPanel.tsx (always visible, near the input).
 
   return (
     <div className="messages-panel" role="log" aria-label="Conversation" aria-live="polite" ref={panelRef} style={{ position: 'relative' }}>

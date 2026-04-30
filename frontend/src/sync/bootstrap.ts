@@ -14,20 +14,27 @@ export interface SessionBootstrapDeps {
   setStatusMessage: (message: string) => void;
 }
 
-function toSyncStatus(status?: string | null): SyncSessionStatus {
+function toSyncStatus(status?: string | null, previous?: SyncSessionStatus): SyncSessionStatus {
   return {
-    type: status ?? 'idle',
+    type: status ?? previous?.type ?? 'idle',
     timestamp: Date.now(),
+    ...(previous?.message ? { message: previous.message } : {}),
+    ...(previous?.needsAttention !== undefined ? { needsAttention: previous.needsAttention } : {}),
+    ...(previous?.metadata ? { metadata: previous.metadata } : {}),
   };
 }
 
-export function buildDirectoryState(sessions: SessionInfo[]): SyncDirectoryState {
+export function buildDirectoryState(
+  sessions: SessionInfo[],
+  previousStatusMap?: Record<string, SyncSessionStatus>,
+): SyncDirectoryState {
   const session_status: Record<string, SyncSessionStatus> = {};
   const message: SyncDirectoryState['message'] = {};
 
   for (const session of sessions) {
-    session_status[session.id] = toSyncStatus(session.status);
-    message[session.id] = session.messages;
+    const previous = previousStatusMap?.[session.id];
+    session_status[session.id] = toSyncStatus(session.status, previous);
+    message[session.id] = session.messages ?? [];
   }
 
   return {
@@ -48,7 +55,8 @@ export function buildDirectoryState(sessions: SessionInfo[]): SyncDirectoryState
 
 export function hydrateDirectorySnapshot(directory: string, sessions: SessionInfo[]): void {
   const childStores = getSyncChildStores();
-  childStores.replace(directory, buildDirectoryState(sessions));
+  const previous = childStores.getState(directory);
+  childStores.replace(directory, buildDirectoryState(sessions, previous?.session_status));
 }
 
 export function hydrateSessionDirectories(sessions: SessionInfo[]): void {
@@ -92,15 +100,15 @@ export function upsertDirectorySession(session: SessionInfo): void {
     ? existing.session.map((entry) => (entry.id === session.id ? session : entry))
     : [...existing.session, session];
 
-  childStores.replace(session.cwd, buildDirectoryState(nextSessions));
+  childStores.replace(session.cwd, buildDirectoryState(nextSessions, existing.session_status));
 }
 
 export function hydrateSelectedSessionSnapshot(
   session: SessionInfo,
   deps: Pick<SessionBootstrapDeps, 'updateSession' | 'setConversation' | 'setSelectedSessionId' | 'setSelectedDirectory' | 'setStreaming' | 'setStatusMessage'>,
 ): void {
-  deps.updateSession(session.id, session);
-  const conversation = rehydrateConversationForSession(session.messages, getSessionStatusType(session.status));
+  deps.updateSession(session.id, { ...session, messages: session.messages ?? [] });
+  const conversation = rehydrateConversationForSession(session.messages ?? [], getSessionStatusType(session.status));
   deps.setConversation(conversation);
   hydrateStreamingSession(session.id, conversation, getSessionStatusType(session.status));
   deps.setSelectedSessionId(session.id);
@@ -110,5 +118,5 @@ export function hydrateSelectedSessionSnapshot(
 }
 
 export function normalizeSelectedSessionConversation(session: SessionInfo) {
-  return rehydrateConversationForSession(session.messages, getSessionStatusType(session.status));
+  return rehydrateConversationForSession(session.messages ?? [], getSessionStatusType(session.status));
 }

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import { useSessionUiStore } from '@/stores/sessionUiStore';
-import { useUIStore } from '@/stores/uiStore';
 import { useSessionPermissions, useSessionQuestions, useSessionStatus } from '@/sync/sync-context';
 import { getSessionStatusType } from '@/sync/sessionActivity';
 import { useStreamingSession, type StreamPhase } from '@/sync/streaming';
@@ -23,39 +22,21 @@ export interface AssistantStatusSnapshot {
   lifecyclePhase: StreamPhase | null;
 }
 
-function formatTokens(count: number): string {
-  if (count < 1000) return count.toString();
-  if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
-  if (count < 1000000) return `${Math.round(count / 1000)}k`;
-  if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
-  return `${Math.round(count / 1000000)}M`;
-}
-
-function formatUsageMetadata(metadata: Record<string, unknown> | undefined): string | null {
-  if (!metadata) return null;
-  const numberValue = (key: string) => (typeof metadata[key] === 'number' ? metadata[key] as number : undefined);
-  const inputTokens = numberValue('inputTokens');
-  const outputTokens = numberValue('outputTokens');
-  const cacheReadTokens = numberValue('cacheReadTokens');
-  const cacheWriteTokens = numberValue('cacheWriteTokens');
-  const contextWindow = numberValue('contextWindow');
-  const contextPercent = numberValue('contextPercent');
-  const contextUsed = numberValue('contextUsed');
-  const resolvedContextPercent = contextPercent ?? (contextUsed !== undefined && contextWindow ? (contextUsed / contextWindow) * 100 : undefined);
-  const parts: string[] = [];
-  if (inputTokens) parts.push(`↑${formatTokens(inputTokens)}`);
-  if (outputTokens) parts.push(`↓${formatTokens(outputTokens)}`);
-  if (cacheReadTokens) parts.push(`R${formatTokens(cacheReadTokens)}`);
-  if (cacheWriteTokens) parts.push(`W${formatTokens(cacheWriteTokens)}`);
-  if (resolvedContextPercent !== undefined && contextWindow) parts.push(`${resolvedContextPercent.toFixed(1)}%/${formatTokens(contextWindow)}`);
-  else if (contextWindow) parts.push(`?/${formatTokens(contextWindow)}`);
-  return parts.length > 0 ? parts.join(' ') : null;
+function summarizePreview(text: string, maxLength = 96): string {
+  const compact = text.replace(/\s+/g, ' ').trim();
+  if (compact.length <= maxLength) {
+    return compact;
+  }
+  return `${compact.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 function getLastAssistantRelatedItems(items: ConversationItem[]) {
   let activeToolName: string | undefined;
+  let activeToolInput: string | undefined;
   let hasPendingTool = false;
   let hasAssistantText = false;
+  let latestThinkingPreview: string | undefined;
+  let latestAssistantPreview: string | undefined;
   const resolvedToolCallIds = new Set<string>();
 
   // Evaluate only the latest user→assistant turn (scan backwards until the last user message).
@@ -64,6 +45,11 @@ function getLastAssistantRelatedItems(items: ConversationItem[]) {
 
     if (item.kind === 'message' && item.role === 'user') {
       break;
+    }
+
+    if (item.kind === 'thinking' && !latestThinkingPreview && item.content.trim().length > 0) {
+      latestThinkingPreview = summarizePreview(item.content);
+      continue;
     }
 
     if (item.kind === 'tool_result') {
@@ -77,16 +63,22 @@ function getLastAssistantRelatedItems(items: ConversationItem[]) {
         if (!activeToolName) {
           activeToolName = item.toolName;
         }
+        if (!activeToolInput && item.input.trim().length > 0) {
+          activeToolInput = summarizePreview(item.input);
+        }
       }
       continue;
     }
 
     if (item.kind === 'message' && item.role === 'assistant' && item.content.trim().length > 0) {
       hasAssistantText = true;
+      if (!latestAssistantPreview) {
+        latestAssistantPreview = summarizePreview(item.content);
+      }
     }
   }
 
-  return { activeToolName, hasPendingTool, hasAssistantText };
+  return { activeToolName, activeToolInput, hasPendingTool, hasAssistantText, latestThinkingPreview, latestAssistantPreview };
 }
 
 export function useAssistantStatus(): AssistantStatusSnapshot {
@@ -94,7 +86,6 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
   const selectedSessionId = useSessionUiStore((state) => state.selectedSessionId);
   const selectedDirectory = useSessionUiStore((state) => state.selectedDirectory);
   const currentSession = useSessionUiStore((state) => state.currentSession);
-  const activeModel = useUIStore((state) => state.models.find((model) => model.key === state.activeModelKey));
   const sessionStatus = useSessionStatus(selectedSessionId, selectedDirectory);
   const permissions = useSessionPermissions(selectedSessionId, selectedDirectory);
   const questions = useSessionQuestions(selectedSessionId, selectedDirectory);
@@ -102,7 +93,7 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
 
   return useMemo(() => {
     const statusType = getSessionStatusType(sessionStatus) ?? getSessionStatusType(currentSession?.status);
-    const { activeToolName, hasPendingTool, hasAssistantText } = getLastAssistantRelatedItems(conversation);
+    const { activeToolName, activeToolInput, hasPendingTool, hasAssistantText, latestThinkingPreview, latestAssistantPreview } = getLastAssistantRelatedItems(conversation);
     const hasPermission = permissions.length > 0 || questions.length > 0 || statusType === 'waiting_permission' || statusType === 'waiting_question';
     const isRetry = statusType === 'retry';
     const isCooldown = streaming.phase === 'cooldown';
@@ -113,6 +104,7 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       || (hasPendingTool && isStreaming)
     );
     const isComplete = !hasPermission && !isRetry && !isCooldown && !isStreaming && !isTooling && hasAssistantText;
+    const isThinking = Boolean(latestThinkingPreview) && !hasAssistantText;
 
     let activity: AssistantActivity = 'idle';
     if (hasPermission) {
@@ -121,10 +113,10 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       activity = 'retry';
     } else if (isCooldown) {
       activity = 'cooldown';
-    } else if (isStreaming && hasAssistantText) {
-      activity = 'streaming';
     } else if (isTooling) {
       activity = 'tooling';
+    } else if (isThinking) {
+      activity = 'streaming';
     } else if (isStreaming) {
       activity = 'streaming';
     } else if (isComplete) {
@@ -132,29 +124,37 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
     }
 
     let label = 'Working...';
+    let statusText: string | null = null;
     if (activity === 'permission') {
       label = statusType === 'waiting_question' ? 'Question pending...' : 'Permission needed...';
+      statusText = sessionStatus?.message ?? null;
     } else if (activity === 'retry') {
       label = 'Retrying...';
+      statusText = sessionStatus?.message ?? null;
     } else if (activity === 'cooldown') {
       label = 'Finalizing...';
+      statusText = latestAssistantPreview ? `Wrapping up · ${latestAssistantPreview}` : sessionStatus?.message ?? null;
     } else if (activity === 'tooling') {
       label = activeToolName ? `Running ${activeToolName}...` : 'Running tools...';
+      statusText = activeToolInput ? activeToolInput : sessionStatus?.message ?? null;
+    } else if (isThinking) {
+      label = 'Thinking...';
+      statusText = latestThinkingPreview ? `Thinking · ${latestThinkingPreview}` : sessionStatus?.message ?? null;
     } else if (activity === 'streaming') {
       label = 'Writing...';
+      statusText = latestAssistantPreview ? `Writing · ${latestAssistantPreview}` : sessionStatus?.message ?? null;
     } else if (activity === 'complete') {
       label = 'Complete';
+      statusText = latestAssistantPreview ? `Done · ${latestAssistantPreview}` : null;
     } else if (activity === 'idle') {
       label = 'Idle';
+      statusText = null;
     }
-
-    const modelContextText = activeModel?.contextWindow ? `${Math.round(activeModel.contextWindow / 1000)}k ctx window` : null;
-    const usageText = formatUsageMetadata(sessionStatus?.metadata) ?? modelContextText;
 
     return {
       activity,
       label,
-      statusText: [usageText, sessionStatus?.message].filter(Boolean).join(' · ') || null,
+      statusText,
       isWorking: activity !== 'idle' && activity !== 'complete',
       isStreaming: activity === 'streaming' || activity === 'tooling',
       isCooldown,
@@ -164,5 +164,5 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       activeToolName,
       lifecyclePhase: streaming.phase,
     };
-  }, [activeModel?.contextWindow, conversation, currentSession?.status, permissions.length, questions.length, selectedDirectory, sessionStatus, streaming.phase]);
+  }, [conversation, currentSession?.status, permissions.length, questions.length, selectedDirectory, sessionStatus, streaming.phase]);
 }

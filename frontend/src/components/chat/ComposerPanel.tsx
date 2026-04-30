@@ -18,6 +18,8 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
+import { useSessionStatus } from '@/sync/sync-context';
+import { useSessionUiStore } from '@/stores/sessionUiStore';
 import type { ModelInfo, StreamingState, ThinkingLevel } from '@/types';
 import './ComposerPanel.css';
 
@@ -341,6 +343,68 @@ export function ComposerPanel({
   const selectedModelMetaLabel = [selectedModelContextLabel ? `${selectedModelContextLabel} ctx` : '', selectedModelMaxTokenLabel ? `${selectedModelMaxTokenLabel} out` : '']
     .filter(Boolean)
     .join(' · ');
+
+  // Live context usage from RPC client (via SyncSessionStatus.metadata).
+  const selSessionId = useSessionUiStore((state) => state.selectedSessionId);
+  const selDirectory = useSessionUiStore((state) => state.selectedDirectory);
+  // Use undefined for empty directory so useSessionStatus falls back to syncSystem.directory.
+  const sessionStatus = useSessionStatus(selSessionId ?? '', selDirectory || undefined);
+  const ctxMetadata = sessionStatus?.metadata;
+
+  /** CLI-like status line, e.g. "↑2.5M ↓158K R2.9M $2.371 12.8%/1.0M (auto)" */
+  const contextUsageText = useMemo(() => {
+    const cw = typeof ctxMetadata?.contextWindow === 'number'
+      ? ctxMetadata.contextWindow
+      : selectedModel?.contextWindow;
+    if (cw == null) return null;
+
+    const inputTokens = typeof ctxMetadata?.inputTokens === 'number' ? ctxMetadata.inputTokens : undefined;
+    const outputTokens = typeof ctxMetadata?.outputTokens === 'number' ? ctxMetadata.outputTokens : undefined;
+    const totalTokens = typeof ctxMetadata?.totalTokens === 'number' ? ctxMetadata.totalTokens : undefined;
+    const cost = typeof ctxMetadata?.cost === 'number' ? ctxMetadata.cost : undefined;
+    const contextUsed = typeof ctxMetadata?.contextUsed === 'number' ? ctxMetadata.contextUsed : undefined;
+    const contextPercent = typeof ctxMetadata?.contextPercent === 'number' ? ctxMetadata.contextPercent : undefined;
+    const autoCompactionEnabled = typeof ctxMetadata?.autoCompactionEnabled === 'boolean'
+      ? ctxMetadata.autoCompactionEnabled
+      : undefined;
+
+    const parts: string[] = [];
+
+    if (inputTokens != null) parts.push(`↑${formatTokenWindow(inputTokens)}`);
+    if (outputTokens != null) parts.push(`↓${formatTokenWindow(outputTokens)}`);
+    if (totalTokens != null) parts.push(`R${formatTokenWindow(totalTokens)}`);
+    if (cost != null) parts.push(`$${cost.toFixed(3)}`);
+
+    if (contextPercent != null) {
+      parts.push(`${contextPercent.toFixed(1)}%/${formatTokenWindow(cw)}`);
+    } else if (contextUsed != null) {
+      parts.push(`${formatTokenWindow(Math.min(contextUsed, cw))}/${formatTokenWindow(cw)}`);
+    } else {
+      parts.push(`${formatTokenWindow(cw)} ctx`);
+    }
+
+    if (autoCompactionEnabled != null) {
+      parts.push(autoCompactionEnabled ? '(auto)' : '(manual)');
+    }
+
+    return parts.join(' ');
+  }, [ctxMetadata, selectedModel?.contextWindow]);
+
+  const contextUsageTooltip = useMemo(() => {
+    if (!ctxMetadata && !selectedModel?.contextWindow) return '';
+    const parts: string[] = [];
+    const cw = typeof ctxMetadata?.contextWindow === 'number' ? ctxMetadata.contextWindow : selectedModel?.contextWindow;
+    if (cw != null) parts.push(`Context window: ${cw.toLocaleString()}`);
+    if (typeof ctxMetadata?.contextUsed === 'number') parts.push(`Used: ${ctxMetadata.contextUsed.toLocaleString()}`);
+    if (typeof ctxMetadata?.contextPercent === 'number') parts.push(`Usage: ${ctxMetadata.contextPercent.toFixed(1)}%`);
+    if (typeof ctxMetadata?.inputTokens === 'number') parts.push(`Input: ${ctxMetadata.inputTokens.toLocaleString()}`);
+    if (typeof ctxMetadata?.outputTokens === 'number') parts.push(`Output: ${ctxMetadata.outputTokens.toLocaleString()}`);
+    if (typeof ctxMetadata?.cacheReadTokens === 'number') parts.push(`Cache read: ${ctxMetadata.cacheReadTokens.toLocaleString()}`);
+    if (typeof ctxMetadata?.cacheWriteTokens === 'number') parts.push(`Cache write: ${ctxMetadata.cacheWriteTokens.toLocaleString()}`);
+    if (typeof ctxMetadata?.totalTokens === 'number') parts.push(`Total: ${ctxMetadata.totalTokens.toLocaleString()}`);
+    return parts.join(' · ');
+  }, [ctxMetadata, selectedModel?.contextWindow]);
+
   const hasResults = favoriteModels.length > 0 || recentModelItems.length > 0 || filteredProviderGroups.length > 0;
   const forceExpandProviders = searchQuery.trim().length > 0;
 
@@ -801,6 +865,12 @@ export function ComposerPanel({
               >
                 <Maximize2 size={16} />
               </button>
+
+              {contextUsageText ? (
+                <span className="composer-context-usage" title={contextUsageTooltip || undefined}>
+                  <span className="composer-context-usage-label">{contextUsageText}</span>
+                </span>
+              ) : null}
             </div>
 
             <div className="composer-actions-right">

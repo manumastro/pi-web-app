@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import type { Session, SessionStore } from './store.js';
 import { createSessionStore } from './store.js';
 import { deleteSessionFileSync, writeSessionFileSync, loadSessionsFromDirSync, readSessionFileSync } from './persistence.js';
@@ -6,8 +7,15 @@ export interface PersistentSessionStore extends SessionStore {
   hydrateSync: () => void;
 }
 
+type SnapshotCacheEntry = {
+  mtimeMs: number;
+  size: number;
+  session: Session | undefined;
+};
+
 export function createPersistentSessionStore(sessionsDir: string): PersistentSessionStore {
   const baseStore = createSessionStore();
+  const snapshotCache = new Map<string, SnapshotCacheEntry>();
 
   function persist(session: Session | undefined): void {
     if (!session) {
@@ -16,12 +24,29 @@ export function createPersistentSessionStore(sessionsDir: string): PersistentSes
     writeSessionFileSync(sessionsDir, session);
   }
 
+  function readCachedPiSnapshot(filePath: string): Session | undefined {
+    try {
+      const stat = fs.statSync(filePath);
+      const cached = snapshotCache.get(filePath);
+      if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+        return cached.session;
+      }
+
+      const snapshot = readSessionFileSync(filePath);
+      snapshotCache.set(filePath, { mtimeMs: stat.mtimeMs, size: stat.size, session: snapshot });
+      return snapshot;
+    } catch {
+      snapshotCache.delete(filePath);
+      return undefined;
+    }
+  }
+
   function mergeSessionFromPiSnapshot(session: Session | undefined): Session | undefined {
     if (!session?.piSessionFile) {
       return session;
     }
 
-    const snapshot = readSessionFileSync(session.piSessionFile);
+    const snapshot = readCachedPiSnapshot(session.piSessionFile);
     if (!snapshot) {
       return session;
     }
@@ -46,19 +71,10 @@ export function createPersistentSessionStore(sessionsDir: string): PersistentSes
     },
     getSession(id: string): Session | undefined {
       const existing = baseStore.getSession(id);
-      const merged = mergeSessionFromPiSnapshot(existing);
-      if (!merged) return existing;
-      if (existing && existing !== merged) {
-        return baseStore.updateSession(id, merged) ?? merged;
-      }
-      return merged;
+      return mergeSessionFromPiSnapshot(existing) ?? existing;
     },
     listSessions(cwd?: string): Session[] {
-      return baseStore.listSessions(cwd).map((session) => {
-        const merged = mergeSessionFromPiSnapshot(session);
-        if (!merged) return session;
-        return baseStore.updateSession(session.id, merged) ?? merged;
-      });
+      return baseStore.listSessions(cwd);
     },
     createSession(cwd: string, model?: string, id?: string): Session {
       const session = baseStore.createSession(cwd, model, id);

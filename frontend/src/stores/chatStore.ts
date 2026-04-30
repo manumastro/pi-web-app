@@ -3,38 +3,41 @@ import { appendPrompt as buildOptimisticConversation } from '@/sync/conversation
 import type { ConversationItem, MessageItem } from '@/sync/conversation';
 
 interface ChatState {
-  // Conversation state
   conversation: ConversationItem[];
   streaming: 'idle' | 'streaming' | 'connecting' | 'error';
   statusMessage: string;
   error: string;
-  
-  // Actions
+  scrollToBottomRevision: number;
+
   setConversation: (items: ConversationItem[]) => void;
   appendPrompt: (prompt: string, activeModelKey: string, turnId?: string) => void;
   applySsePayload: (data: string) => void;
   setStreaming: (state: 'idle' | 'streaming' | 'connecting' | 'error') => void;
   setStatusMessage: (message: string) => void;
   setError: (error: string) => void;
+  requestScrollToBottom: () => void;
   clearConversation: () => void;
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
-  // Initial state
+export const useChatStore = create<ChatState>((set) => ({
   conversation: [],
   streaming: 'idle',
   statusMessage: 'Connecting',
   error: '',
-  
-  // Actions
+  scrollToBottomRevision: 0,
+
   setConversation: (items) => set({ conversation: items }),
-  
+
   appendPrompt: (prompt, _activeModelKey, turnId) => {
     set((state) => ({
       conversation: buildOptimisticConversation(state.conversation, prompt, turnId),
     }));
   },
-  
+
+  requestScrollToBottom: () => {
+    set((state) => ({ scrollToBottomRevision: state.scrollToBottomRevision + 1 }));
+  },
+
   applySsePayload: (data) => {
     try {
       const parsed = JSON.parse(data);

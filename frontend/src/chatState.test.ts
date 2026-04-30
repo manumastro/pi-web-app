@@ -180,7 +180,7 @@ describe('conversation', () => {
       expect.objectContaining({ kind: 'tool_result', messageId: 'a1', result: '{"content":[{"type":"text","text":"done"}]}' }),
     );
     expect(conversation[2]).toEqual(
-      expect.objectContaining({ kind: 'message', role: 'assistant', messageId: 'a1', status: 'complete', content: 'Hi' }),
+      expect.objectContaining({ kind: 'message', role: 'assistant', status: 'complete', content: 'Hi', messageId: 'a1' }),
     );
   });
 });

@@ -40,6 +40,17 @@ export function cacheRemoveItem(key: string): void {
   }
 }
 
+/** Cache keys managed via cacheGetItem / cacheSetItem (not user preferences). */
+const CACHE_KEYS = new Set([
+  'pi-web-app:projects',
+  'pi-web-app:active-project',
+]);
+
+/**
+ * Clear only frontend cache entries (projects and sync-directory state).
+ * User preferences (favorites, recents, collapsed providers, workspace panel,
+ * reasoning traces) are deliberately left untouched.
+ */
 export function clearFrontendCacheStorage(): void {
   if (ENABLE_FRONTEND_CACHE || typeof window === 'undefined') {
     return;
@@ -54,7 +65,7 @@ export function clearFrontendCacheStorage(): void {
         continue;
       }
 
-      if (key.startsWith('pi-web-app:') || key.startsWith('pi.dir.')) {
+      if (CACHE_KEYS.has(key) || key.startsWith('pi.dir.')) {
         keys.push(key);
       }
     }

@@ -235,19 +235,32 @@ function updateLastAssistant(
   messageId?: string,
 ): ConversationItem[] {
   const index = lastMessageIndex(items, 'assistant', messageId);
-  if (index < 0) {
-    return items;
+  if (index >= 0) {
+    const item = items[index];
+    if (item && item.kind === 'message') {
+      const next = [...items];
+      next[index] = updater({
+        ...item,
+        messageId: messageId ?? item.messageId,
+      });
+      return next;
+    }
   }
-  const item = items[index];
-  if (!item || item.kind !== 'message') {
-    return items;
+
+  // Fallback: find the last streaming assistant when exact messageId fails.
+  for (let idx = items.length - 1; idx >= 0; idx -= 1) {
+    const entry = items[idx];
+    if (entry && entry.kind === 'message' && entry.role === 'assistant' && entry.status === 'streaming') {
+      const next = [...items];
+      next[idx] = updater({
+        ...entry as MessageItem,
+        messageId: messageId ?? (entry as MessageItem).messageId,
+      });
+      return next;
+    }
   }
-  const next = [...items];
-  next[index] = updater({
-    ...item,
-    messageId: messageId ?? item.messageId,
-  });
-  return next;
+
+  return items;
 }
 
 function lastThinkingIndex(items: ConversationItem[], messageId?: string): number {
@@ -288,9 +301,14 @@ function upsertThinkingBeforeAssistant(items: ConversationItem[], item: Thinking
   if (fallbackThinkingIndex >= 0) {
     const next = [...items];
     const existing = next[fallbackThinkingIndex] as ThinkingItem;
+    // Preserve the existing messageId (frontend turnId) even when the SSE
+    // event carries a different backend messageId.  This keeps the thinking
+    // item in the same buildRenderRecords turn as the assistant it was
+    // optimistically paired with, avoiding a split turn and the visual
+    // flicker that follows.
     next[fallbackThinkingIndex] = {
       ...existing,
-      messageId: item.messageId ?? existing.messageId,
+      messageId: existing.messageId,
       content: `${existing.content}${item.content}`,
       done: item.done || existing.done,
       timestamp: item.timestamp,
@@ -604,28 +622,52 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
         }
       }
 
-      const fallbackIndex = [...conversation].reverse().findIndex(
-        (entry) => entry.kind === 'message' && entry.role === 'assistant' && isAssistantPlaceholderContent(entry.content),
-      );
-      if (fallbackIndex >= 0) {
-        const targetIndex = conversation.length - 1 - fallbackIndex;
-        const item = conversation[targetIndex];
-        if (item && item.kind === 'message') {
-          const next = [...conversation];
-          next[targetIndex] = {
-            ...item,
-            messageId: resolvedMessageId,
-            content: `${item.content}${chunk}`,
-            status: 'streaming',
-            timestamp: 'streaming',
-          };
-          return next;
+      // Fallback 1: assistant placeholder (empty / "working" content).
+      {
+        const fallbackIndex = [...conversation].reverse().findIndex(
+          (entry) => entry.kind === 'message' && entry.role === 'assistant' && isAssistantPlaceholderContent(entry.content),
+        );
+        if (fallbackIndex >= 0) {
+          const targetIndex = conversation.length - 1 - fallbackIndex;
+          const item = conversation[targetIndex];
+          if (item && item.kind === 'message') {
+            const next = [...conversation];
+            // Preserve the existing messageId (frontend turnId) so the
+            // assistant stays in the same turn as its paired thinking item.
+            next[targetIndex] = {
+              ...item,
+              messageId: item.messageId,
+              content: `${item.content}${chunk}`,
+              status: 'streaming',
+              timestamp: 'streaming',
+            };
+            return next;
+          }
+        }
+      }
+
+      // Fallback 2: last streaming assistant (any content, same role/status).
+      // Handles subsequent chunks when the first one updated the placeholder
+      // but left the messageId unchanged (mismatched SSE → optimistic IDs).
+      {
+        for (let index = conversation.length - 1; index >= 0; index -= 1) {
+          const entry = conversation[index];
+          if (entry && entry.kind === 'message' && entry.role === 'assistant' && entry.status === 'streaming') {
+            const next = [...conversation];
+            next[index] = {
+              ...entry,
+              messageId: entry.messageId,
+              content: `${entry.content}${chunk}`,
+              status: 'streaming',
+              timestamp: 'streaming',
+            };
+            return next;
+          }
         }
       }
     }
 
     // No matching assistant — create a new one appended to the conversation.
-    // If later chunks arrive with a messageId, applySsePayload will update it.
     return [
       ...conversation,
       {
@@ -715,6 +757,17 @@ export function applySsePayload(conversation: ConversationItem[], payload: SsePa
     // If done has no messageId, derive it from the latest assistant messageId.
     const assistantMessageId = payload.messageId
       ?? (assistantIndex >= 0 ? (conversation[assistantIndex] as MessageItem).messageId : undefined);
+
+    // Check fallback: if no exact match by messageId, check whether the last
+    // streaming assistant is still an empty placeholder (premature done).
+    if (assistantIndex < 0) {
+      const fallbackIdx = lastMessageIndex(conversation, 'assistant');
+      const fallbackAssistant = fallbackIdx >= 0 ? conversation[fallbackIdx] : undefined;
+      if (fallbackAssistant && fallbackAssistant.kind === 'message' && isAssistantPlaceholderContent(fallbackAssistant.content)) {
+        return conversation;
+      }
+    }
+
     return markThinkingDone(
       updateLastAssistant(conversation, (item) => ({
         ...item,
