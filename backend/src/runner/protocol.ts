@@ -12,6 +12,7 @@ export type RunnerModelRef = z.infer<typeof ModelRefSchema>;
 export const ModelInfoSchema = ModelRefSchema.extend({
   name: z.string().optional(),
   reasoning: z.boolean().optional(),
+  input: z.array(z.enum(['text', 'image'])).optional(),
   contextWindow: z.number().optional(),
   maxTokens: z.number().optional(),
 });

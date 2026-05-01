@@ -3,9 +3,16 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import ComposerPanel from './chat/ComposerPanel';
 
 const mockUseSessionStatus = vi.fn();
+const mockFetchModelPreferences = vi.fn();
+const mockSaveModelPreferences = vi.fn();
 
 vi.mock('@/sync/sync-context', () => ({
   useSessionStatus: (...args: unknown[]) => mockUseSessionStatus(...args),
+}));
+
+vi.mock('@/lib/model-preferences', () => ({
+  fetchModelPreferences: (...args: unknown[]) => mockFetchModelPreferences(...args),
+  saveModelPreferences: (...args: unknown[]) => mockSaveModelPreferences(...args),
 }));
 
 function mockMatchMedia(matches: boolean) {
@@ -22,9 +29,9 @@ function mockMatchMedia(matches: boolean) {
 }
 
 const mockModels = [
-  { key: 'anthropic/claude-3-5-sonnet', id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', available: true, active: false, provider: 'anthropic', reasoning: true },
-  { key: 'google-gemini/gemini-pro', id: 'gemini-pro', label: 'Gemini Pro', available: true, active: true, provider: 'google-gemini', reasoning: true },
-  { key: 'openai/gpt-4o', id: 'gpt-4o', label: 'GPT-4o', available: true, active: false, provider: 'openai', reasoning: false },
+  { key: 'anthropic/claude-3-5-sonnet', id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', available: true, active: false, provider: 'anthropic', reasoning: true, supportsImageInput: false, input: ['text'] as const },
+  { key: 'google-gemini/gemini-pro', id: 'gemini-pro', label: 'Gemini Pro', available: true, active: true, provider: 'google-gemini', reasoning: true, supportsImageInput: true, input: ['text', 'image'] as const },
+  { key: 'openai/gpt-4o', id: 'gpt-4o', label: 'GPT-4o', available: true, active: false, provider: 'openai', reasoning: false, supportsImageInput: true, input: ['text', 'image'] as const },
 ];
 
 beforeEach(() => {
@@ -33,6 +40,10 @@ beforeEach(() => {
   localStorage.clear();
   mockUseSessionStatus.mockReset();
   mockUseSessionStatus.mockReturnValue(undefined);
+  mockFetchModelPreferences.mockReset();
+  mockFetchModelPreferences.mockResolvedValue({ favorites: [], recents: [], collapsedProviders: [] });
+  mockSaveModelPreferences.mockReset();
+  mockSaveModelPreferences.mockResolvedValue({ favorites: [], recents: [], collapsedProviders: [] });
 });
 
 describe('ComposerPanel', () => {
@@ -91,6 +102,38 @@ describe('ComposerPanel', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+  });
+
+  it('enables image attachment only for models that support image input', () => {
+    const { rerender } = render(
+      <ComposerPanel
+        prompt=""
+        streaming="idle"
+        models={mockModels}
+        activeModelKey="anthropic/claude-3-5-sonnet"
+        onPromptChange={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+        onModelSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Add image' })).toBeDisabled();
+
+    rerender(
+      <ComposerPanel
+        prompt=""
+        streaming="idle"
+        models={mockModels}
+        activeModelKey="google-gemini/gemini-pro"
+        onPromptChange={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+        onModelSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Add image' })).toBeEnabled();
   });
 
   it('opens a grouped model picker, filters models, and selects the result', async () => {
@@ -167,7 +210,7 @@ describe('ComposerPanel', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Gemini Pro' }));
+    fireEvent.click(screen.getByRole('button', { name: /Gemini Pro/i }));
 
     const dialog = await screen.findByRole('dialog');
     const dialogScope = within(dialog);
@@ -213,7 +256,7 @@ describe('ComposerPanel', () => {
 
     expect(screen.getByText(/\$2\.371/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Gemini Pro' }));
+    fireEvent.click(screen.getByRole('button', { name: /Gemini Pro/i }));
 
     const dialog = await screen.findByRole('dialog');
     const dialogScope = within(dialog);
@@ -225,6 +268,8 @@ describe('ComposerPanel', () => {
   });
 
   it('marks favourites in-memory when cache persistence is disabled', async () => {
+    mockFetchModelPreferences.mockImplementationOnce(() => new Promise(() => undefined));
+
     render(
       <ComposerPanel
         prompt="hello world"
@@ -245,6 +290,39 @@ describe('ComposerPanel', () => {
 
     await waitFor(() => {
       expect(screen.getAllByRole('button', { name: 'Remove from favorites' }).length).toBeGreaterThan(0);
+    });
+  });
+
+  it('hydrates and saves model preferences through the backend API client', async () => {
+    mockFetchModelPreferences.mockResolvedValueOnce({
+      favorites: ['openai/gpt-4o'],
+      recents: ['google-gemini/gemini-pro'],
+      collapsedProviders: ['anthropic'],
+    });
+
+    render(
+      <ComposerPanel
+        prompt="hello world"
+        streaming="idle"
+        models={mockModels}
+        activeModelKey="anthropic/claude-3-5-sonnet"
+        onPromptChange={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+        onModelSelect={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockFetchModelPreferences).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Claude 3.5 Sonnet' }));
+    const removeButtons = await screen.findAllByRole('button', { name: 'Remove from favorites' });
+    fireEvent.click(removeButtons[0]);
+
+    await waitFor(() => {
+      expect(mockSaveModelPreferences).toHaveBeenCalled();
     });
   });
 

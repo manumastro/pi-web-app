@@ -6,9 +6,11 @@ import fs from 'node:fs';
 import http from 'node:http';
 import { loadConfig } from './config/index.js';
 import { createPersistentSessionStore } from './sessions/persistent-store.js';
+import { createPreferencesStore } from './preferences/store.js';
 import { createSseManager } from './sse/manager.js';
 import { createSseRouter } from './sse/handler.js';
 import { createRunnerOrchestrator } from './runner/orchestrator.js';
+import { createImageUploadStore } from './uploads/image-store.js';
 import { installRelayServer } from './relay/server.js';
 import { registerApiRoutes } from './api/index.js';
 
@@ -17,11 +19,13 @@ export function createApp() {
   const logger = pino({ level: config.logLevel });
   const sessionStore = createPersistentSessionStore(config.sessionsDir);
   sessionStore.hydrateSync();
+  const preferencesStore = createPreferencesStore(path.join(config.homeDir, '.pi', 'agent', 'pi-web-preferences.json'));
   const sseManager = createSseManager(path.join(config.sessionsDir, '.sse-history'));
+  const imageUploadStore = createImageUploadStore(path.join(config.sessionsDir, '.uploads'));
   const runner = createRunnerOrchestrator({ config, sessionStore, sseManager });
 
   const app = express();
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ limit: '30mb' }));
   app.use(cors({ origin: config.corsOrigins.length > 0 ? config.corsOrigins : true }));
   app.use((req, _res, next) => {
     logger.debug({ method: req.method, url: req.url }, 'request');
@@ -45,7 +49,7 @@ export function createApp() {
     });
   });
 
-  registerApiRoutes(app, { runner, sessionStore, config });
+  registerApiRoutes(app, { runner, sessionStore, preferencesStore, imageUploadStore, config });
   app.use('/api/events', createSseRouter(sseManager, sessionStore));
 
   // Keep this before static SPA catch-all so frontend relay health checks never get index.html.

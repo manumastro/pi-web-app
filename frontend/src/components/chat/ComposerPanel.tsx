@@ -10,17 +10,19 @@ import {
   Settings2,
   Square,
   Star,
+  X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
+import { fetchModelPreferences, saveModelPreferences } from '@/lib/model-preferences';
 import { useSessionStatus } from '@/sync/sync-context';
 import { useSessionUiStore } from '@/stores/sessionUiStore';
-import type { ModelInfo, StreamingState, ThinkingLevel } from '@/types';
+import type { ModelInfo, PromptImageAttachment, StreamingState, ThinkingLevel } from '@/types';
 import './ComposerPanel.css';
 
 interface ComposerPanelProps {
@@ -33,7 +35,7 @@ interface ComposerPanelProps {
   activeThinkingLevel?: ThinkingLevel;
   thinkingLevelError?: string;
   onPromptChange: (value: string) => void;
-  onSend: () => Promise<void>;
+  onSend: (payload?: { attachments?: PromptImageAttachment[] }) => Promise<boolean>;
   onAbort: () => Promise<void>;
   onModelSelect: (modelKey: string) => void;
   onThinkingLevelSelect?: (thinkingLevel: ThinkingLevel) => void;
@@ -118,6 +120,45 @@ function formatTokenWindow(value: number | undefined): string {
   if (value >= 1_000_000) return `${Math.round(value / 100_000) / 10}M`;
   if (value >= 1_000) return `${Math.round(value / 1000)}k`;
   return value.toLocaleString();
+}
+
+async function readFileAsDataBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Unable to read image file'));
+    reader.onload = () => {
+      const raw = typeof reader.result === 'string' ? reader.result : '';
+      const commaIndex = raw.indexOf(',');
+      if (commaIndex === -1) {
+        reject(new Error('Invalid image payload'));
+        return;
+      }
+      resolve(raw.slice(commaIndex + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadImageAttachment(file: File): Promise<PromptImageAttachment> {
+  const dataBase64 = await readFileAsDataBase64(file);
+  const response = await fetch('/api/uploads/image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      fileName: file.name,
+      mimeType: file.type,
+      dataBase64,
+    }),
+  });
+
+  const payload = await response.json().catch(() => null) as { upload?: PromptImageAttachment; error?: string } | null;
+  if (!response.ok || !payload?.upload) {
+    throw new Error(payload?.error ?? 'Image upload failed');
+  }
+  return payload.upload;
 }
 
 function normalizeSearchValue(value: string): { lower: string; compact: string; tokens: string[] } {
@@ -219,35 +260,96 @@ export function ComposerPanel({
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set(readStoredList(FAVORITES_STORAGE_KEY)));
   const [recentModels, setRecentModels] = useState<string[]>(() => readStoredList(RECENTS_STORAGE_KEY));
   const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(() => new Set(readStoredList(COLLAPSED_PROVIDERS_STORAGE_KEY)));
+  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const [mobileControlsPanel, setMobileControlsPanel] = useState<'overview' | 'model' | 'thinking'>('overview');
+  const [imageAttachments, setImageAttachments] = useState<PromptImageAttachment[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const savePreferencesTimerRef = useRef<number | null>(null);
 
   const isStreaming = streaming === 'streaming';
   const isInputLocked = inputLocked ?? isStreaming;
   const canAbort = streaming === 'streaming' || streaming === 'connecting';
   const isCompactLayout = useMediaQuery('(max-width: 1024px)');
-  const isEmpty = prompt.trim().length === 0;
+  const isEmpty = prompt.trim().length === 0 && imageAttachments.length === 0;
   const canSelectThinkingLevel = availableThinkingLevels.length > 0 && typeof onThinkingLevelSelect === 'function';
   const selectedThinkingLevel = activeThinkingLevel && availableThinkingLevels.includes(activeThinkingLevel)
     ? activeThinkingLevel
     : availableThinkingLevels[0];
 
   useEffect(() => {
+    let cancelled = false;
+    const localFallback = {
+      favorites: readStoredList(FAVORITES_STORAGE_KEY),
+      recents: readStoredList(RECENTS_STORAGE_KEY),
+      collapsedProviders: readStoredList(COLLAPSED_PROVIDERS_STORAGE_KEY),
+    };
+
+    void fetchModelPreferences()
+      .then((preferences) => {
+        if (cancelled) {
+          return;
+        }
+
+        const hasRemoteData = preferences.favorites.length > 0
+          || preferences.recents.length > 0
+          || preferences.collapsedProviders.length > 0;
+        const hasLocalData = localFallback.favorites.length > 0
+          || localFallback.recents.length > 0
+          || localFallback.collapsedProviders.length > 0;
+
+        const source = hasRemoteData || !hasLocalData ? preferences : localFallback;
+        setFavorites(new Set(source.favorites));
+        setRecentModels(source.recents);
+        setCollapsedProviders(new Set(source.collapsedProviders));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) {
+          setPreferencesHydrated(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     writeStoredList(FAVORITES_STORAGE_KEY, Array.from(favorites));
-  }, [favorites]);
-
-  useEffect(() => {
     writeStoredList(RECENTS_STORAGE_KEY, recentModels);
-  }, [recentModels]);
-
-  useEffect(() => {
     writeStoredList(COLLAPSED_PROVIDERS_STORAGE_KEY, Array.from(collapsedProviders));
-  }, [collapsedProviders]);
+
+    if (!preferencesHydrated) {
+      return;
+    }
+
+    if (savePreferencesTimerRef.current !== null) {
+      window.clearTimeout(savePreferencesTimerRef.current);
+    }
+
+    savePreferencesTimerRef.current = window.setTimeout(() => {
+      void saveModelPreferences({
+        favorites: Array.from(favorites),
+        recents: recentModels,
+        collapsedProviders: Array.from(collapsedProviders),
+      }).catch(() => undefined);
+    }, 250);
+
+    return () => {
+      if (savePreferencesTimerRef.current !== null) {
+        window.clearTimeout(savePreferencesTimerRef.current);
+        savePreferencesTimerRef.current = null;
+      }
+    };
+  }, [collapsedProviders, favorites, preferencesHydrated, recentModels]);
 
   const providerGroups = useMemo(() => groupModelsByProvider(models), [models]);
 
@@ -343,6 +445,7 @@ export function ComposerPanel({
   const selectedModelMetaLabel = [selectedModelContextLabel ? `${selectedModelContextLabel} ctx` : '', selectedModelMaxTokenLabel ? `${selectedModelMaxTokenLabel} out` : '']
     .filter(Boolean)
     .join(' · ');
+  const selectedModelSupportsImage = Boolean(selectedModel?.supportsImageInput || selectedModel?.input?.includes('image'));
 
   // Live context usage from RPC client (via SyncSessionStatus.metadata).
   const selSessionId = useSessionUiStore((state) => state.selectedSessionId);
@@ -481,6 +584,17 @@ export function ComposerPanel({
   }, [activeModelKey, models, recordRecentModel]);
 
   useEffect(() => {
+    if (selectedModelSupportsImage) {
+      return;
+    }
+    if (imageAttachments.length === 0) {
+      return;
+    }
+    setImageAttachments([]);
+    setAttachmentError('Selected model does not accept image input');
+  }, [imageAttachments.length, selectedModelSupportsImage]);
+
+  useEffect(() => {
     if (!menuOpen) {
       return;
     }
@@ -535,12 +649,60 @@ export function ComposerPanel({
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [closeMenu, menuOpen]);
 
+  const sendCurrentPrompt = useCallback(async () => {
+    if (isEmpty || isStreaming || uploadingImages) {
+      return;
+    }
+    const sent = await onSend({ attachments: imageAttachments });
+    if (sent) {
+      setImageAttachments([]);
+      setAttachmentError('');
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
+  }, [imageAttachments, isEmpty, isStreaming, onSend, uploadingImages]);
+
+  const handleImageInputChange = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) {
+      return;
+    }
+
+    if (!selectedModelSupportsImage) {
+      setAttachmentError('Selected model does not accept image input');
+      event.target.value = '';
+      return;
+    }
+
+    setUploadingImages(true);
+    setAttachmentError('');
+    try {
+      const uploads = await Promise.all(
+        files
+          .filter((file) => file.type.startsWith('image/'))
+          .map((file) => uploadImageAttachment(file)),
+      );
+      setImageAttachments((prev) => {
+        const byId = new Map(prev.map((entry) => [entry.uploadId, entry]));
+        for (const upload of uploads) {
+          byId.set(upload.uploadId, upload);
+        }
+        return Array.from(byId.values());
+      });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Image upload failed';
+      setAttachmentError(message);
+    } finally {
+      setUploadingImages(false);
+      event.target.value = '';
+    }
+  }, [selectedModelSupportsImage]);
+
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      if (!isEmpty && !isStreaming) {
-        void onSend();
-      }
+      void sendCurrentPrompt();
     }
   }
 
@@ -641,6 +803,12 @@ export function ComposerPanel({
           {item.section !== 'provider' ? (
             <span className="shrink-0 rounded-full border border-border/70 bg-background px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
               {item.providerLabel}
+            </span>
+          ) : null}
+
+          {item.model.supportsImageInput ? (
+            <span className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-300">
+              IMG
             </span>
           ) : null}
 
@@ -837,20 +1005,45 @@ export function ComposerPanel({
           spellCheck={false}
         />
 
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(event) => void handleImageInputChange(event)}
+        />
+
+        {imageAttachments.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 px-2 pb-1">
+            {imageAttachments.map((attachment) => (
+              <span key={attachment.uploadId} className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+                <span className="max-w-[220px] truncate">📎 {attachment.fileName}</span>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center rounded-full hover:bg-muted"
+                  onClick={() => setImageAttachments((prev) => prev.filter((entry) => entry.uploadId !== attachment.uploadId))}
+                  aria-label={`Remove ${attachment.fileName}`}
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {attachmentError ? <p className="px-2 pb-1 text-xs text-destructive">{attachmentError}</p> : null}
+
         {!isCompactLayout ? (
           <div className="composer-actions">
             <div className="composer-actions-left">
               <button
                 type="button"
                 className="btn btn-ghost btn-icon btn-sm"
-                aria-label="Add attachment"
-                title="Add attachment"
-                onClick={() => {
-                  const fileInput = document.createElement('input');
-                  fileInput.type = 'file';
-                  fileInput.multiple = true;
-                  fileInput.click();
-                }}
+                aria-label="Add image"
+                title={selectedModelSupportsImage ? 'Add image' : 'Selected model does not support image input'}
+                onClick={() => imageInputRef.current?.click()}
+                disabled={!selectedModelSupportsImage || uploadingImages || isInputLocked}
               >
                 <Plus size={16} />
               </button>
@@ -940,6 +1133,11 @@ export function ComposerPanel({
                   <span className="min-w-0 truncate text-left">
                     {selectedModelLabel}
                   </span>
+                  {selectedModelSupportsImage ? (
+                    <span className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-300">
+                      IMG
+                    </span>
+                  ) : null}
                   <ChevronDown size={12} className="shrink-0 opacity-70" />
                 </button>
 
@@ -969,8 +1167,8 @@ export function ComposerPanel({
                 <button
                   type="button"
                   className="composer-send-button"
-                  onClick={() => void onSend()}
-                  disabled={isEmpty}
+                  onClick={() => void sendCurrentPrompt()}
+                  disabled={isEmpty || uploadingImages}
                   aria-label="Send"
                   title="Send"
                 >
@@ -987,8 +1185,19 @@ export function ComposerPanel({
               </span>
             ) : null}
             <div className="composer-actions-right composer-actions-right-mobile">
+              <button
+                type="button"
+                className="composer-send-button composer-mobile-submit-button"
+                onClick={() => imageInputRef.current?.click()}
+                aria-label="Add image"
+                title={selectedModelSupportsImage ? 'Add image' : 'Selected model does not support image input'}
+                disabled={!selectedModelSupportsImage || uploadingImages || isInputLocked}
+              >
+                <Plus size={14} />
+              </button>
               <button type="button" className="composer-mobile-pill composer-mobile-model-pill" onClick={() => openMobileControls('model')} title={selectedModelMetaLabel ? `${selectedModelLabel} · ${selectedModelMetaLabel}` : selectedModelLabel}>
                 <span className="truncate">{selectedModelLabel}</span>
+                {selectedModelSupportsImage ? <span className="composer-model-context-chip">IMG</span> : null}
                 {selectedModelContextLabel ? <span className="composer-model-context-chip">{selectedModelContextLabel}</span> : null}
                 <ChevronDown size={12} />
               </button>
@@ -1011,8 +1220,8 @@ export function ComposerPanel({
                 <button
                   type="button"
                   className="composer-send-button composer-mobile-submit-button"
-                  onClick={() => void onSend()}
-                  disabled={isEmpty}
+                  onClick={() => void sendCurrentPrompt()}
+                  disabled={isEmpty || uploadingImages}
                   aria-label="Send"
                   title="Send"
                 >

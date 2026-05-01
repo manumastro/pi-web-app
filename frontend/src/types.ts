@@ -42,8 +42,17 @@ export interface ModelInfo {
   active: boolean;
   provider: string | undefined;
   reasoning: boolean;
+  input?: ReadonlyArray<'text' | 'image'>;
+  supportsImageInput?: boolean;
   contextWindow?: number;
   maxTokens?: number;
+}
+
+export interface PromptImageAttachment {
+  uploadId: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
 }
 
 export type StreamingState = 'idle' | 'connecting' | 'streaming' | 'error';

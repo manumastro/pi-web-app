@@ -81,18 +81,22 @@ function modelFromUnknown(value: unknown): RunnerModelRef | null {
   return provider && id ? { provider, id } : null;
 }
 
-function modelsFromUnknown(value: unknown): Array<RunnerModelRef & { name?: string; reasoning?: boolean; contextWindow?: number; maxTokens?: number }> {
+function modelsFromUnknown(value: unknown): Array<RunnerModelRef & { name?: string; reasoning?: boolean; input?: Array<'text' | 'image'>; contextWindow?: number; maxTokens?: number }> {
   const raw = isRecord(value) && Array.isArray(value.models) ? value.models : Array.isArray(value) ? value : [];
   return raw.flatMap((entry) => {
     if (!isRecord(entry)) return [];
     const provider = typeof entry.provider === 'string' ? entry.provider : '';
     const id = typeof entry.id === 'string' ? entry.id : typeof entry.modelId === 'string' ? entry.modelId : '';
     if (!provider || !id) return [];
+    const input = Array.isArray(entry.input)
+      ? entry.input.filter((item): item is 'text' | 'image' => item === 'text' || item === 'image')
+      : undefined;
     return [{
       provider,
       id,
       ...(typeof entry.name === 'string' ? { name: entry.name } : {}),
       ...(typeof entry.reasoning === 'boolean' ? { reasoning: entry.reasoning } : {}),
+      ...(input && input.length > 0 ? { input } : {}),
       ...(typeof entry.contextWindow === 'number' ? { contextWindow: entry.contextWindow } : {}),
       ...(typeof entry.maxTokens === 'number' ? { maxTokens: entry.maxTokens } : {}),
     }];

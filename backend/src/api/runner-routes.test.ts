@@ -1,16 +1,27 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import http from 'node:http';
 import express from 'express';
 import { afterEach, describe, expect, it } from 'vitest';
 import { registerApiRoutes } from './index.js';
 import { createSessionStore } from '../sessions/store.js';
+import { createPreferencesStore } from '../preferences/store.js';
+import { createImageUploadStore } from '../uploads/image-store.js';
 import type { RunnerOrchestrator } from '../runner/orchestrator.js';
 
 async function withServer(runner: RunnerOrchestrator, test: (baseUrl: string) => Promise<void>) {
   const app = express();
   app.use(express.json());
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-web-runner-routes-'));
+  const preferencesStore = createPreferencesStore(path.join(tmpDir, 'preferences.json'));
+  const imageUploadStore = createImageUploadStore(path.join(tmpDir, 'uploads'));
+
   registerApiRoutes(app, {
     runner,
     sessionStore: createSessionStore(),
+    preferencesStore,
+    imageUploadStore,
     config: {
       port: 0,
       nodeEnv: 'test',
@@ -94,6 +105,91 @@ describe('runner-backed API routes', () => {
 
       expect(response.status).toBe(503);
       expect(body).toEqual({ error: 'runner exited' });
+    });
+  });
+
+  it('persists model preferences through the preferences API', async () => {
+    await withServer(fakeBridge(), async (baseUrl) => {
+      const putResponse = await fetch(`${baseUrl}/api/preferences/models`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          favorites: ['openai/gpt-4o', 'openai/gpt-4o', ''],
+          recents: ['google-gemini/gemini-pro'],
+          collapsedProviders: ['openai'],
+        }),
+      });
+      expect(putResponse.status).toBe(200);
+
+      const getResponse = await fetch(`${baseUrl}/api/preferences/models`);
+      const body = await getResponse.json();
+
+      expect(getResponse.status).toBe(200);
+      expect(body).toEqual({
+        preferences: {
+          favorites: ['openai/gpt-4o'],
+          recents: ['google-gemini/gemini-pro'],
+          collapsedProviders: ['openai'],
+        },
+      });
+    });
+  });
+
+  it('uploads an image and injects file paths into the prompt payload', async () => {
+    let receivedMessage = '';
+    await withServer(fakeBridge({
+      prompt: async (request) => {
+        receivedMessage = request.message;
+        return { sessionId: 'session-1', assistantMessage: '' };
+      },
+    }), async (baseUrl) => {
+      const uploadResponse = await fetch(`${baseUrl}/api/uploads/image`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          fileName: 'diagram.png',
+          mimeType: 'image/png',
+          dataBase64: 'iVBORw0KGgo=',
+        }),
+      });
+      expect(uploadResponse.status).toBe(201);
+      const uploadBody = await uploadResponse.json() as { upload: { uploadId: string } };
+
+      const promptResponse = await fetch(`${baseUrl}/api/messages/prompt`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'session-1',
+          cwd: '/tmp',
+          message: 'analizza immagine',
+          model: 'p/a',
+          attachments: [{ uploadId: uploadBody.upload.uploadId }],
+        }),
+      });
+
+      expect(promptResponse.status).toBe(202);
+      expect(receivedMessage).toContain('analizza immagine');
+      expect(receivedMessage).toContain('Use the read tool to inspect these image files when needed:');
+      expect(receivedMessage).toContain('/uploads/');
+    });
+  });
+
+  it('rejects missing image uploads in prompt payload', async () => {
+    await withServer(fakeBridge(), async (baseUrl) => {
+      const promptResponse = await fetch(`${baseUrl}/api/messages/prompt`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'session-1',
+          cwd: '/tmp',
+          message: 'analizza immagine',
+          model: 'p/a',
+          attachments: [{ uploadId: 'missing-upload' }],
+        }),
+      });
+
+      expect(promptResponse.status).toBe(400);
+      expect(await promptResponse.json()).toEqual({ error: 'One or more image uploads are missing or expired' });
     });
   });
 

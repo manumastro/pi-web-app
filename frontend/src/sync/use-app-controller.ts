@@ -16,7 +16,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useSessionUiStore } from '@/stores/sessionUiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getProjectLabel, normalizeProjectPath } from '@/lib/path';
-import type { DirectoryInfo, ModelInfo, SessionInfo, StreamingState, ThinkingLevel } from '@/types';
+import type { DirectoryInfo, ModelInfo, PromptImageAttachment, SessionInfo, StreamingState, ThinkingLevel } from '@/types';
 
 function getQueryParam(name: string): string {
   return new URLSearchParams(window.location.search).get(name) ?? '';
@@ -97,7 +97,7 @@ export type AppController = {
   interactionStreaming: StreamingState;
   activeStreamingMessageId?: string;
   activeStreamingPhase?: StreamPhase;
-  handleSend: () => Promise<void>;
+  handleSend: (payload?: { attachments?: PromptImageAttachment[] }) => Promise<boolean>;
   handleAbort: () => Promise<void>;
   handleCreateSession: () => Promise<void>;
   handleDeleteSession: (targetId: string) => Promise<void>;
@@ -240,6 +240,9 @@ export function useAppController(): AppController {
     const payload = await apiGet<{ models: unknown[] }>(`/api/models?sessionId=${encodeURIComponent(selSessionId)}`);
     const mapped: ModelInfo[] = (payload.models ?? []).map((m: unknown) => {
       const model = m as Record<string, unknown>;
+      const input: Array<'text' | 'image'> = Array.isArray(model.input)
+        ? model.input.filter((entry): entry is 'text' | 'image' => entry === 'text' || entry === 'image')
+        : ['text'];
       return {
         key: String(model.key ?? ''),
         id: String(model.id ?? ''),
@@ -248,6 +251,8 @@ export function useAppController(): AppController {
         active: Boolean(model.isSelected),
         provider: model.provider ? String(model.provider) : undefined,
         reasoning: Boolean(model.reasoning),
+        input,
+        supportsImageInput: input.includes('image'),
         contextWindow: typeof model.contextWindow === 'number' ? model.contextWindow : undefined,
         maxTokens: typeof model.maxTokens === 'number' ? model.maxTokens : undefined,
       };
@@ -504,11 +509,12 @@ export function useAppController(): AppController {
     },
   });
 
-  const handleSend = useCallback(async (): Promise<void> => {
+  const handleSend = useCallback(async (payload?: { attachments?: PromptImageAttachment[] }): Promise<boolean> => {
     const text = prompt.trim();
-    if (!text) return;
+    const attachments = payload?.attachments ?? [];
+    if (!text && attachments.length === 0) return false;
 
-    const sent = await sendPrompt({ message: text, thinkingLevel: activeThinkingLevel });
+    const sent = await sendPrompt({ message: text, attachments, thinkingLevel: activeThinkingLevel });
     if (!sent) {
       const sessionId = useSessionUiStore.getState().selectedSessionId;
       if (sessionId) {
@@ -520,6 +526,7 @@ export function useAppController(): AppController {
         }
       }
     }
+    return sent;
   }, [activeThinkingLevel, loadSession, prompt, sendPrompt, setError]);
 
   const handleAbort = useCallback(async (): Promise<void> => {

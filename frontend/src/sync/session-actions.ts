@@ -1,4 +1,4 @@
-import type { SessionInfo, ThinkingLevel } from '@/types';
+import type { PromptImageAttachment, SessionInfo, ThinkingLevel } from '@/types';
 import { apiRequest } from '@/api';
 import { useChatStore } from '@/stores/chatStore';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -24,6 +24,7 @@ export interface SendPromptInput {
   model?: string;
   turnId?: string;
   thinkingLevel?: ThinkingLevel;
+  attachments?: PromptImageAttachment[];
 }
 
 function resolveModelKey(explicit?: string, sessionId?: string): string {
@@ -284,12 +285,17 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
   const effectiveSession = currentSession;
 
   const turnId = input.turnId && input.turnId.trim().length > 0 ? input.turnId : generateTurnId();
+  const attachments = input.attachments ?? [];
 
   const chat = useChatStore.getState();
+  const optimisticPromptText = input.message.trim().length > 0
+    ? input.message
+    : `[Attached ${attachments.length} image${attachments.length === 1 ? '' : 's'}]`;
+
   chat.setError('');
   chat.setStreaming('streaming');
   chat.setStatusMessage('Working');
-  chat.appendPrompt(input.message, resolvedModel, turnId);
+  chat.appendPrompt(optimisticPromptText, resolvedModel, turnId);
   chat.requestScrollToBottom();
 
   const optimisticUpdatedAt = new Date().toISOString();
@@ -314,6 +320,7 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
         model: resolvedModel,
         messageId: turnId,
         thinkingLevel: resolvedThinkingLevel,
+        attachments,
       }),
     });
     return true;
