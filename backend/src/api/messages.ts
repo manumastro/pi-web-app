@@ -37,9 +37,15 @@ export function createMessagesRouter(runner: RunnerOrchestrator, imageUploads: I
       ? (thinkingLevelRaw as ThinkingLevel)
       : undefined;
 
+    const requestSessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined;
+
     let promptMessage = message;
     if (attachmentIds.length > 0) {
-      const uploads = await Promise.all(attachmentIds.map((uploadId: string) => imageUploads.getUpload(uploadId)));
+      if (!requestSessionId) {
+        res.status(400).json({ error: 'sessionId is required when attachments are provided' });
+        return;
+      }
+      const uploads = await Promise.all(attachmentIds.map((uploadId: string) => imageUploads.getUpload(requestSessionId, uploadId)));
       const missing = uploads.some((entry) => !entry);
       if (missing) {
         res.status(400).json({ error: 'One or more image uploads are missing or expired' });
@@ -50,7 +56,7 @@ export function createMessagesRouter(runner: RunnerOrchestrator, imageUploads: I
     }
 
     const promptPayload: PromptRequest = {
-      sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined,
+      sessionId: requestSessionId,
       cwd: typeof req.body?.cwd === 'string' ? req.body.cwd : undefined,
       message: promptMessage,
       model: typeof req.body?.model === 'string' ? req.body.model : undefined,

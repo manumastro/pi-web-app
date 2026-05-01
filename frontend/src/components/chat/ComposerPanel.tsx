@@ -134,40 +134,23 @@ function formatTokenWindow(value: number | undefined): string {
   return value.toLocaleString();
 }
 
-async function readFileAsDataBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Unable to read image file'));
-    reader.onload = () => {
-      const raw = typeof reader.result === 'string' ? reader.result : '';
-      const commaIndex = raw.indexOf(',');
-      if (commaIndex === -1) {
-        reject(new Error('Invalid image payload'));
-        return;
-      }
-      resolve(raw.slice(commaIndex + 1));
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-async function uploadImageAttachment(file: File): Promise<PromptImageAttachment> {
-  const dataBase64 = await readFileAsDataBase64(file);
+async function uploadImageAttachment(file: File, sessionId: string): Promise<PromptImageAttachment> {
   const response = await fetch('/api/uploads/image', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': file.type || 'application/octet-stream',
       Accept: 'application/json',
+      'x-session-id': sessionId,
+      'x-file-name': encodeURIComponent(file.name),
     },
-    body: JSON.stringify({
-      fileName: file.name,
-      mimeType: file.type,
-      dataBase64,
-    }),
+    body: await file.arrayBuffer(),
   });
 
   const payload = await response.json().catch(() => null) as { upload?: PromptImageAttachment; error?: string } | null;
   if (!response.ok || !payload?.upload) {
+    if (response.status === 413) {
+      throw new Error('Image too large for proxy upload limit (413). Reduce image size or increase nginx client_max_body_size.');
+    }
     throw new Error(payload?.error ?? 'Image upload failed');
   }
   return payload.upload;
@@ -687,13 +670,19 @@ export function ComposerPanel({
       return;
     }
 
+    if (!selSessionId) {
+      setAttachmentError('Open a session before uploading images');
+      event.target.value = '';
+      return;
+    }
+
     setUploadingImages(true);
     setAttachmentError('');
     try {
       const uploads = await Promise.all(
         files
           .filter((file) => file.type.startsWith('image/'))
-          .map((file) => uploadImageAttachment(file)),
+          .map((file) => uploadImageAttachment(file, selSessionId)),
       );
       setImageAttachments((prev) => {
         const byId = new Map(prev.map((entry) => [entry.uploadId, entry]));
@@ -709,7 +698,7 @@ export function ComposerPanel({
       setUploadingImages(false);
       event.target.value = '';
     }
-  }, [selectedModelSupportsImage]);
+  }, [selSessionId, selectedModelSupportsImage]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (event.key === 'Enter' && !event.shiftKey) {

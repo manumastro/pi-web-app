@@ -30,7 +30,7 @@ export function registerApiRoutes(
   app.use('/api/models', createModelsRouter({ runner, sessionStore }));
   app.use('/api/preferences', createPreferencesRouter(preferencesStore));
   app.use('/api/uploads', createUploadsRouter(imageUploadStore));
-  app.use('/api/sessions', createSessionsRouter(sessionStore, config.homeDir));
+  app.use('/api/sessions', createSessionsRouter(sessionStore, config.homeDir, imageUploadStore));
   app.use('/api/workspace', createWorkspaceRouter(config.homeDir));
   app.use('/api/forensics', createForensicsRouter(config.sessionsDir));
   app.use('/api/maintenance', createMaintenanceRouter(config));

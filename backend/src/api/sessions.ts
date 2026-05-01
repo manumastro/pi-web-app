@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { Router, Request, Response } from 'express';
 import express from 'express';
 import type { SessionStore, Session } from '../sessions/store.js';
+import type { ImageUploadStore } from '../uploads/image-store.js';
 
 function resolveCwd(input: string, homeDir: string): string {
   const trimmed = input.trim();
@@ -22,7 +23,7 @@ function sessionSummary(session: Session): Omit<Session, 'messages'> {
   return summary;
 }
 
-export function createSessionsRouter(sessionStore: SessionStore, homeDir: string): Router {
+export function createSessionsRouter(sessionStore: SessionStore, homeDir: string, imageUploads: ImageUploadStore): Router {
   const router = express.Router();
 
   router.get('/', (req: Request, res: Response) => {
@@ -80,13 +81,14 @@ export function createSessionsRouter(sessionStore: SessionStore, homeDir: string
     res.json({ session: updated });
   });
 
-  router.delete('/:id', (req: Request, res: Response) => {
+  router.delete('/:id', async (req: Request, res: Response) => {
     const sessionId = typeof req.params.id === 'string' ? req.params.id : '';
     const deleted = sessionStore.deleteSession(sessionId);
     if (!deleted) {
       res.status(404).json({ error: 'Session not found' });
       return;
     }
+    await imageUploads.deleteSessionUploads(sessionId).catch(() => undefined);
     res.status(204).send();
   });
 

@@ -145,12 +145,12 @@ describe('runner-backed API routes', () => {
     }), async (baseUrl) => {
       const uploadResponse = await fetch(`${baseUrl}/api/uploads/image`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          fileName: 'diagram.png',
-          mimeType: 'image/png',
-          dataBase64: 'iVBORw0KGgo=',
-        }),
+        headers: {
+          'content-type': 'image/png',
+          'x-session-id': 'session-1',
+          'x-file-name': encodeURIComponent('diagram.png'),
+        },
+        body: Buffer.from('iVBORw0KGgo=', 'base64'),
       });
       expect(uploadResponse.status).toBe(201);
       const uploadBody = await uploadResponse.json() as { upload: { uploadId: string } };
@@ -190,6 +190,50 @@ describe('runner-backed API routes', () => {
 
       expect(promptResponse.status).toBe(400);
       expect(await promptResponse.json()).toEqual({ error: 'One or more image uploads are missing or expired' });
+    });
+  });
+
+  it('deletes session-scoped uploads when the session is deleted', async () => {
+    let receivedMessage = '';
+    await withServer(fakeBridge({
+      prompt: async (request) => {
+        receivedMessage = request.message;
+        return { sessionId: 'session-1', assistantMessage: '' };
+      },
+    }), async (baseUrl) => {
+      await fetch(`${baseUrl}/api/sessions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: 'session-1', cwd: '/tmp', model: 'p/a' }),
+      });
+
+      const uploadResponse = await fetch(`${baseUrl}/api/uploads/image`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'image/png',
+          'x-session-id': 'session-1',
+          'x-file-name': encodeURIComponent('test.png'),
+        },
+        body: Buffer.from('iVBORw0KGgo=', 'base64'),
+      });
+      const uploadBody = await uploadResponse.json() as { upload: { uploadId: string } };
+
+      await fetch(`${baseUrl}/api/sessions/session-1`, { method: 'DELETE' });
+
+      const promptResponse = await fetch(`${baseUrl}/api/messages/prompt`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'session-1',
+          cwd: '/tmp',
+          message: 'analizza',
+          model: 'p/a',
+          attachments: [{ uploadId: uploadBody.upload.uploadId }],
+        }),
+      });
+
+      expect(promptResponse.status).toBe(400);
+      expect(receivedMessage).toBe('');
     });
   });
 

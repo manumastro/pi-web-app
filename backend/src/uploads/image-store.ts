@@ -29,8 +29,9 @@ interface StoredImageUploadMeta {
 }
 
 export interface ImageUploadStore {
-  saveBase64Image: (payload: { fileName?: string; mimeType?: string; dataBase64: string }) => Promise<StoredImageUpload>;
-  getUpload: (uploadId: string) => Promise<StoredImageUpload | null>;
+  saveImageBuffer: (sessionId: string, payload: { fileName?: string; mimeType?: string; data: Buffer }) => Promise<StoredImageUpload>;
+  getUpload: (sessionId: string, uploadId: string) => Promise<StoredImageUpload | null>;
+  deleteSessionUploads: (sessionId: string) => Promise<void>;
 }
 
 function sanitizeFileName(value: string | undefined): string {
@@ -39,13 +40,13 @@ function sanitizeFileName(value: string | undefined): string {
   return compact.length > 0 ? compact : 'image';
 }
 
-function stripDataUrlPrefix(input: string): string {
-  const trimmed = input.trim();
-  const commaIndex = trimmed.indexOf(',');
-  if (trimmed.startsWith('data:') && commaIndex >= 0) {
-    return trimmed.slice(commaIndex + 1);
+function sanitizeSessionId(sessionId: string): string {
+  const trimmed = sessionId.trim();
+  if (!trimmed) {
+    throw new Error('sessionId is required');
   }
-  return trimmed;
+  const compact = trimmed.replace(/[^a-zA-Z0-9._-]+/g, '_');
+  return compact.length > 0 ? compact : 'session';
 }
 
 function assertMimeType(mimeType: string | undefined): string {
@@ -61,10 +62,16 @@ async function ensureDir(dirPath: string): Promise<void> {
 }
 
 export function createImageUploadStore(baseDir: string): ImageUploadStore {
-  async function saveBase64Image(payload: { fileName?: string; mimeType?: string; dataBase64: string }): Promise<StoredImageUpload> {
+  function getSessionDir(sessionId: string): string {
+    return path.join(baseDir, sanitizeSessionId(sessionId));
+  }
+
+  async function saveImageBuffer(
+    sessionId: string,
+    payload: { fileName?: string; mimeType?: string; data: Buffer },
+  ): Promise<StoredImageUpload> {
     const mimeType = assertMimeType(payload.mimeType);
-    const dataBase64 = stripDataUrlPrefix(payload.dataBase64);
-    const buffer = Buffer.from(dataBase64, 'base64');
+    const buffer = payload.data;
 
     if (!buffer.length) {
       throw new Error('Image payload is empty');
@@ -73,12 +80,13 @@ export function createImageUploadStore(baseDir: string): ImageUploadStore {
       throw new Error('Image too large (max 20MB)');
     }
 
-    await ensureDir(baseDir);
+    const sessionDir = getSessionDir(sessionId);
+    await ensureDir(sessionDir);
     const uploadId = crypto.randomUUID();
     const ext = MIME_EXTENSION[mimeType] ?? '.img';
     const safeName = sanitizeFileName(payload.fileName);
-    const filePath = path.join(baseDir, `${uploadId}${ext}`);
-    const metaPath = path.join(baseDir, `${uploadId}.json`);
+    const filePath = path.join(sessionDir, `${uploadId}${ext}`);
+    const metaPath = path.join(sessionDir, `${uploadId}.json`);
 
     await fs.writeFile(filePath, buffer);
 
@@ -101,13 +109,14 @@ export function createImageUploadStore(baseDir: string): ImageUploadStore {
     };
   }
 
-  async function getUpload(uploadId: string): Promise<StoredImageUpload | null> {
+  async function getUpload(sessionId: string, uploadId: string): Promise<StoredImageUpload | null> {
     const id = uploadId.trim();
     if (!id) {
       return null;
     }
 
-    const metaPath = path.join(baseDir, `${id}.json`);
+    const sessionDir = getSessionDir(sessionId);
+    const metaPath = path.join(sessionDir, `${id}.json`);
     try {
       const raw = await fs.readFile(metaPath, 'utf8');
       const parsed = JSON.parse(raw) as Partial<StoredImageUploadMeta>;
@@ -127,8 +136,14 @@ export function createImageUploadStore(baseDir: string): ImageUploadStore {
     }
   }
 
+  async function deleteSessionUploads(sessionId: string): Promise<void> {
+    const sessionDir = getSessionDir(sessionId);
+    await fs.rm(sessionDir, { recursive: true, force: true });
+  }
+
   return {
-    saveBase64Image,
+    saveImageBuffer,
     getUpload,
+    deleteSessionUploads,
   };
 }
