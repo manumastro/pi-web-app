@@ -4,7 +4,7 @@ import type { Config } from '../config/index.js';
 import { THINKING_LEVELS, type ThinkingLevel } from '../types/thinking.js';
 import { modelKey, parseModelKey, summarizeModels, type ModelLike, type ModelSummary } from '../models/resolver.js';
 import { getHiddenModelKeysFromEnv, isHiddenModelKey } from '../models/visibility.js';
-import type { Session, SessionStore } from '../sessions/store.js';
+import type { Session, SessionImageAttachment, SessionStore } from '../sessions/store.js';
 import type { SseManager } from '../sse/manager.js';
 import type { SseEvent } from '../events.js';
 import { RunnerProcessClient } from './child-process.js';
@@ -14,6 +14,8 @@ export interface PromptRequest {
   sessionId?: string;
   cwd?: string;
   message: string;
+  displayMessage?: string;
+  attachments?: SessionImageAttachment[];
   model?: string;
   messageId?: string;
   thinkingLevel?: ThinkingLevel | undefined;
@@ -514,7 +516,12 @@ export function createRunnerOrchestrator(params: {
         timestamp: now(),
       });
     }
-    sessionStore.addMessage(session.id, { role: 'user', content: request.message, messageId });
+    sessionStore.addMessage(session.id, {
+      role: 'user',
+      content: request.displayMessage ?? request.message,
+      messageId,
+      ...(request.attachments && request.attachments.length > 0 ? { attachments: request.attachments } : {}),
+    });
     activeTurns.set(session.id, { assistantMessageId: messageId, assistantContent: '' });
     emit(sseManager, {
       type: 'status',

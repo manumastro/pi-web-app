@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { applySsePayload, appendPrompt, rehydrateConversationForSession, type ConversationItem } from './conversation';
 
 describe('conversation fallback matching', () => {
+  it('keeps prompt image attachments on optimistic user messages', () => {
+    const attachments = [{ uploadId: 'upload-1', fileName: 'diagram.png', mimeType: 'image/png', size: 1234 }];
+    const items = appendPrompt([], 'hello', 'turn-0', attachments);
+    const user = items.find((item) => item.kind === 'message' && item.role === 'user');
+
+    expect(user && user.kind === 'message' && user.attachments).toEqual(attachments);
+  });
+
   it('appends text chunks to the latest assistant fallback when messageId is unknown', () => {
     const firstTurn = appendPrompt([], 'hi', 'turn-1').map((item) => {
       if (item.kind === 'message' && item.role === 'assistant') {

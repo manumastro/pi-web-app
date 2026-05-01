@@ -623,6 +623,14 @@ export function ComposerPanel({
   }, [mobileControlsOpen, mobileControlsPanel]);
 
   useEffect(() => {
+    setImageAttachments([]);
+    setAttachmentError('');
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  }, [selSessionId]);
+
+  useEffect(() => {
     if (!menuOpen) {
       return;
     }

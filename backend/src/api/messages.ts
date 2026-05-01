@@ -40,6 +40,7 @@ export function createMessagesRouter(runner: RunnerOrchestrator, imageUploads: I
     const requestSessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined;
 
     let promptMessage = message;
+    let attachmentPayloads: PromptRequest['attachments'] | undefined;
     if (attachmentIds.length > 0) {
       if (!requestSessionId) {
         res.status(400).json({ error: 'sessionId is required when attachments are provided' });
@@ -51,7 +52,14 @@ export function createMessagesRouter(runner: RunnerOrchestrator, imageUploads: I
         res.status(400).json({ error: 'One or more image uploads are missing or expired' });
         return;
       }
-      const imagePaths = uploads.map((entry) => entry?.path ?? '').filter(Boolean);
+      const filteredUploads = uploads.filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+      attachmentPayloads = filteredUploads.map((upload) => ({
+        uploadId: upload.uploadId,
+        fileName: upload.fileName,
+        mimeType: upload.mimeType,
+        size: upload.size,
+      }));
+      const imagePaths = filteredUploads.map((entry) => entry.path);
       promptMessage = buildPromptWithImageAttachments(message, imagePaths);
     }
 
@@ -59,6 +67,8 @@ export function createMessagesRouter(runner: RunnerOrchestrator, imageUploads: I
       sessionId: requestSessionId,
       cwd: typeof req.body?.cwd === 'string' ? req.body.cwd : undefined,
       message: promptMessage,
+      displayMessage: message,
+      ...(attachmentPayloads ? { attachments: attachmentPayloads } : {}),
       model: typeof req.body?.model === 'string' ? req.body.model : undefined,
       messageId: typeof req.body?.messageId === 'string' ? req.body.messageId : undefined,
     };

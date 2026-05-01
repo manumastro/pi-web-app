@@ -9,6 +9,7 @@ export interface SessionMessage {
   success?: boolean;
   stopReason?: string;
   errorMessage?: string;
+  attachments?: PromptImageAttachment[];
 }
 
 export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';

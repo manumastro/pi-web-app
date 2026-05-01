@@ -288,14 +288,10 @@ export async function sendPrompt(input: SendPromptInput): Promise<boolean> {
   const attachments = input.attachments ?? [];
 
   const chat = useChatStore.getState();
-  const optimisticPromptText = input.message.trim().length > 0
-    ? input.message
-    : `[Attached ${attachments.length} image${attachments.length === 1 ? '' : 's'}]`;
-
   chat.setError('');
   chat.setStreaming('streaming');
   chat.setStatusMessage('Working');
-  chat.appendPrompt(optimisticPromptText, resolvedModel, turnId);
+  chat.appendPrompt(input.message, resolvedModel, turnId, attachments);
   chat.requestScrollToBottom();
 
   const optimisticUpdatedAt = new Date().toISOString();

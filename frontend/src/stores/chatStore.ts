@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { appendPrompt as buildOptimisticConversation } from '@/sync/conversation';
 import type { ConversationItem, MessageItem } from '@/sync/conversation';
+import type { PromptImageAttachment } from '@/types';
 
 interface ChatState {
   conversation: ConversationItem[];
@@ -10,7 +11,7 @@ interface ChatState {
   scrollToBottomRevision: number;
 
   setConversation: (items: ConversationItem[]) => void;
-  appendPrompt: (prompt: string, activeModelKey: string, turnId?: string) => void;
+  appendPrompt: (prompt: string, activeModelKey: string, turnId?: string, attachments?: PromptImageAttachment[]) => void;
   applySsePayload: (data: string) => void;
   setStreaming: (state: 'idle' | 'streaming' | 'connecting' | 'error') => void;
   setStatusMessage: (message: string) => void;
@@ -28,9 +29,9 @@ export const useChatStore = create<ChatState>((set) => ({
 
   setConversation: (items) => set({ conversation: items }),
 
-  appendPrompt: (prompt, _activeModelKey, turnId) => {
+  appendPrompt: (prompt, _activeModelKey, turnId, attachments) => {
     set((state) => ({
-      conversation: buildOptimisticConversation(state.conversation, prompt, turnId),
+      conversation: buildOptimisticConversation(state.conversation, prompt, turnId, attachments),
     }));
   },
 

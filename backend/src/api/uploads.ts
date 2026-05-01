@@ -5,6 +5,20 @@ import type { ImageUploadStore } from '../uploads/image-store.js';
 export function createUploadsRouter(store: ImageUploadStore): Router {
   const router = express.Router();
 
+  router.get('/:sessionId/:uploadId', async (req: Request, res: Response) => {
+    const sessionId = typeof req.params.sessionId === 'string' ? req.params.sessionId : '';
+    const uploadId = typeof req.params.uploadId === 'string' ? req.params.uploadId : '';
+    const upload = await store.getUpload(sessionId, uploadId);
+    if (!upload) {
+      res.status(404).json({ error: 'Upload not found' });
+      return;
+    }
+
+    res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+    res.type(upload.mimeType);
+    res.sendFile(upload.path);
+  });
+
   router.post('/image', express.raw({ type: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], limit: '25mb' }), async (req: Request, res: Response) => {
     const sessionId = typeof req.headers['x-session-id'] === 'string' ? req.headers['x-session-id'].trim() : '';
     const rawFileName = typeof req.headers['x-file-name'] === 'string' ? req.headers['x-file-name'] : undefined;

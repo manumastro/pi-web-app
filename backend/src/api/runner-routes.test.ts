@@ -140,6 +140,8 @@ describe('runner-backed API routes', () => {
     await withServer(fakeBridge({
       prompt: async (request) => {
         receivedMessage = request.message;
+        expect(request.displayMessage).toBe('analizza immagine');
+        expect(request.attachments).toHaveLength(1);
         return { sessionId: 'session-1', assistantMessage: '' };
       },
     }), async (baseUrl) => {
@@ -154,6 +156,10 @@ describe('runner-backed API routes', () => {
       });
       expect(uploadResponse.status).toBe(201);
       const uploadBody = await uploadResponse.json() as { upload: { uploadId: string } };
+
+      const imageResponse = await fetch(`${baseUrl}/api/uploads/session-1/${uploadBody.upload.uploadId}`);
+      expect(imageResponse.status).toBe(200);
+      expect(imageResponse.headers.get('content-type')).toContain('image/png');
 
       const promptResponse = await fetch(`${baseUrl}/api/messages/prompt`, {
         method: 'POST',

@@ -9,6 +9,7 @@ export interface MessageItem {
   timestamp: string;
   status?: 'streaming' | 'complete' | 'aborted' | 'error';
   messageId?: string;
+  attachments?: SessionMessage['attachments'];
 }
 
 export interface ThinkingItem {
@@ -93,6 +94,7 @@ function toMessageItem(message: SessionMessage): MessageItem {
     timestamp: message.timestamp,
     status: 'complete',
     messageId: message.messageId,
+    ...(message.attachments ? { attachments: message.attachments } : {}),
   };
 }
 
@@ -561,7 +563,7 @@ export function rehydrateConversationForSession(
   ];
 }
 
-export function appendPrompt(conversation: ConversationItem[], text: string, turnId?: string): ConversationItem[] {
+export function appendPrompt(conversation: ConversationItem[], text: string, turnId?: string, attachments?: SessionMessage['attachments']): ConversationItem[] {
   const assistantTurnId = turnId ?? randomId('assistant-turn');
   return [
     ...conversation,
@@ -573,6 +575,7 @@ export function appendPrompt(conversation: ConversationItem[], text: string, tur
       timestamp: new Date().toISOString(),
       status: 'complete',
       messageId: assistantTurnId,
+      ...(attachments ? { attachments } : {}),
     },
     {
       kind: 'thinking',

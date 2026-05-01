@@ -31,6 +31,7 @@ interface MessageRecord {
   success?: boolean;
   stopReason?: string;
   errorMessage?: string;
+  attachments?: Message['attachments'];
 }
 
 type SessionRecord = SessionMetaRecord | MessageRecord;
@@ -119,6 +120,20 @@ function parseMessageRecord(parsed: unknown): Message | undefined {
   const stopReason = typeof rawMessage.stopReason === 'string' ? rawMessage.stopReason : typeof parsed.stopReason === 'string' ? parsed.stopReason : undefined;
   const errorMessage = typeof rawMessage.errorMessage === 'string' ? rawMessage.errorMessage : typeof parsed.errorMessage === 'string' ? parsed.errorMessage : undefined;
   const error = typeof rawMessage.error === 'string' ? rawMessage.error : typeof parsed.error === 'string' ? parsed.error : undefined;
+  const attachments = Array.isArray(rawMessage.attachments)
+    ? rawMessage.attachments
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null;
+          const uploadId = typeof (entry as { uploadId?: unknown }).uploadId === 'string' ? (entry as { uploadId: string }).uploadId : '';
+          const fileName = typeof (entry as { fileName?: unknown }).fileName === 'string' ? (entry as { fileName: string }).fileName : '';
+          const mimeType = typeof (entry as { mimeType?: unknown }).mimeType === 'string' ? (entry as { mimeType: string }).mimeType : '';
+          const size = typeof (entry as { size?: unknown }).size === 'number' ? (entry as { size: number }).size : NaN;
+          return uploadId && fileName && mimeType && Number.isFinite(size)
+            ? { uploadId, fileName, mimeType, size }
+            : null;
+        })
+        .filter((entry): entry is NonNullable<Message['attachments']>[number] => entry !== null)
+    : undefined;
 
   if (messageId !== undefined) record.messageId = messageId;
   if (toolName !== undefined) record.toolName = toolName;
@@ -126,6 +141,7 @@ function parseMessageRecord(parsed: unknown): Message | undefined {
   if (success !== undefined) record.success = success;
   if (stopReason !== undefined) record.stopReason = stopReason;
   if (errorMessage !== undefined) record.errorMessage = errorMessage;
+  if (attachments !== undefined) record.attachments = attachments;
   if (error !== undefined && record.errorMessage === undefined) record.errorMessage = error;
 
   return record;
@@ -191,6 +207,7 @@ export function sessionToJsonl(session: Session): string {
       if (message.success !== undefined) record.success = message.success;
       if (message.stopReason !== undefined) record.stopReason = message.stopReason;
       if (message.errorMessage !== undefined) record.errorMessage = message.errorMessage;
+      if (message.attachments !== undefined) record.attachments = message.attachments;
       return record;
     }),
   ];

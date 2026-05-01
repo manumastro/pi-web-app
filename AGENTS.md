@@ -8,4 +8,4 @@ Add or update tests for every meaningful change; keep builds green.
 Use npm workspaces; verify with build/test before handoff.
 After each significant change, **always run `npm run build`** and restart the systemd service (`systemctl --user restart pi-web`) when the change affects the production build (CSS/UI changes, API changes, new dependencies, etc.).
 After each significant change, update BOTH current-state references: `BLUEPRINT.md` (section **15.0 Status Snapshot**, plus feature matrix/checklists when impacted) and `AGENTS.md` (`Current state` line in this file), keeping the `Current state` entry short.
-Current state (2026-05-01): Working placeholder is activity-aware; image upload now uses binary session-scoped storage (cleaned on session delete) with TXT/IMG capability badges; see `BLUEPRINT.md` §8 (**Status Snapshot**).
+Current state (2026-05-01): Working placeholder is activity-aware; image uploads are session-scoped, binary, and shown inline in user messages with cleanup on session delete; see `BLUEPRINT.md` §8 (**Status Snapshot**).

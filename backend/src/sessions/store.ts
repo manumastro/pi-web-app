@@ -18,6 +18,13 @@ export type SessionStatus =
   | 'paused'
   | 'done';
 
+export interface SessionImageAttachment {
+  uploadId: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'tool_call' | 'tool_result';
@@ -29,6 +36,7 @@ export interface Message {
   success?: boolean;
   stopReason?: string;
   errorMessage?: string;
+  attachments?: SessionImageAttachment[];
 }
 
 export interface Session {
