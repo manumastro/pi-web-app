@@ -54,6 +54,24 @@ interface AppConfigPayload {
 const modelCacheBySession = new Map<string, { models: ModelInfo[]; at: number }>();
 const MODEL_CACHE_TTL_MS = 60_000;
 
+function inferModelSupportsImageInput(model: { provider?: unknown; id?: unknown; name?: unknown; key?: unknown }): boolean {
+  const provider = typeof model.provider === 'string' ? model.provider.toLowerCase() : '';
+  const id = typeof model.id === 'string' ? model.id.toLowerCase() : '';
+  const name = typeof model.name === 'string' ? model.name.toLowerCase() : '';
+  const key = typeof model.key === 'string' ? model.key.toLowerCase() : '';
+  const combined = `${provider}/${id} ${name} ${key}`;
+
+  if (/(vision|multimodal|omni|vl\b)/.test(combined)) {
+    return true;
+  }
+
+  if (provider.startsWith('openai') && /gpt-(4o|4\.1|5)|o1|o3/.test(id || key)) {
+    return true;
+  }
+
+  return false;
+}
+
 function getCachedModels(sessionId: string): ModelInfo[] | undefined {
   const entry = modelCacheBySession.get(sessionId);
   if (!entry) return undefined;
@@ -240,9 +258,13 @@ export function useAppController(): AppController {
     const payload = await apiGet<{ models: unknown[] }>(`/api/models?sessionId=${encodeURIComponent(selSessionId)}`);
     const mapped: ModelInfo[] = (payload.models ?? []).map((m: unknown) => {
       const model = m as Record<string, unknown>;
-      const input: Array<'text' | 'image'> = Array.isArray(model.input)
+      const baseInput: Array<'text' | 'image'> = Array.isArray(model.input)
         ? model.input.filter((entry): entry is 'text' | 'image' => entry === 'text' || entry === 'image')
         : ['text'];
+      const inferredImageSupport = inferModelSupportsImageInput(model);
+      const input: Array<'text' | 'image'> = inferredImageSupport && !baseInput.includes('image')
+        ? [...baseInput, 'image']
+        : baseInput;
       return {
         key: String(model.key ?? ''),
         id: String(model.id ?? ''),
@@ -252,7 +274,7 @@ export function useAppController(): AppController {
         provider: model.provider ? String(model.provider) : undefined,
         reasoning: Boolean(model.reasoning),
         input,
-        supportsImageInput: input.includes('image'),
+        supportsImageInput: input.includes('image') || inferredImageSupport,
         contextWindow: typeof model.contextWindow === 'number' ? model.contextWindow : undefined,
         maxTokens: typeof model.maxTokens === 'number' ? model.maxTokens : undefined,
       };

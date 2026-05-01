@@ -115,6 +115,18 @@ function getModelLabel(model: ModelInfo): string {
   return model.label?.trim() || model.key.split('/').pop() || model.key || 'Select model';
 }
 
+function getModelInputTypes(model: ModelInfo): Array<'text' | 'image'> {
+  const explicit = Array.isArray(model.input)
+    ? model.input.filter((entry): entry is 'text' | 'image' => entry === 'text' || entry === 'image')
+    : [];
+
+  if (explicit.length > 0) {
+    return explicit;
+  }
+
+  return model.supportsImageInput ? ['text', 'image'] : ['text'];
+}
+
 function formatTokenWindow(value: number | undefined): string {
   if (!value || !Number.isFinite(value)) return '';
   if (value >= 1_000_000) return `${Math.round(value / 100_000) / 10}M`;
@@ -806,11 +818,19 @@ export function ComposerPanel({
             </span>
           ) : null}
 
-          {item.model.supportsImageInput ? (
-            <span className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-300">
-              IMG
+          {getModelInputTypes(item.model).map((inputType) => (
+            <span
+              key={`${item.model.key}-${inputType}`}
+              className={cn(
+                'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
+                inputType === 'image'
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                  : 'border-border/70 bg-background text-muted-foreground',
+              )}
+            >
+              {inputType === 'image' ? 'IMG' : 'TXT'}
             </span>
-          ) : null}
+          ))}
 
           {isSelected ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
         </button>
@@ -1133,11 +1153,19 @@ export function ComposerPanel({
                   <span className="min-w-0 truncate text-left">
                     {selectedModelLabel}
                   </span>
-                  {selectedModelSupportsImage ? (
-                    <span className="shrink-0 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-300">
-                      IMG
+                  {(selectedModel ? getModelInputTypes(selectedModel) : ['text']).map((inputType) => (
+                    <span
+                      key={inputType}
+                      className={cn(
+                        'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
+                        inputType === 'image'
+                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                          : 'border-border/70 bg-background text-muted-foreground',
+                      )}
+                    >
+                      {inputType === 'image' ? 'IMG' : 'TXT'}
                     </span>
-                  ) : null}
+                  ))}
                   <ChevronDown size={12} className="shrink-0 opacity-70" />
                 </button>
 

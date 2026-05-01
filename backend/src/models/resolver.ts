@@ -8,6 +8,40 @@ export interface ModelLike {
   maxTokens?: number;
 }
 
+function inferImageSupport(model: Pick<ModelLike, 'provider' | 'id' | 'name'>): boolean {
+  const provider = model.provider.toLowerCase();
+  const id = model.id.toLowerCase();
+  const name = (model.name ?? '').toLowerCase();
+  const combined = `${provider}/${id} ${name}`;
+
+  if (/(vision|multimodal|omni|vl\b)/.test(combined)) {
+    return true;
+  }
+
+  if (provider.startsWith('openai') && /gpt-(4o|4\.1|5)|o1|o3/.test(id)) {
+    return true;
+  }
+
+  return false;
+}
+
+function resolveModelInputs(model: ModelLike): Array<'text' | 'image'> {
+  const explicit = Array.isArray(model.input)
+    ? model.input.filter((entry): entry is 'text' | 'image' => entry === 'text' || entry === 'image')
+    : [];
+
+  if (explicit.includes('image')) {
+    return explicit;
+  }
+
+  if (inferImageSupport(model)) {
+    const withText: Array<'text' | 'image'> = explicit.includes('text') ? explicit : [...explicit, 'text'];
+    return withText.includes('image') ? withText : [...withText, 'image'];
+  }
+
+  return explicit.length > 0 ? explicit : ['text'];
+}
+
 export interface ModelSummary {
   key: string;
   id: string;
@@ -116,7 +150,7 @@ export function summarizeModels(params: {
         available: availableKeys.has(key),
         authConfigured: availableKeys.has(key),
         reasoning: model.reasoning ?? false,
-        input: model.input ?? ['text'],
+        input: resolveModelInputs(model),
         contextWindow: model.contextWindow ?? 128000,
         maxTokens: model.maxTokens ?? 16384,
         isSelected: selectedKey === key,
