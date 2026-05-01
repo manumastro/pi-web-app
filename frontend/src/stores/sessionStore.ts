@@ -12,7 +12,7 @@ interface SessionState {
 }
 
 function sortSessions(sessions: SessionInfo[]): SessionInfo[] {
-  return [...sessions].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  return [...sessions].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({

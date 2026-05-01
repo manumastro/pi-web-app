@@ -540,8 +540,8 @@ export function rehydrateConversationForSession(
   });
 
   const assistantTurnId = (
-    lastUser && lastUser.kind === 'message' && lastUser.role === 'user' && lastUser.messageId
-      ? lastUser.messageId
+    lastUser && lastUser.kind === 'message' && lastUser.role === 'user'
+      ? lastUser.messageId ?? lastUser.id
       : undefined
   )
     ?? (latestTurnIdFromConversation && 'messageId' in latestTurnIdFromConversation ? latestTurnIdFromConversation.messageId : undefined)

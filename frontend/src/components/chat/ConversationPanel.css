@@ -801,6 +801,24 @@
   color: var(--foreground);
 }
 
+.mobile-controls-card-static {
+  align-items: flex-start;
+  cursor: default;
+}
+
+.mobile-controls-card-value-wrap {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.mobile-controls-card-meta {
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: color-mix(in oklab, var(--foreground) 58%, transparent);
+  line-height: 1.35;
+  white-space: normal;
+}
+
 .mobile-controls-sheet-panel {
   padding-bottom: 0.75rem;
 }

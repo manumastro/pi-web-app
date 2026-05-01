@@ -141,3 +141,15 @@
   white-space: nowrap;
 }
 
+.composer-context-usage-mobile {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0.22rem 0.5rem;
+}
+
+.composer-context-usage-mobile .composer-context-usage-label {
+  font-size: 0.625rem;
+  white-space: normal;
+  line-height: 1.3;
+}
+

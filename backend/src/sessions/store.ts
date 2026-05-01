@@ -125,10 +125,9 @@ export function createSessionStore(): SessionStore {
 
     listSessions(cwd?: string): Session[] {
       const allSessions = Array.from(sessions.values());
-      if (cwd === undefined) {
-        return allSessions;
-      }
-      return allSessions.filter((s) => s.cwd === cwd);
+      const filtered = cwd === undefined ? allSessions : allSessions.filter((s) => s.cwd === cwd);
+      // Always sort by createdAt descending (newest first), matching Pi CLI behavior
+      return filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     },
 
     updateSession(id: string, updates: Partial<Session>): Session | undefined {

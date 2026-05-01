@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import ComposerPanel from './chat/ComposerPanel';
 
+const mockUseSessionStatus = vi.fn();
+
+vi.mock('@/sync/sync-context', () => ({
+  useSessionStatus: (...args: unknown[]) => mockUseSessionStatus(...args),
+}));
+
 function mockMatchMedia(matches: boolean) {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
     matches,
@@ -25,6 +31,8 @@ beforeEach(() => {
   vi.unstubAllGlobals();
   mockMatchMedia(false);
   localStorage.clear();
+  mockUseSessionStatus.mockReset();
+  mockUseSessionStatus.mockReturnValue(undefined);
 });
 
 describe('ComposerPanel', () => {
@@ -170,6 +178,50 @@ describe('ComposerPanel', () => {
     fireEvent.click(dialogScope.getByRole('button', { name: /Back/i }));
     expect(dialogScope.getByText('Model')).toBeInTheDocument();
     expect(dialogScope.getByText('Thinking')).toBeInTheDocument();
+  });
+
+  it('shows detailed context usage on mobile and inside controls overview', async () => {
+    mockMatchMedia(true);
+    mockUseSessionStatus.mockReturnValue({
+      metadata: {
+        contextWindow: 1_000_000,
+        inputTokens: 2_500_000,
+        outputTokens: 158_000,
+        totalTokens: 2_900_000,
+        cost: 2.371,
+        contextPercent: 12.8,
+        autoCompactionEnabled: true,
+        cacheReadTokens: 125_000,
+      },
+    });
+
+    render(
+      <ComposerPanel
+        prompt="hello world"
+        streaming="idle"
+        models={mockModels}
+        activeModelKey="google-gemini/gemini-pro"
+        availableThinkingLevels={['minimal', 'medium', 'high']}
+        activeThinkingLevel="medium"
+        onPromptChange={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+        onModelSelect={vi.fn()}
+        onThinkingLevelSelect={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/\$2\.371/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gemini Pro' }));
+
+    const dialog = await screen.findByRole('dialog');
+    const dialogScope = within(dialog);
+    fireEvent.click(dialogScope.getByRole('button', { name: /Back/i }));
+
+    expect(dialogScope.getByText('Context')).toBeInTheDocument();
+    expect(dialogScope.getByText(/\$2\.371/)).toBeInTheDocument();
+    expect(dialogScope.getByText(/Cache read: 125,000/)).toBeInTheDocument();
   });
 
   it('marks favourites in-memory when cache persistence is disabled', async () => {

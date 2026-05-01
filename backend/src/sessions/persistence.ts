@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'crypto';
 import { normalizeSessionStatus, type Session, type Message, type SessionStatus } from './store.js';
 
 interface SessionMetaRecord {
@@ -39,6 +40,23 @@ export interface SessionFileSnapshot {
 
 function sanitizeSessionId(sessionId: string): string {
   return sessionId.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+/**
+ * Encodes a cwd path to the Pi CLI directory name format.
+ * E.g. "/home/manu/pi-web-app" → "--home-manu-pi-web-app--"
+ */
+function encodeCwdToDirName(cwd: string): string {
+  const stripped = cwd.startsWith('/') ? cwd.slice(1) : cwd;
+  return `--${stripped.replace(/\//g, '-')}--`;
+}
+
+/**
+ * Formats an ISO timestamp for CLI-style filename.
+ * E.g. "2026-04-30T14:57:14.000Z" → "2026-04-30T14-57-14-000Z"
+ */
+function formatTimestampForFilename(iso: string): string {
+  return iso.replace(/:/g, '-');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -129,7 +147,14 @@ function deriveStatus(messages: Message[], metaStatus?: SessionStatus): SessionS
   return 'idle';
 }
 
-export function getSessionFilePath(sessionsDir: string, sessionId: string): string {
+export function getSessionFilePath(sessionsDir: string, sessionId: string, cwd?: string, createdAt?: string): string {
+  if (cwd) {
+    // Save in CLI-style subdirectory with timestamp naming
+    const dirName = encodeCwdToDirName(cwd);
+    const timestamp = createdAt ? `${formatTimestampForFilename(createdAt)}_` : '';
+    return path.join(sessionsDir, dirName, `${timestamp}${sanitizeSessionId(sessionId)}.jsonl`);
+  }
+  // Fall back to root location (backward compat)
   return path.join(sessionsDir, `${sanitizeSessionId(sessionId)}.jsonl`);
 }
 
@@ -247,15 +272,47 @@ export function parseSessionJsonl(input: string): Session | undefined {
 }
 
 export function writeSessionFileSync(sessionsDir: string, session: Session): string {
-  fs.mkdirSync(sessionsDir, { recursive: true });
-  const filePath = getSessionFilePath(sessionsDir, session.id);
+  // Save to CLI-style subdirectory when cwd is available
+  const filePath = getSessionFilePath(sessionsDir, session.id, session.cwd, session.createdAt);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, sessionToJsonl(session), 'utf8');
+
+  // Clean up old root-level file if we just saved to a subdirectory
+  if (session.cwd) {
+    const rootPath = path.join(sessionsDir, `${sanitizeSessionId(session.id)}.jsonl`);
+    if (rootPath !== filePath) {
+      try { fs.rmSync(rootPath, { force: true }); } catch {}
+    }
+  }
+
   return filePath;
 }
 
 export function deleteSessionFileSync(sessionsDir: string, sessionId: string): void {
-  const filePath = getSessionFilePath(sessionsDir, sessionId);
-  fs.rmSync(filePath, { force: true });
+  // Try root location first
+  const rootPath = path.join(sessionsDir, `${sanitizeSessionId(sessionId)}.jsonl`);
+  try {
+    fs.rmSync(rootPath, { force: true });
+  } catch {
+    // ignore
+  }
+
+  // Then search all subdirectories for matching files
+  try {
+    const entries = fs.readdirSync(sessionsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const dirPath = path.join(sessionsDir, entry.name);
+      try {
+        const files = fs.readdirSync(dirPath, { withFileTypes: true });
+        for (const file of files) {
+          if (file.isFile() && file.name.endsWith('.jsonl') && file.name.includes(sessionId)) {
+            try { fs.rmSync(path.join(dirPath, file.name), { force: true }); } catch {}
+          }
+        }
+      } catch {}
+    }
+  } catch {}
 }
 
 export function readSessionFileSync(filePath: string): Session | undefined {
@@ -267,46 +324,203 @@ export function readSessionFileSync(filePath: string): Session | undefined {
   }
 }
 
-function collectSessionFilesRecursively(baseDir: string): string[] {
-  let entries: fs.Dirent[];
-  try {
-    entries = fs.readdirSync(baseDir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-
+/**
+ * Collect all JSONL session files from root AND subdirectories (Pi CLI style).
+ */
+function collectSessionFiles(baseDir: string): string[] {
   const files: string[] = [];
 
-  for (const entry of entries) {
-    const fullPath = path.join(baseDir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name.startsWith('.')) {
-        continue;
-      }
-      files.push(...collectSessionFilesRecursively(fullPath));
-      continue;
+  function scan(dir: string): void {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
     }
 
-    if (entry.isFile() && entry.name.endsWith('.jsonl')) {
-      files.push(fullPath);
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scan(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+        files.push(fullPath);
+      }
     }
   }
 
+  scan(baseDir);
   return files;
 }
 
-export function loadSessionsFromDirSync(sessionsDir: string): Session[] {
-  const sessionFiles = collectSessionFilesRecursively(sessionsDir);
-  const sessions: Session[] = [];
+/**
+ * Parse a file that might be in either web-app JSONL format or Pi CLI session format.
+ * Returns a Session in web-app format, or undefined if unparseable.
+ */
+function readAnySessionFileSync(filePath: string): Session | undefined {
+  const raw = readSessionFileSync(filePath);
+  if (raw) return raw;
 
-  for (const filePath of sessionFiles) {
-    const session = readSessionFileSync(filePath);
-    if (session) {
-      sessions.push(session);
+  // Try Pi CLI format
+  return parsePiCliSessionJsonl(filePath);
+}
+
+/**
+ * Parse a Pi CLI session file (e.g. from subdirectories) into a web-app Session.
+ */
+function parsePiCliSessionJsonl(filePath: string): Session | undefined {
+  let content: string;
+  try {
+    content = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return undefined;
+  }
+
+  let cliSessionId = '';
+  let cwd = '';
+  let timestamp = '';
+  let model: string | undefined;
+  const messages: Message[] = [];
+
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    if (!isRecord(parsed)) continue;
+
+    const type = typeof parsed.type === 'string' ? parsed.type : '';
+
+    if (type === 'session') {
+      cliSessionId = typeof parsed.id === 'string' ? parsed.id : '';
+      cwd = typeof parsed.cwd === 'string' ? parsed.cwd : '';
+      // CLI uses "timestamp" instead of "createdAt"
+      timestamp = typeof parsed.timestamp === 'string' ? parsed.timestamp : '';
+      continue;
+    }
+
+    if (type === 'model_change') {
+      const provider = typeof parsed.provider === 'string' ? parsed.provider : '';
+      const modelId = typeof parsed.modelId === 'string' ? parsed.modelId : '';
+      if (provider && modelId) {
+        model = `${provider}/${modelId}`;
+      }
+      continue;
+    }
+
+    if (type === 'message') {
+      const rawMessage = isRecord(parsed.message) ? parsed.message : {};
+      const role = typeof rawMessage.role === 'string' ? rawMessage.role : '';
+      const rawContent = rawMessage.content;
+      const msgTimestamp = typeof rawMessage.timestamp === 'string'
+        ? rawMessage.timestamp
+        : typeof rawMessage.timestamp === 'number'
+          ? new Date(rawMessage.timestamp).toISOString()
+          : typeof parsed.timestamp === 'string'
+            ? parsed.timestamp
+            : timestamp;
+      const msgId = typeof parsed.id === 'string' ? parsed.id : randomUUID();
+
+      if (!role) continue;
+
+      // Convert content array (Pi CLI format) to flat string
+      let content = '';
+      if (Array.isArray(rawContent)) {
+        const parts: string[] = [];
+        for (const block of rawContent) {
+          if (isRecord(block)) {
+            const blockType = typeof block.type === 'string' ? block.type : '';
+            if (blockType === 'text') {
+              parts.push(extractTextContent(block.text));
+            } else if (blockType === 'thinking') {
+              parts.push(extractTextContent(block.thinking));
+            } else if (blockType === 'tool_use' || blockType === 'tool_call') {
+              const toolName = typeof block.name === 'string' ? block.name : '';
+              const toolInput = block.input ? JSON.stringify(block.input) : '';
+              parts.push(`[Tool: ${toolName}] ${toolInput}`);
+            } else if (blockType === 'tool_result') {
+              parts.push(extractTextContent(block.content));
+            }
+          }
+        }
+        content = parts.join('\n');
+      } else {
+        content = extractTextContent(rawContent);
+      }
+
+      const webRole: Message['role'] = role === 'user' ? 'user'
+        : role === 'assistant' ? 'assistant'
+        : role === 'tool' ? 'tool_call'
+        : role === 'tool_result' ? 'tool_result'
+        : 'assistant';
+
+      const message: Message = {
+        id: msgId,
+        role: webRole,
+        content,
+        timestamp: msgTimestamp,
+      };
+      messages.push(message);
     }
   }
 
-  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  if (!cliSessionId || !cwd || !timestamp) return undefined;
+
+  return {
+    id: cliSessionId,
+    cwd,
+    model,
+    status: deriveStatus(messages, undefined),
+    messages,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
+export function loadSessionsFromDirSync(sessionsDir: string): Session[] {
+  const sessionFiles = collectSessionFiles(sessionsDir);
+
+  // Parse all files, keyed by session id
+  const sessionsMap = new Map<string, Session>();
+  // Track which CLI session IDs are referenced by web-app files
+  const referencedCliIds = new Set<string>();
+
+  for (const fp of sessionFiles) {
+    const session = readAnySessionFileSync(fp);
+    if (!session) continue;
+
+    // If this is a web-app file that references a CLI session, mark it
+    if (session.piSessionId) {
+      referencedCliIds.add(session.piSessionId);
+    }
+
+    // Deduplicate by id: keep the entry with the more recent createdAt
+    const existing = sessionsMap.get(session.id);
+    if (!existing || session.createdAt > existing.createdAt) {
+      sessionsMap.set(session.id, session);
+    }
+  }
+
+  // Remove CLI-only entries that have a corresponding web-app wrapper file.
+  // The web-app file (with richer metadata) is kept; the CLI-only file's
+  // messages will be merged at runtime by mergeSessionFromPiSnapshot.
+  for (const cliId of referencedCliIds) {
+    if (cliId === '') continue;
+    // Only remove if BOTH a CLI entry AND a web entry exist
+    // (the web entry won't have the CLI session id as its own id)
+    const hasWebEntry = [...sessionsMap.values()].some(
+      (s) => s.piSessionId === cliId
+    );
+    if (hasWebEntry && sessionsMap.has(cliId)) {
+      sessionsMap.delete(cliId);
+    }
+  }
+
+  return Array.from(sessionsMap.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function writeSessionFile(sessionsDir: string, session: Session): Promise<string> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applySsePayload, appendPrompt, type ConversationItem } from './conversation';
+import { applySsePayload, appendPrompt, rehydrateConversationForSession, type ConversationItem } from './conversation';
 
 describe('conversation fallback matching', () => {
   it('appends text chunks to the latest assistant fallback when messageId is unknown', () => {
@@ -154,6 +154,27 @@ describe('conversation fallback matching', () => {
       expect(assistant.content).toContain('ciao');
       // messageId is preserved to keep the thinking and assistant paired.
       expect(assistant.messageId).toBe('turn-1');
+    }
+  });
+
+  it('keeps the running assistant attached to the last user when the user has no messageId yet', () => {
+    const conversation = [
+      {
+        kind: 'message' as const,
+        id: 'user-1',
+        role: 'user' as const,
+        content: 'hello',
+        timestamp: '2026-04-30T16:00:00.000Z',
+        status: 'complete' as const,
+      },
+    ];
+
+    const rehydrated = rehydrateConversationForSession(conversation, 'busy');
+    const turn = rehydrated.find((item) => item.kind === 'message' && item.role === 'assistant');
+
+    expect(turn?.kind).toBe('message');
+    if (turn?.kind === 'message') {
+      expect(turn.messageId).toBe('user-1');
     }
   });
 });

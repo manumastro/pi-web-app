@@ -112,7 +112,7 @@ describe('useAssistantStatus', () => {
     expect(screen.getByTestId('working')).toHaveTextContent('yes');
   });
 
-  it('shows live thinking previews instead of context window metadata', () => {
+  it('does not mirror thinking text in working placeholder and shows runtime status instead', () => {
     useSessionStatusMock.mockReturnValue({ type: 'busy', message: 'Context usage updated', metadata: { contextWindow: 128000 } });
     useChatStore.setState({
       conversation: [
@@ -138,9 +138,9 @@ describe('useAssistantStatus', () => {
 
     render(<Probe />);
 
-    expect(screen.getByTestId('label')).toHaveTextContent('Thinking...');
-    expect(screen.getByTestId('statusText')).toHaveTextContent('Thinking · Sto analizzando il progetto');
-    expect(screen.getByTestId('statusText')).not.toHaveTextContent('128k ctx window');
+    expect(screen.getByTestId('label')).toHaveTextContent('Working...');
+    expect(screen.getByTestId('statusText')).toHaveTextContent('Context usage updated');
+    expect(screen.getByTestId('statusText')).not.toHaveTextContent('Sto analizzando il progetto');
     expect(screen.getByTestId('working')).toHaveTextContent('yes');
   });
 

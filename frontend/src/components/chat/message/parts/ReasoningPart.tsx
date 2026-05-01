@@ -36,6 +36,14 @@ const getReasoningSummary = (text: string): string => {
     return '';
   }
 
+  const boldMatches = [...text.matchAll(/\*\*([^*][\s\S]*?)\*\*/g)]
+    .map((match) => match[1]?.replace(/\s+/g, ' ').trim())
+    .filter((value): value is string => Boolean(value && value.length > 0));
+
+  if (boldMatches.length > 0) {
+    return boldMatches[boldMatches.length - 1]!;
+  }
+
   const trimmed = text.trim();
   const newlineIndex = trimmed.indexOf('\n');
   const periodIndex = trimmed.indexOf('.');
@@ -78,11 +86,15 @@ export const ReasoningPart: React.FC<ReasoningPartProps> = ({
     isStreaming,
     identityKey: blockId,
   });
-  const summary = React.useMemo(() => getReasoningSummary(throttledText), [throttledText]);
+  // The summary always uses the raw (non-throttled) text so it updates instantly
+  // on every chunk, even when the ReasoningPart is collapsed.
+  const summary = React.useMemo(() => getReasoningSummary(cleanedText), [cleanedText]);
   const isSettled = useContentSettled(throttledText, isStreaming ? 160 : 60);
   const timeStart = typeof time?.start === 'number' && Number.isFinite(time.start) ? time.start : undefined;
   const timeEnd = typeof time?.end === 'number' && Number.isFinite(time.end) ? time.end : undefined;
-  const isEmpty = !throttledText || throttledText.length === 0;
+  // Use raw text for visibility so the component appears instantly on first chunk;
+  // throttledText would delay the initial render by ~100ms.
+  const isEmpty = !cleanedText || cleanedText.length === 0;
 
   React.useEffect(() => {
     const raf = requestAnimationFrame(() => setIsMounted(true));

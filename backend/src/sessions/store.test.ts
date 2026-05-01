@@ -92,6 +92,17 @@ describe('session store', () => {
       expect(project1Sessions).toHaveLength(2);
       expect(project1Sessions.every((s) => s.cwd === '/home/project1')).toBe(true);
     });
+
+    it('should return sessions ordered by most recent creation first', async () => {
+      const older = store.createSession('/home/project1');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const newer = store.createSession('/home/project1');
+
+      const sessions = store.listSessions('/home/project1');
+
+      expect(sessions[0]?.id).toBe(newer.id);
+      expect(sessions[1]?.id).toBe(older.id);
+    });
   });
 
   describe('updateSession', () => {

@@ -35,7 +35,7 @@ function getLastAssistantRelatedItems(items: ConversationItem[]) {
   let activeToolInput: string | undefined;
   let hasPendingTool = false;
   let hasAssistantText = false;
-  let latestThinkingPreview: string | undefined;
+  let hasThinkingText = false;
   let latestAssistantPreview: string | undefined;
   const resolvedToolCallIds = new Set<string>();
 
@@ -47,8 +47,8 @@ function getLastAssistantRelatedItems(items: ConversationItem[]) {
       break;
     }
 
-    if (item.kind === 'thinking' && !latestThinkingPreview && item.content.trim().length > 0) {
-      latestThinkingPreview = summarizePreview(item.content);
+    if (item.kind === 'thinking' && item.content.trim().length > 0) {
+      hasThinkingText = true;
       continue;
     }
 
@@ -78,7 +78,7 @@ function getLastAssistantRelatedItems(items: ConversationItem[]) {
     }
   }
 
-  return { activeToolName, activeToolInput, hasPendingTool, hasAssistantText, latestThinkingPreview, latestAssistantPreview };
+  return { activeToolName, activeToolInput, hasPendingTool, hasAssistantText, hasThinkingText, latestAssistantPreview };
 }
 
 export function useAssistantStatus(): AssistantStatusSnapshot {
@@ -93,7 +93,7 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
 
   return useMemo(() => {
     const statusType = getSessionStatusType(sessionStatus) ?? getSessionStatusType(currentSession?.status);
-    const { activeToolName, activeToolInput, hasPendingTool, hasAssistantText, latestThinkingPreview, latestAssistantPreview } = getLastAssistantRelatedItems(conversation);
+    const { activeToolName, activeToolInput, hasPendingTool, hasAssistantText, hasThinkingText, latestAssistantPreview } = getLastAssistantRelatedItems(conversation);
     const hasPermission = permissions.length > 0 || questions.length > 0 || statusType === 'waiting_permission' || statusType === 'waiting_question';
     const isRetry = statusType === 'retry';
     const isCooldown = streaming.phase === 'cooldown';
@@ -104,7 +104,7 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       || (hasPendingTool && isStreaming)
     );
     const isComplete = !hasPermission && !isRetry && !isCooldown && !isStreaming && !isTooling && hasAssistantText;
-    const isThinking = Boolean(latestThinkingPreview) && !hasAssistantText;
+    const isThinking = hasThinkingText && !hasAssistantText;
 
     let activity: AssistantActivity = 'idle';
     if (hasPermission) {
@@ -138,8 +138,8 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
       label = activeToolName ? `Running ${activeToolName}...` : 'Running tools...';
       statusText = activeToolInput ? activeToolInput : sessionStatus?.message ?? null;
     } else if (isThinking) {
-      label = 'Thinking...';
-      statusText = latestThinkingPreview ? `Thinking · ${latestThinkingPreview}` : sessionStatus?.message ?? null;
+      label = 'Working...';
+      statusText = sessionStatus?.message ?? 'Preparing response...';
     } else if (activity === 'streaming') {
       label = 'Writing...';
       statusText = latestAssistantPreview ? `Writing · ${latestAssistantPreview}` : sessionStatus?.message ?? null;

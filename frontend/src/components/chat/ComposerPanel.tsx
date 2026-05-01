@@ -981,6 +981,11 @@ export function ComposerPanel({
           </div>
         ) : (
           <div className="composer-actions composer-actions-mobile composer-actions-mobile-minimal">
+            {contextUsageText ? (
+              <span className="composer-context-usage composer-context-usage-mobile" title={contextUsageTooltip || undefined}>
+                <span className="composer-context-usage-label">{contextUsageText}</span>
+              </span>
+            ) : null}
             <div className="composer-actions-right composer-actions-right-mobile">
               <button type="button" className="composer-mobile-pill composer-mobile-model-pill" onClick={() => openMobileControls('model')} title={selectedModelMetaLabel ? `${selectedModelLabel} · ${selectedModelMetaLabel}` : selectedModelLabel}>
                 <span className="truncate">{selectedModelLabel}</span>
@@ -1045,6 +1050,15 @@ export function ComposerPanel({
                   </div>
                   <ChevronRight size={16} />
                 </button>
+              ) : null}
+              {contextUsageText ? (
+                <div className="mobile-controls-card mobile-controls-card-static" role="status" aria-live="polite">
+                  <div>
+                    <div className="mobile-controls-card-label">Context</div>
+                    <div className="mobile-controls-card-value mobile-controls-card-value-wrap">{contextUsageText}</div>
+                    {contextUsageTooltip ? <div className="mobile-controls-card-meta">{contextUsageTooltip}</div> : null}
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : null}
