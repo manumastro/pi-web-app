@@ -9,7 +9,7 @@ const MIME_EXTENSION: Record<string, string> = {
   'image/webp': '.webp',
   'image/gif': '.gif',
 };
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export interface StoredImageUpload {
   uploadId: string;
@@ -77,7 +77,7 @@ export function createImageUploadStore(baseDir: string): ImageUploadStore {
       throw new Error('Image payload is empty');
     }
     if (buffer.length > MAX_IMAGE_BYTES) {
-      throw new Error('Image too large (max 20MB)');
+      throw new Error('Image too large (max 10MB)');
     }
 
     const sessionDir = getSessionDir(sessionId);

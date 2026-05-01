@@ -149,7 +149,7 @@ async function uploadImageAttachment(file: File, sessionId: string): Promise<Pro
   const payload = await response.json().catch(() => null) as { upload?: PromptImageAttachment; error?: string } | null;
   if (!response.ok || !payload?.upload) {
     if (response.status === 413) {
-      throw new Error('Image too large for proxy upload limit (413). Reduce image size or increase nginx client_max_body_size.');
+      throw new Error('Image too large for the 10MB upload limit. Reduce image size or increase nginx client_max_body_size.');
     }
     throw new Error(payload?.error ?? 'Image upload failed');
   }

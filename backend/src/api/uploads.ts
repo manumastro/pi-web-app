@@ -19,7 +19,7 @@ export function createUploadsRouter(store: ImageUploadStore): Router {
     res.sendFile(upload.path);
   });
 
-  router.post('/image', express.raw({ type: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], limit: '25mb' }), async (req: Request, res: Response) => {
+  router.post('/image', express.raw({ type: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], limit: '10mb' }), async (req: Request, res: Response) => {
     const sessionId = typeof req.headers['x-session-id'] === 'string' ? req.headers['x-session-id'].trim() : '';
     const rawFileName = typeof req.headers['x-file-name'] === 'string' ? req.headers['x-file-name'] : undefined;
     const fileName = rawFileName ? (() => { try { return decodeURIComponent(rawFileName); } catch { return rawFileName; } })() : undefined;
