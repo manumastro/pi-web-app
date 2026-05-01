@@ -182,6 +182,39 @@ describe('useAssistantStatus', () => {
 
     expect(screen.getByTestId('activity')).toHaveTextContent('tooling');
     expect(screen.getByTestId('label')).toHaveTextContent('Running web_search...');
+    expect(screen.getByTestId('statusText')).toHaveTextContent('Running web_search · classifica serie a');
+    expect(screen.getByTestId('working')).toHaveTextContent('yes');
+  });
+
+  it('does not expose generic Preparing status text and keeps activity label visible', () => {
+    useSessionStatusMock.mockReturnValue({ type: 'busy', message: 'Preparing...' });
+    useChatStore.setState({
+      conversation: [
+        {
+          kind: 'message',
+          id: 'user-4',
+          role: 'user',
+          content: 'fai un check',
+          timestamp: '2026-04-27T17:42:00.000Z',
+          status: 'complete',
+          messageId: 'turn-4',
+        },
+        {
+          kind: 'thinking',
+          id: 'thinking-4',
+          messageId: 'turn-4',
+          content: 'analizzo',
+          done: false,
+          timestamp: '2026-04-27T17:42:01.000Z',
+        },
+      ],
+    });
+
+    render(<Probe />);
+
+    expect(screen.getByTestId('activity')).toHaveTextContent('streaming');
+    expect(screen.getByTestId('label')).toHaveTextContent('Working...');
+    expect(screen.getByTestId('statusText')).toHaveTextContent('');
     expect(screen.getByTestId('working')).toHaveTextContent('yes');
   });
 });

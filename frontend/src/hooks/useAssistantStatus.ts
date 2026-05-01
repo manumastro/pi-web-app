@@ -22,6 +22,19 @@ export interface AssistantStatusSnapshot {
   lifecyclePhase: StreamPhase | null;
 }
 
+const GENERIC_RUNTIME_STATUS_RE = /^(preparing(?:\s+response)?|working)\.{0,3}$/i;
+
+function normalizeRuntimeStatus(message: string | null | undefined): string | null {
+  const trimmed = message?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (GENERIC_RUNTIME_STATUS_RE.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
 function summarizePreview(text: string, maxLength = 96): string {
   const compact = text.replace(/\s+/g, ' ').trim();
   if (compact.length <= maxLength) {
@@ -94,6 +107,7 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
   return useMemo(() => {
     const statusType = getSessionStatusType(sessionStatus) ?? getSessionStatusType(currentSession?.status);
     const { activeToolName, activeToolInput, hasPendingTool, hasAssistantText, hasThinkingText, latestAssistantPreview } = getLastAssistantRelatedItems(conversation);
+    const runtimeStatusText = normalizeRuntimeStatus(sessionStatus?.message);
     const hasPermission = permissions.length > 0 || questions.length > 0 || statusType === 'waiting_permission' || statusType === 'waiting_question';
     const isRetry = statusType === 'retry';
     const isCooldown = streaming.phase === 'cooldown';
@@ -127,22 +141,24 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
     let statusText: string | null = null;
     if (activity === 'permission') {
       label = statusType === 'waiting_question' ? 'Question pending...' : 'Permission needed...';
-      statusText = sessionStatus?.message ?? null;
+      statusText = runtimeStatusText;
     } else if (activity === 'retry') {
       label = 'Retrying...';
-      statusText = sessionStatus?.message ?? null;
+      statusText = runtimeStatusText;
     } else if (activity === 'cooldown') {
       label = 'Finalizing...';
-      statusText = latestAssistantPreview ? `Wrapping up · ${latestAssistantPreview}` : sessionStatus?.message ?? null;
+      statusText = latestAssistantPreview ? `Wrapping up · ${latestAssistantPreview}` : runtimeStatusText;
     } else if (activity === 'tooling') {
       label = activeToolName ? `Running ${activeToolName}...` : 'Running tools...';
-      statusText = activeToolInput ? activeToolInput : sessionStatus?.message ?? null;
+      statusText = activeToolInput
+        ? `${activeToolName ? `Running ${activeToolName}` : 'Running tools'} · ${activeToolInput}`
+        : null;
     } else if (isThinking) {
       label = 'Working...';
-      statusText = sessionStatus?.message ?? 'Preparing response...';
+      statusText = runtimeStatusText;
     } else if (activity === 'streaming') {
       label = 'Writing...';
-      statusText = latestAssistantPreview ? `Writing · ${latestAssistantPreview}` : sessionStatus?.message ?? null;
+      statusText = latestAssistantPreview ? `Writing · ${latestAssistantPreview}` : runtimeStatusText;
     } else if (activity === 'complete') {
       label = 'Complete';
       statusText = latestAssistantPreview ? `Done · ${latestAssistantPreview}` : null;
