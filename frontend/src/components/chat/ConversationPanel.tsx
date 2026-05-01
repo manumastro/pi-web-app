@@ -983,6 +983,7 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
   const shouldAutoScrollRef = React.useRef(true);
   const [showScrollButton, setShowScrollButton] = React.useState(false);
   const lastScrollToBottomRevisionRef = React.useRef<number | undefined>(scrollToBottomRevision ?? undefined);
+  const wasWorkingRef = React.useRef(isWorking);
 
   const scrollToBottom = React.useCallback((instant = false) => {
     const anchor = bottomAnchorRef.current;
@@ -1046,6 +1047,25 @@ export function ConversationPanel({ items, error: errorMsg, showReasoningTraces 
     lastScrollToBottomRevisionRef.current = scrollToBottomRevision;
     scrollToBottom(true);
   }, [scrollToBottom, scrollToBottomRevision]);
+
+  React.useEffect(() => {
+    const wasWorking = wasWorkingRef.current;
+    wasWorkingRef.current = isWorking;
+    if (!wasWorking || isWorking || !shouldAutoScrollRef.current) {
+      return;
+    }
+
+    scrollToBottom(true);
+    const timeoutId = window.setTimeout(() => {
+      if (shouldAutoScrollRef.current) {
+        scrollToBottom(true);
+      }
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isWorking, scrollToBottom]);
 
   const handleScrollToBottom = React.useCallback(() => {
     shouldAutoScrollRef.current = true;

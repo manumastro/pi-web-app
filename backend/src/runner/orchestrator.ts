@@ -286,8 +286,13 @@ export function createRunnerOrchestrator(params: {
           });
         }
         break;
-      case 'status':
-        sessionStore.updateSession(event.sessionId, { status: toSessionStatus(event.status) });
+      case 'status': {
+        const updates: Parameters<typeof sessionStore.updateSession>[1] = {
+          status: toSessionStatus(event.status),
+          ...(event.message !== undefined ? { statusMessage: event.message } : {}),
+          ...(event.metadata !== undefined ? { statusMetadata: event.metadata } : {}),
+        };
+        sessionStore.updateSession(event.sessionId, updates);
         emit(sseManager, {
           type: 'status',
           sessionId: event.sessionId,
@@ -297,6 +302,7 @@ export function createRunnerOrchestrator(params: {
           timestamp: now(),
         });
         break;
+      }
       case 'text': {
         const active = activeTurns.get(event.sessionId) ?? { assistantMessageId: event.messageId, assistantContent: '' };
         active.assistantMessageId = event.messageId;
@@ -373,6 +379,10 @@ export function createRunnerOrchestrator(params: {
         break;
       case 'done':
         finalizeAssistant(event.sessionId, event.aborted ?? false, event.messageId);
+        sessionStore.updateSession(event.sessionId, {
+          status: 'idle',
+          statusMessage: event.aborted ? 'CLI stopped' : 'CLI idle',
+        });
         emit(sseManager, {
           type: 'done',
           sessionId: event.sessionId,

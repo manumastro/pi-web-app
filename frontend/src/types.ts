@@ -20,6 +20,8 @@ export interface SessionInfo {
   model?: string;
   thinkingLevel?: ThinkingLevel;
   status: string;
+  statusMessage?: string;
+  statusMetadata?: Record<string, unknown>;
   messages: SessionMessage[];
   createdAt: string;
   updatedAt: string;

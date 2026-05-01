@@ -14,13 +14,17 @@ export interface SessionBootstrapDeps {
   setStatusMessage: (message: string) => void;
 }
 
-function toSyncStatus(status?: string | null, previous?: SyncSessionStatus): SyncSessionStatus {
+function toSyncStatus(session: SessionInfo, previous?: SyncSessionStatus): SyncSessionStatus {
   return {
-    type: status ?? previous?.type ?? 'idle',
+    type: session.status ?? previous?.type ?? 'idle',
     timestamp: Date.now(),
-    ...(previous?.message ? { message: previous.message } : {}),
+    ...(session.statusMessage !== undefined
+      ? { message: session.statusMessage }
+      : (previous?.message ? { message: previous.message } : {})),
     ...(previous?.needsAttention !== undefined ? { needsAttention: previous.needsAttention } : {}),
-    ...(previous?.metadata ? { metadata: previous.metadata } : {}),
+    ...(session.statusMetadata !== undefined
+      ? { metadata: session.statusMetadata }
+      : (previous?.metadata ? { metadata: previous.metadata } : {})),
   };
 }
 
@@ -33,7 +37,7 @@ export function buildDirectoryState(
 
   for (const session of sessions) {
     const previous = previousStatusMap?.[session.id];
-    session_status[session.id] = toSyncStatus(session.status, previous);
+    session_status[session.id] = toSyncStatus(session, previous);
     message[session.id] = session.messages ?? [];
   }
 

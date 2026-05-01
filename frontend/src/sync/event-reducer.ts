@@ -196,7 +196,11 @@ export function reduceSessionLifecyclePayloads(
   patchSessionStatus(deps.directory, finalPayload.sessionId, mergedStatus);
 
   if (finalPayload.type === 'permission' || finalPayload.type === 'question') {
-    updateSessionAndSync(deps, finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    updateSessionAndSync(deps, finalPayload.sessionId, {
+      status: nextStatusType,
+      statusMessage: finalPayload.message,
+      updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
+    });
     patchSessionAttention(deps.directory, finalPayload.sessionId, finalPayload.type, finalPayload);
     deps.setStreaming('streaming');
     deps.setStatusMessage(finalPayload.message ?? (finalPayload.type === 'permission' ? 'Permission needed' : 'Question pending'));
@@ -208,6 +212,8 @@ export function reduceSessionLifecyclePayloads(
     const sessionName = typeof mergedStatus.metadata?.sessionName === 'string' ? mergedStatus.metadata.sessionName.trim() : '';
     updateSessionAndSync(deps, finalPayload.sessionId, {
       status: nextStatusType,
+      ...(finalPayload.message !== undefined ? { statusMessage: finalPayload.message } : {}),
+      ...(mergedStatus.metadata !== undefined ? { statusMetadata: mergedStatus.metadata } : {}),
       ...(sessionName ? { title: sessionName } : {}),
       updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
     });
@@ -222,7 +228,11 @@ export function reduceSessionLifecyclePayloads(
   } else if (finalPayload.type === 'session_name') {
     // Handled inside the loop above; nothing extra needed here.
   } else if (finalPayload.type === 'done') {
-    updateSessionAndSync(deps, finalPayload.sessionId, { status: 'idle', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    updateSessionAndSync(deps, finalPayload.sessionId, {
+      status: 'idle',
+      statusMessage: finalPayload.aborted ? 'CLI stopped' : 'CLI idle',
+      updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
+    });
     deps.setStreaming('idle');
     deps.setStatusMessage(finalPayload.aborted ? 'Stopped' : 'Connected');
     appendNotification({
@@ -234,7 +244,11 @@ export function reduceSessionLifecyclePayloads(
     });
   } else if (finalPayload.type === 'error') {
     const message = finalPayload.message?.trim() || 'Unknown error';
-    updateSessionAndSync(deps, finalPayload.sessionId, { status: 'error', updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    updateSessionAndSync(deps, finalPayload.sessionId, {
+      status: 'error',
+      statusMessage: message,
+      updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
+    });
     deps.setStreaming('error');
     deps.setStatusMessage(message);
     deps.setError?.(message);
@@ -249,7 +263,11 @@ export function reduceSessionLifecyclePayloads(
       },
     });
   } else if (isRunningSessionStatus(nextStatusType)) {
-    updateSessionAndSync(deps, finalPayload.sessionId, { status: nextStatusType, updatedAt: finalPayload.timestamp ?? new Date().toISOString() });
+    updateSessionAndSync(deps, finalPayload.sessionId, {
+      status: nextStatusType,
+      ...(finalPayload.message !== undefined ? { statusMessage: finalPayload.message } : {}),
+      updatedAt: finalPayload.timestamp ?? new Date().toISOString(),
+    });
     deps.setStreaming('streaming');
   }
 

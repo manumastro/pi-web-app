@@ -13,6 +13,8 @@ interface SessionMetaRecord {
   piSessionId?: string;
   piSessionFile?: string;
   status?: SessionStatus;
+  statusMessage?: string;
+  statusMetadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -170,6 +172,8 @@ export function sessionToJsonl(session: Session): string {
       ...(session.piSessionId !== undefined ? { piSessionId: session.piSessionId } : {}),
       ...(session.piSessionFile !== undefined ? { piSessionFile: session.piSessionFile } : {}),
       status: normalizeSessionStatus(session.status),
+      ...(session.statusMessage !== undefined ? { statusMessage: session.statusMessage } : {}),
+      ...(session.statusMetadata !== undefined ? { statusMetadata: session.statusMetadata } : {}),
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     },
@@ -236,6 +240,8 @@ export function parseSessionJsonl(input: string): Session | undefined {
             ...(typeof parsed.piSessionId === 'string' ? { piSessionId: parsed.piSessionId } : {}),
             ...(typeof parsed.piSessionFile === 'string' ? { piSessionFile: parsed.piSessionFile } : {}),
             ...(typeof parsed.status === 'string' ? { status: parsed.status as SessionStatus } : {}),
+            ...(typeof parsed.statusMessage === 'string' ? { statusMessage: parsed.statusMessage } : {}),
+            ...(isRecord(parsed.statusMetadata) ? { statusMetadata: parsed.statusMetadata } : {}),
             createdAt,
             updatedAt,
           };
@@ -265,6 +271,8 @@ export function parseSessionJsonl(input: string): Session | undefined {
     ...(meta.piSessionId !== undefined ? { piSessionId: meta.piSessionId } : {}),
     ...(meta.piSessionFile !== undefined ? { piSessionFile: meta.piSessionFile } : {}),
     status: deriveStatus(messages, meta.status),
+    ...(meta.statusMessage !== undefined ? { statusMessage: meta.statusMessage } : {}),
+    ...(meta.statusMetadata !== undefined ? { statusMetadata: meta.statusMetadata } : {}),
     messages,
     createdAt: meta.createdAt,
     updatedAt: meta.updatedAt,

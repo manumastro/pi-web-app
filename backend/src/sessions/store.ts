@@ -40,6 +40,8 @@ export interface Session {
   piSessionId?: string;
   piSessionFile?: string;
   status: SessionStatus;
+  statusMessage?: string;
+  statusMetadata?: Record<string, unknown>;
   messages: Message[];
   createdAt: string;
   updatedAt: string;

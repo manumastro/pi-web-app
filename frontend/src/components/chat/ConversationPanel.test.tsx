@@ -87,6 +87,15 @@ describe('ConversationPanel', () => {
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
+  it('re-anchors to bottom when work completes to avoid upward jump', () => {
+    const { rerender } = render(<ConversationPanel items={items} isWorking />);
+
+    vi.clearAllMocks();
+    rerender(<ConversationPanel items={items} isWorking={false} />);
+
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
   it('renders a grouped turn with collapsed reasoning/tool blocks and preserves arrival order', () => {
     const { container, getByText } = render(<ConversationPanel items={items} />);
 

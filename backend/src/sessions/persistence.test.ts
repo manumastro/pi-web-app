@@ -30,6 +30,22 @@ describe('persistence', () => {
     expect(parsed).toEqual(baseSession);
   });
 
+  it('persists runtime status message and metadata', () => {
+    const withStatus: Session = {
+      ...baseSession,
+      status: 'busy',
+      statusMessage: 'Context usage updated',
+      statusMetadata: {
+        contextWindow: 128000,
+        contextPercent: 32.5,
+        autoCompactionEnabled: true,
+      },
+    };
+
+    const parsed = parseSessionJsonl(sessionToJsonl(withStatus));
+    expect(parsed).toEqual(withStatus);
+  });
+
   it('returns undefined for invalid or empty input', () => {
     expect(parseSessionJsonl('')).toBeUndefined();
     expect(parseSessionJsonl('not-json')).toBeUndefined();

@@ -122,4 +122,20 @@ describe('event reducer session-ui sync', () => {
 
     expect(getDirectoryState(directory)?.session_status['session-1']?.metadata).toEqual({ contextPercent: 42.1, contextWindow: 128000 });
   });
+
+  it('stores status message and metadata on the session snapshot for reload/switch rehydration', () => {
+    const deps = createReducerDeps('/workspace/demo');
+
+    reduceSessionLifecyclePayload([], {
+      type: 'status',
+      sessionId: 'session-1',
+      status: 'busy',
+      message: 'Context usage updated',
+      metadata: { contextPercent: 51.2, contextWindow: 200000, autoCompactionEnabled: true },
+    }, deps);
+
+    const session = useSessionStore.getState().sessions.find((entry) => entry.id === 'session-1');
+    expect(session?.statusMessage).toBe('Context usage updated');
+    expect(session?.statusMetadata).toEqual({ contextPercent: 51.2, contextWindow: 200000, autoCompactionEnabled: true });
+  });
 });
