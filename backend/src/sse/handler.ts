@@ -2,6 +2,7 @@ import type { Request, Response, Router } from 'express';
 import express from 'express';
 import type { SessionStore } from '../sessions/store.js';
 import type { SseManager } from './manager.js';
+import { setSseHeaders } from './headers.js';
 
 export function createSseRouter(sseManager: SseManager, sessionStore: SessionStore): Router {
   const router = express.Router();
@@ -26,9 +27,7 @@ export function createSseRouter(sseManager: SseManager, sessionStore: SessionSto
           ? req.query.lastEventId
           : undefined;
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
+    setSseHeaders(res);
     res.flushHeaders();
 
     const client = sseManager.subscribe(sessionId, res, lastEventId ?? undefined);

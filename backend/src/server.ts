@@ -13,6 +13,7 @@ import { createRunnerOrchestrator } from './runner/orchestrator.js';
 import { createImageUploadStore } from './uploads/image-store.js';
 import { installRelayServer } from './relay/server.js';
 import { registerApiRoutes } from './api/index.js';
+import { installOpenChamberRoutes } from './api/openchamber-routes.js';
 
 export function createApp() {
   const config = loadConfig();
@@ -36,6 +37,25 @@ export function createApp() {
     res.json({ ok: true, clients: sseManager.clientCount() });
   });
 
+  const settingsFilePath = path.join(config.homeDir, '.pi', 'agent', 'pi-web-openchamber-settings.json');
+
+  const readSettings = (): Record<string, unknown> => {
+    try {
+      const raw = fs.readFileSync(settingsFilePath, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const writeSettings = (settings: Record<string, unknown>): void => {
+    fs.mkdirSync(path.dirname(settingsFilePath), { recursive: true });
+    const tmpPath = `${settingsFilePath}.tmp`;
+    fs.writeFileSync(tmpPath, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+    fs.renameSync(tmpPath, settingsFilePath);
+  };
+
   app.get('/api/config', (_req, res) => {
     res.json({
       homeDir: config.homeDir,
@@ -49,17 +69,35 @@ export function createApp() {
     });
   });
 
+  app.get('/api/config/settings', (_req, res) => {
+    const settings = readSettings();
+    res.json({
+      ...settings,
+      homeDirectory: config.homeDir,
+      homeDir: config.homeDir,
+    });
+  });
+
+  app.put('/api/config/settings', (req, res) => {
+    const current = readSettings();
+    const update = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+    const next = { ...current, ...update };
+    writeSettings(next);
+    res.json(next);
+  });
+
+  app.get('/api/fs/home', (_req, res) => {
+    res.json({ home: config.homeDir });
+  });
+
+  // OpenChamber SDK compatibility routes (centralized in openchamber-routes.ts)
+  installOpenChamberRoutes(app, { runner, sessionStore, sseManager, config });
+
   registerApiRoutes(app, { runner, sessionStore, preferencesStore, imageUploadStore, config });
   app.use('/api/events', createSseRouter(sseManager, sessionStore));
 
-  // Keep this before static SPA catch-all so frontend relay health checks never get index.html.
-  app.get('/api/relay/status', (_req, res) => {
-    res.json({
-      viewers: 0,
-      sessions: {},
-      transport: 'websocket',
-      path: '/api/relay',
-    });
+  app.get('/api/global/event/ws', (_req, res) => {
+    res.status(426).json({ error: 'WebSocket upgrade required' });
   });
 
   const disableFrontendHttpCache = (process.env.PI_WEB_DISABLE_FRONTEND_HTTP_CACHE ?? 'true').toLowerCase() !== 'false';
@@ -82,7 +120,19 @@ export function createApp() {
         }
       },
     }));
-    app.get('*', (_req, res) => {
+    app.get('*', (req, res) => {
+      const requestPath = req.path || '';
+      if (
+        requestPath.startsWith('/api/')
+        || requestPath.startsWith('/assets/')
+        || requestPath.startsWith('/icons/')
+        || requestPath === '/manifest.webmanifest'
+        || requestPath === '/sw.js'
+      ) {
+        res.status(404).json({ error: 'Not Found' });
+        return;
+      }
+
       if (disableFrontendHttpCache) {
         applyNoStoreHeaders(res);
       }
