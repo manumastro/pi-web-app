@@ -178,4 +178,14 @@ describe('installApiRoutes', () => {
     const metadataResp = await fetch(`${baseUrl}/openchamber/models-metadata`);
     expect(metadataResp.status).toBe(200);
   });
+
+  it('supports legacy message-sent notification endpoint', async () => {
+    sessionStore.createSession('/tmp/project', 'demo/model-a', 'session-compat');
+
+    const resp = await fetch(`${baseUrl}/sessions/session-compat/message-sent`, {
+      method: 'POST',
+    });
+
+    expect(resp.status).toBe(204);
+  });
 });

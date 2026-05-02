@@ -294,5 +294,16 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
     res.json(sessions.slice(0, limit).map((session) => toSdkSession(session)));
   });
 
+  // Frontend compatibility: fire-and-forget notification used after sends
+  router.post('/sessions/:sessionId/message-sent', (req: Request, res: Response) => {
+    const sessionId = paramStr(req.params.sessionId);
+    const session = sessionStore.getSession(sessionId);
+    if (session) {
+      // no-op touch for compatibility (keeps endpoint non-404)
+      sessionStore.updateSession(sessionId, {});
+    }
+    res.status(204).send();
+  });
+
   return router;
 }
