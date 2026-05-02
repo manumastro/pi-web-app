@@ -852,9 +852,6 @@ export function installOpenChamberRoutes(
       });
     }
     
-    // Filter by archived status
-    sessions = sessions.filter((s) => archived ? s.archived : !s.archived);
-    
     // Apply limit
     sessions = sessions.slice(0, limit);
     

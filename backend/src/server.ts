@@ -12,7 +12,6 @@ import { createSseRouter } from './sse/handler.js';
 import { createRunnerOrchestrator } from './runner/orchestrator.js';
 import { createImageUploadStore } from './uploads/image-store.js';
 import { installRelayServer } from './relay/server.js';
-import { registerApiRoutes } from './api/index.js';
 import { installOpenChamberRoutes } from './api/openchamber-routes.js';
 
 export function createApp() {
@@ -86,17 +85,12 @@ export function createApp() {
     res.json(next);
   });
 
-  // OpenChamber SDK compatibility routes (centralized in openchamber-routes.ts)
+  // OpenChamber SDK compatibility routes (monolithic, working)
   installOpenChamberRoutes(app, { runner, sessionStore, sseManager, config });
 
-  // Legacy Pi Web routes - commented out (replaced by OpenChamber)
+  // Legacy Pi Web routes (commented out - replaced by OpenChamber)
   // registerApiRoutes(app, { runner, sessionStore, preferencesStore, imageUploadStore, config });
   // app.use('/api/events', createSseRouter(sseManager, sessionStore));
-
-  // Duplicate /api/fs/home removed (now in openchamber-routes.ts)
-  // app.get('/api/fs/home', (_req, res) => {
-  //   res.json({ home: config.homeDir });
-  // });
 
   app.get('/api/global/event/ws', (_req, res) => {
     res.status(426).json({ error: 'WebSocket upgrade required' });
