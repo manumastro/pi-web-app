@@ -3,6 +3,13 @@ import type { SessionStore, Session } from '../../sessions/store.js';
 import { getExternalMessageId, toSdkAssistantMessageInfo, toSdkMessageInfo, toSdkSession, toSdkSessionStatus } from './mappers.js';
 import type { SdkGlobalEvent } from './types.js';
 
+const initializedTextParts = new Set<string>();
+const initializedReasoningParts = new Set<string>();
+
+function partKey(sessionId: string, messageId: string, suffix: string): string {
+  return `${sessionId}:${messageId}:${suffix}`;
+}
+
 export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): SdkGlobalEvent | SdkGlobalEvent[] | null {
   switch (event.type) {
     case 'message_updated': {
@@ -24,35 +31,66 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
       };
     }
     case 'text_chunk': {
-      return {
-        type: 'message.part.updated',
+      const id = `${event.messageId}-text`;
+      const key = partKey(event.sessionId, event.messageId, 'text');
+      const delta: SdkGlobalEvent = {
+        type: 'message.part.delta',
         properties: {
-          part: {
-            id: `${event.messageId}-text`,
-            sessionID: event.sessionId,
-            messageID: event.messageId,
-            type: 'text',
-            text: event.content,
-          },
+          messageID: event.messageId,
+          partID: id,
+          field: 'text',
           delta: event.content,
         },
       };
+      if (initializedTextParts.has(key)) return delta;
+      initializedTextParts.add(key);
+      return [
+        {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id,
+              sessionID: event.sessionId,
+              messageID: event.messageId,
+              type: 'text',
+              text: '',
+              time: { start: new Date(event.timestamp).getTime() },
+            },
+          },
+        },
+        delta,
+      ];
     }
     case 'thinking': {
-      return {
-        type: 'message.part.updated',
+      const id = `${event.messageId}-reasoning`;
+      const key = partKey(event.sessionId, event.messageId, 'reasoning');
+      const delta: SdkGlobalEvent = {
+        type: 'message.part.delta',
         properties: {
-          part: {
-            id: `${event.messageId}-reasoning`,
-            sessionID: event.sessionId,
-            messageID: event.messageId,
-            type: 'reasoning',
-            text: event.content,
-            time: { start: Date.now() },
-          },
+          messageID: event.messageId,
+          partID: id,
+          field: 'text',
           delta: event.content,
         },
       };
+      if (initializedReasoningParts.has(key)) return delta;
+      initializedReasoningParts.add(key);
+      return [
+        {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id,
+              sessionID: event.sessionId,
+              messageID: event.messageId,
+              type: 'reasoning',
+              text: '',
+              time: { start: new Date(event.timestamp).getTime() },
+            },
+          },
+        },
+        delta,
+      ];
     }
     case 'tool_call': {
       return {

@@ -41,6 +41,7 @@ interface ActiveTurn {
   userMessageId: string;
   assistantMessageId: string;
   assistantContent: string;
+  assistantAnnounced?: boolean;
 }
 
 function now(): string {
@@ -242,6 +243,18 @@ export function createRunnerOrchestrator(params: {
     return fallbackMessageId;
   }
 
+  function announceAssistantMessage(sessionId: string, active: ActiveTurn): void {
+    if (active.assistantAnnounced) return;
+    active.assistantAnnounced = true;
+    activeTurns.set(sessionId, active);
+    emit(sseManager, {
+      type: 'message_updated',
+      sessionId,
+      messageId: active.assistantMessageId,
+      timestamp: now(),
+    });
+  }
+
   function finalizeAssistant(sessionId: string, aborted: boolean, messageId: string): void {
     const active = activeTurns.get(sessionId);
     if (active && (active.assistantContent.length > 0 || aborted)) {
@@ -322,14 +335,9 @@ export function createRunnerOrchestrator(params: {
           assistantMessageId,
           assistantContent: '',
         };
+        announceAssistantMessage(event.sessionId, active);
         active.assistantContent += event.delta;
         activeTurns.set(event.sessionId, active);
-        emit(sseManager, {
-          type: 'message_updated',
-          sessionId: event.sessionId,
-          messageId: assistantMessageId,
-          timestamp: now(),
-        });
         emit(sseManager, {
           type: 'text_chunk',
           sessionId: event.sessionId,
@@ -341,6 +349,12 @@ export function createRunnerOrchestrator(params: {
       }
       case 'thinking': {
         const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
+        const active = activeTurns.get(event.sessionId) ?? {
+          userMessageId: event.messageId,
+          assistantMessageId,
+          assistantContent: '',
+        };
+        announceAssistantMessage(event.sessionId, active);
         emit(sseManager, {
           type: 'thinking',
           sessionId: event.sessionId,
@@ -353,6 +367,12 @@ export function createRunnerOrchestrator(params: {
       }
       case 'tool_call': {
         const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
+        const active = activeTurns.get(event.sessionId) ?? {
+          userMessageId: event.messageId,
+          assistantMessageId,
+          assistantContent: '',
+        };
+        announceAssistantMessage(event.sessionId, active);
         sessionStore.addMessage(event.sessionId, {
           role: 'tool_call',
           content: stringifyResult(event.input),
