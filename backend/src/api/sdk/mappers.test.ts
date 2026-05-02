@@ -26,6 +26,23 @@ describe('sdk mappers', () => {
     expect(parts[0]?.id).toBe('client-msg-id-text');
   });
 
+  it('uses internal id for assistant messages to avoid ID collisions', () => {
+    const msg = createMessage({
+      id: 'assistant-internal-id',
+      role: 'assistant',
+      messageId: 'client-msg-id',
+    });
+
+    expect(getExternalMessageId(msg)).toBe('assistant-internal-id');
+
+    const info = toSdkMessageInfo('session-1', msg);
+    expect(info.id).toBe('assistant-internal-id');
+
+    const parts = toSdkParts('session-1', msg);
+    expect(parts[0]?.messageID).toBe('assistant-internal-id');
+    expect(parts[0]?.id).toBe('assistant-internal-id-text');
+  });
+
   it('falls back to internal id when messageId is missing', () => {
     const msg = createMessage({ id: 'internal-only', messageId: undefined });
 

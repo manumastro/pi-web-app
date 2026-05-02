@@ -4,6 +4,13 @@ import type { SdkMessageInfo, SdkMessageWithParts, SdkPart, SdkSession } from '.
 type SessionMessage = Session['messages'][number];
 
 export function getExternalMessageId(msg: SessionMessage): string {
+  // Keep optimistic reconciliation stable for user messages (client messageId),
+  // but avoid collisions for assistant messages where Pi may mirror the same
+  // messageId as the triggering user turn.
+  if (msg.role === 'assistant') {
+    return msg.id;
+  }
+
   const candidate = typeof msg.messageId === 'string' ? msg.messageId.trim() : '';
   return candidate || msg.id;
 }
