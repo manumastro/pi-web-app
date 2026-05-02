@@ -59,6 +59,31 @@ export function createMiscRoutes(ctx: ApiRouteContext) {
     res.json({ ok: true });
   });
 
+  router.post('/client-error', (req: Request, res: Response) => {
+    const body = req.body && typeof req.body === 'object' ? req.body as Record<string, unknown> : {};
+    const level = typeof body.level === 'string' ? body.level : 'error';
+    const source = typeof body.source === 'string' ? body.source : 'frontend';
+    const name = typeof body.name === 'string' ? body.name : 'Error';
+    const message = typeof body.message === 'string' ? body.message : 'Unknown client error';
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : undefined;
+    const componentStack = typeof body.componentStack === 'string' ? body.componentStack : undefined;
+    const stack = typeof body.stack === 'string' ? body.stack : undefined;
+
+    // Intentionally logged to stderr/stdout so we can inspect via journalctl.
+    console.error('[client-error]', {
+      level,
+      source,
+      name,
+      message,
+      sessionId,
+      componentStack,
+      stack,
+      at: Date.now(),
+    });
+
+    res.json({ ok: true });
+  });
+
   router.get('/relay/status', (_req: Request, res: Response) => {
     res.json({
       viewers: 0,

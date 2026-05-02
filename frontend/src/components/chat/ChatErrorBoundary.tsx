@@ -29,6 +29,8 @@ interface ChatErrorBoundaryViewProps extends ChatErrorBoundaryProps {
 }
 
 class ChatErrorBoundaryView extends React.Component<ChatErrorBoundaryViewProps, ChatErrorBoundaryState> {
+  private hasReportedError = false;
+
   constructor(props: ChatErrorBoundaryViewProps) {
     super(props);
     this.state = { hasError: false };
@@ -41,12 +43,35 @@ class ChatErrorBoundaryView extends React.Component<ChatErrorBoundaryViewProps, 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ error, errorInfo });
 
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Chat error caught by boundary:', error, errorInfo);
+    console.error('Chat error caught by boundary:', error, errorInfo);
+
+    if (this.hasReportedError) {
+      return;
+    }
+    this.hasReportedError = true;
+
+    if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+      void window.fetch('/api/client-error', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          level: 'error',
+          source: 'chat-error-boundary',
+          sessionId: this.props.sessionId,
+          name: error?.name,
+          message: error?.message,
+          stack: error?.stack,
+          componentStack: errorInfo?.componentStack,
+          href: window.location.href,
+          userAgent: window.navigator?.userAgent,
+          at: Date.now(),
+        }),
+      }).catch(() => undefined);
     }
   }
 
   handleReset = () => {
+    this.hasReportedError = false;
     this.setState({ hasError: false, error: undefined, errorInfo: undefined });
   };
 
@@ -77,6 +102,7 @@ class ChatErrorBoundaryView extends React.Component<ChatErrorBoundaryViewProps, 
                   <summary className="cursor-pointer hover:bg-interactive-hover/80">{this.props.texts.detailsSummary}</summary>
                   <pre className="mt-2 max-h-48 overflow-auto">
                     {this.state.error.toString()}
+                    {this.state.errorInfo?.componentStack ? `\n\n${this.state.errorInfo.componentStack}` : ''}
                   </pre>
                 </details>
               )}
