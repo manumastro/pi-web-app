@@ -24,7 +24,12 @@ export function createGitRoutes(ctx: ApiRouteContext) {
 
   router.get('/git/worktrees/bootstrap-status', (req: Request, res: Response) => {
     const directory = queryStr(req.query.directory) || config.homeDir;
-    res.json({ bootstrapped: false, directory });
+    res.json({
+      status: 'ready',
+      error: null,
+      updatedAt: Date.now(),
+      directory,
+    });
   });
 
   router.get('/git/identities', (_req: Request, res: Response) => {

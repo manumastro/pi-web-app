@@ -167,8 +167,9 @@ describe('installApiRoutes', () => {
     expect(fsHomeResp.status).toBe(200);
 
     const gitResp = await fetch(`${baseUrl}/git/worktrees/bootstrap-status?directory=${encodeURIComponent('/tmp/project')}`);
-    const git = await gitResp.json() as { bootstrapped: boolean; directory: string };
-    expect(git.bootstrapped).toBe(false);
+    const git = await gitResp.json() as { status: string; error: string | null; directory: string };
+    expect(git.status).toBe('ready');
+    expect(git.error).toBeNull();
     expect(git.directory).toBe('/tmp/project');
 
     const wsResp = await fetch(`${baseUrl}/global/event/ws`);

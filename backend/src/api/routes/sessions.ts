@@ -172,6 +172,7 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
         promptMessage = `${message}\n\n${header}\n${lines.join('\n')}`;
       }
 
+      const previousModel = session.model;
       if (modelKey) sessionStore.updateSession(sessionId, { model: modelKey });
       sessionStore.updateSession(sessionId, { status: 'busy' });
 
@@ -183,14 +184,65 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
         },
       });
 
-      void runner.prompt({
-        sessionId,
-        cwd: session.cwd,
-        message: promptMessage,
-        displayMessage: message,
-        ...(modelKey !== undefined ? { model: modelKey } : {}),
-        ...(messageId ? { messageId } : {}),
-      }).catch((error) => {
+      const runPrompt = async (): Promise<void> => {
+        try {
+          await runner.prompt({
+            sessionId,
+            cwd: session.cwd,
+            message: promptMessage,
+            displayMessage: message,
+            ...(modelKey !== undefined ? { model: modelKey } : {}),
+            ...(messageId ? { messageId } : {}),
+          });
+          return;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const isModelNotFound = errorMessage.toLowerCase().includes('model not found');
+          if (modelKey && isModelNotFound) {
+            const models = await runner.listModels();
+            const fallbackModel =
+              models.find((m) => m.available && m.authConfigured)?.key
+              ?? models.find((m) => m.available)?.key
+              ?? models[0]?.key;
+
+            console.warn('[api] prompt_async fallback model', {
+              sessionId,
+              rejectedModel: modelKey,
+              fallbackModel,
+            });
+
+            if (fallbackModel) {
+              sessionStore.updateSession(sessionId, { model: fallbackModel });
+              await runner.prompt({
+                sessionId,
+                cwd: session.cwd,
+                message: promptMessage,
+                displayMessage: message,
+                model: fallbackModel,
+                ...(messageId ? { messageId } : {}),
+              });
+            } else {
+              sessionStore.updateSession(sessionId, { model: previousModel });
+              await runner.prompt({
+                sessionId,
+                cwd: session.cwd,
+                message: promptMessage,
+                displayMessage: message,
+                ...(messageId ? { messageId } : {}),
+              });
+            }
+            return;
+          }
+          throw error;
+        }
+      };
+
+      void runPrompt().catch((error) => {
+        console.error('[api] prompt_async failed', {
+          sessionId,
+          modelKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
         sessionStore.updateSession(sessionId, { status: 'error' });
         publishGlobalEvent({
           type: 'session.error',

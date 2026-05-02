@@ -60,11 +60,20 @@ export function toSdkMessages(sessionId: string, messages: Session['messages']):
     }
 
     if (msg.role === 'assistant') {
+      if (currentUser) {
+        grouped.push(currentUser);
+        currentUser = null;
+      }
       grouped.push({
         info: toSdkMessageInfo(sessionId, msg),
         parts: toSdkParts(sessionId, msg),
       });
       continue;
+    }
+
+    if (currentUser) {
+      grouped.push(currentUser);
+      currentUser = null;
     }
 
     if (grouped.length > 0) {
