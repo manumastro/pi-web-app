@@ -267,6 +267,11 @@ export const useDirectoryStore = create<DirectoryStore>()(
           console.log('[DirectoryStore] setDirectory called with path:', resolvedPath);
         }
 
+        const current = get();
+        if (current.currentDirectory === resolvedPath) {
+          return;
+        }
+
         opencodeClient.setDirectory(resolvedPath);
         invalidateFileSearchCache();
 

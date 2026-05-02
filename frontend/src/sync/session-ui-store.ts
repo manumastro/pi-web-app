@@ -370,10 +370,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     }
 
     const previousSessionId = get().currentSessionId
-
-    // Set currentSessionId immediately so the skeleton renders without delay.
-    set({ currentSessionId: id })
-
     const directoryState = useDirectoryStore.getState()
 
     const sessionDir = resolveSessionDirectory(
@@ -382,6 +378,19 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     )
     const fallbackDir = opencodeClient.getDirectory() ?? directoryState.currentDirectory ?? null
     const resolvedDir = (directoryHint ? normalizePath(directoryHint) : null) ?? sessionDir ?? fallbackDir
+
+    const hasSameSession = previousSessionId === id
+    const hasSameDirectory = !resolvedDir || directoryState.currentDirectory === resolvedDir
+    if (hasSameSession && hasSameDirectory) {
+      if (id) {
+        markSessionViewed(id)
+        setActiveSession(resolvedDir ?? "", id)
+      }
+      return
+    }
+
+    // Set currentSessionId immediately so the skeleton renders without delay.
+    set({ currentSessionId: id })
 
     try {
       if (resolvedDir && directoryState.currentDirectory !== resolvedDir) {
