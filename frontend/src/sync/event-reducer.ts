@@ -90,6 +90,44 @@ function shouldPreserveExistingPart(previous: Part, next: Part): boolean {
   return false
 }
 
+function ensureAssistantMessageForPart(draft: State, part: Part): boolean {
+  const sessionID = (part as { sessionID?: unknown }).sessionID
+  const messageID = (part as { messageID?: unknown }).messageID
+  if (typeof sessionID !== "string" || !sessionID || typeof messageID !== "string" || !messageID) {
+    return false
+  }
+
+  const existingMessages = draft.message[sessionID] ?? []
+  const result = Binary.search(existingMessages, messageID, (m) => m.id)
+  if (result.found) {
+    return false
+  }
+
+  const syntheticAssistant = {
+    id: messageID,
+    sessionID,
+    role: "assistant",
+    parentID: "",
+    modelID: "",
+    providerID: "",
+    mode: "",
+    path: { cwd: "", root: "" },
+    cost: 0,
+    tokens: {
+      input: 0,
+      output: 0,
+      reasoning: 0,
+      cache: { read: 0, write: 0 },
+    },
+    time: { created: Date.now() },
+  } as unknown as Message
+
+  const nextMessages = [...existingMessages]
+  nextMessages.splice(result.index, 0, syntheticAssistant)
+  draft.message[sessionID] = nextMessages
+  return true
+}
+
 // ---------------------------------------------------------------------------
 // Global events
 // ---------------------------------------------------------------------------
@@ -268,24 +306,35 @@ export function applyDirectoryEvent(
         syncDebug.reducer.partSkipped((part as { messageID: string }).messageID, part.id, part.type)
         return false
       }
+
+      const messageChanged = ensureAssistantMessageForPart(draft, part)
       const messageID = (part as { messageID: string }).messageID
       const parts = draft.part[messageID]
+
       if (!parts) {
         syncDebug.reducer.partUpdatedNoExistingParts(messageID, part.id, part.type)
         draft.part[messageID] = [part]
         return true
       }
+
       const next = [...parts]
+      let partChanged = false
       const result = Binary.search(next, part.id, (p) => p.id)
       if (result.found) {
         const previous = next[result.index]
         if (shouldPreserveExistingPart(previous, part)) {
-          return false
+          return messageChanged
         }
+
         const dedupeFields = getUpdatedDeltaFields(previous, part)
-        next[result.index] = dedupeFields.length > 0
+        const replacement = dedupeFields.length > 0
           ? { ...part, __dedupeNextDeltaFields: dedupeFields } as unknown as Part
           : part
+
+        if (next[result.index] !== replacement) {
+          next[result.index] = replacement
+          partChanged = true
+        }
       } else {
         // Replace optimistic part (no sessionID) with server part of same type.
         // Gate: only scan if the first part lacks sessionID (optimistic parts are
@@ -297,12 +346,19 @@ export function applyDirectoryEvent(
           : -1
         if (optimisticIdx >= 0) {
           next.splice(optimisticIdx, 1)
+          partChanged = true
         }
+
         const insertResult = Binary.search(next, part.id, (p) => p.id)
         next.splice(insertResult.index, 0, part)
+        partChanged = true
       }
-      draft.part[messageID] = next
-      return true
+
+      if (partChanged) {
+        draft.part[messageID] = next
+      }
+
+      return partChanged || messageChanged
     }
 
     case "message.part.removed": {

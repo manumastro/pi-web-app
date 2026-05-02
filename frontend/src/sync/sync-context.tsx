@@ -1183,6 +1183,7 @@ function handleEvent(
     case "message.part.removed":
     case "message.part.delta":
       draft.part = { ...current.part }
+      draft.message = { ...current.message }
       break
     case "vcs.branch.updated":
       break

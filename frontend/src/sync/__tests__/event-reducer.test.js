@@ -197,4 +197,29 @@ describe('applyDirectoryEvent', () => {
     expect(state.part[messageID]?.[0]?.state?.status).toBe('completed')
     expect(state.part[messageID]?.[0]?.state?.time?.end).toBe(20)
   })
+
+  it('materializes a synthetic assistant message when part updates arrive before message.updated', () => {
+    const state = structuredClone(INITIAL_STATE)
+    const sessionID = 'session-1'
+    const messageID = 'assistant-msg-1'
+
+    applyDirectoryEvent(state, {
+      type: 'message.part.updated',
+      properties: {
+        part: {
+          id: 'assistant-msg-1-text',
+          type: 'text',
+          sessionID,
+          messageID,
+          text: 'Hello from stream chunk',
+        },
+      },
+    })
+
+    expect(state.message[sessionID]).toBeDefined()
+    expect(state.message[sessionID]).toHaveLength(1)
+    expect(state.message[sessionID]?.[0]?.id).toBe(messageID)
+    expect(state.message[sessionID]?.[0]?.role).toBe('assistant')
+    expect(state.part[messageID]?.[0]?.text).toBe('Hello from stream chunk')
+  })
 })
