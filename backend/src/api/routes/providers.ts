@@ -135,7 +135,14 @@ export function createProviderRoutes(ctx: ApiRouteContext) {
   });
 
   router.get('/agent', (_req: Request, res: Response) => {
-    res.json([]);
+    // Frontend expects at least one agent during bootstrap; empty arrays trigger retry loops.
+    res.json([
+      {
+        name: 'build',
+        mode: 'primary',
+        description: 'Default build agent',
+      },
+    ]);
   });
 
   router.get('/command', (_req: Request, res: Response) => {

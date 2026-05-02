@@ -160,6 +160,12 @@ describe('installApiRoutes', () => {
     const modelsResp = await fetch(`${baseUrl}/models`);
     const models = await modelsResp.json() as { models: Array<{ id: string }> };
     expect(models.models[0]?.id).toBe('demo/model-a');
+
+    const agentsResp = await fetch(`${baseUrl}/agent`);
+    const agents = await agentsResp.json() as Array<{ name: string }>;
+    expect(Array.isArray(agents)).toBe(true);
+    expect(agents.length).toBeGreaterThan(0);
+    expect(agents[0]?.name).toBe('build');
   });
 
   it('serves filesystem, git and misc endpoints', async () => {
