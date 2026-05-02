@@ -65,6 +65,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@opencode-ai/sdk/v2': path.resolve(__dirname, '../node_modules/@opencode-ai/sdk/dist/v2/client.js'),
+      'bun:test': path.resolve(__dirname, './src/test/bun-test-shim.ts'),
     },
   },
   server: {

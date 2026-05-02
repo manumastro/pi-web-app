@@ -8,10 +8,4 @@ Add or update tests for every meaningful change; keep builds green.
 Use npm workspaces; verify with build/test before handoff.
 After each significant change, **always run `npm run build`** and restart the systemd service (`systemctl --user restart pi-web`) when the change affects the production build (CSS/UI changes, API changes, new dependencies, etc.).
 After each significant change, update BOTH current-state references: `BLUEPRINT.md` (section **15.0 Status Snapshot**, plus feature matrix/checklists when impacted) and `AGENTS.md` (`Current state` line in this file), keeping the `Current state` entry short.
-Current state (2026-05-02): Backend OpenChamber SDK compatibility layer fully implemented and verified:
-- ✅ All API endpoints working (health, config, path, projects, sessions, models, providers, files, SSE)
-- ✅ Debug logging enabled (LOG_LEVEL=debug in systemd service)
-- ✅ SSE bridge converts Pi events to OpenChamber format (message.part.updated, session.status, etc.)
-- ✅ Model listing via /api/models (14 models) and /api/provider (7 providers)
-- ✅ Session CRUD, prompt_async, message retrieval all working
-- ⚠️ Frontend: model picker and session creation need UI debugging (data shapes correct)
+Current state (2026-05-02): Backend API routes were modularized under `backend/src/api/routes/*` (no monolith), legacy unused routes removed, and full backend+frontend Vitest suites are green.

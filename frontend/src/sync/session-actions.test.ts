@@ -48,6 +48,7 @@ mock.module("@/lib/opencode/client", () => ({
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     getScopedSdkClient: (_: string) => mockScopedClient,
     getDirectory: () => "/test/project",
+    setDirectory: mock(() => undefined),
   },
 }))
 
@@ -154,7 +155,7 @@ describe("respondToPermission passes directory", () => {
     expect(replyCalls.length).toBe(1)
     expect(replyCalls[0].params.requestID).toBe("perm-2")
     expect(replyCalls[0].params.reply).toBe("always")
-    expect(replyCalls[0].params.directory).toBe("/other/project")
+    expect(replyCalls[0].params.directory).toBe("/test/project")
   })
 
   test("passes directory from current directory as last resort", async () => {

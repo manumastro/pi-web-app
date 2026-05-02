@@ -6,22 +6,17 @@ import fs from 'node:fs';
 import http from 'node:http';
 import { loadConfig } from './config/index.js';
 import { createPersistentSessionStore } from './sessions/persistent-store.js';
-import { createPreferencesStore } from './preferences/store.js';
 import { createSseManager } from './sse/manager.js';
-import { createSseRouter } from './sse/handler.js';
 import { createRunnerOrchestrator } from './runner/orchestrator.js';
-import { createImageUploadStore } from './uploads/image-store.js';
 import { installRelayServer } from './relay/server.js';
-import { installOpenChamberRoutes } from './api/openchamber-routes.js';
+import { installApiRoutes } from './api/routes/install.js';
 
 export function createApp() {
   const config = loadConfig();
   const logger = pino({ level: config.logLevel });
   const sessionStore = createPersistentSessionStore(config.sessionsDir);
   sessionStore.hydrateSync();
-  const preferencesStore = createPreferencesStore(path.join(config.homeDir, '.pi', 'agent', 'pi-web-preferences.json'));
   const sseManager = createSseManager(path.join(config.sessionsDir, '.sse-history'));
-  const imageUploadStore = createImageUploadStore(path.join(config.sessionsDir, '.uploads'));
   const runner = createRunnerOrchestrator({ config, sessionStore, sseManager });
 
   const app = express();
@@ -36,11 +31,13 @@ export function createApp() {
     res.json({ ok: true, clients: sseManager.clientCount() });
   });
 
-  const settingsFilePath = path.join(config.homeDir, '.pi', 'agent', 'pi-web-openchamber-settings.json');
+  const settingsFilePath = path.join(config.homeDir, '.pi', 'agent', 'pi-web-settings.json');
+  const legacySettingsFilePath = path.join(config.homeDir, '.pi', 'agent', 'pi-web-openchamber-settings.json');
 
   const readSettings = (): Record<string, unknown> => {
+    const readPath = fs.existsSync(settingsFilePath) ? settingsFilePath : legacySettingsFilePath;
     try {
-      const raw = fs.readFileSync(settingsFilePath, 'utf8');
+      const raw = fs.readFileSync(readPath, 'utf8');
       const parsed = JSON.parse(raw) as unknown;
       return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
     } catch {
@@ -85,16 +82,7 @@ export function createApp() {
     res.json(next);
   });
 
-  // OpenChamber SDK compatibility routes (monolithic, working)
-  installOpenChamberRoutes(app, { runner, sessionStore, sseManager, config });
-
-  // Legacy Pi Web routes (commented out - replaced by OpenChamber)
-  // registerApiRoutes(app, { runner, sessionStore, preferencesStore, imageUploadStore, config });
-  // app.use('/api/events', createSseRouter(sseManager, sessionStore));
-
-  app.get('/api/global/event/ws', (_req, res) => {
-    res.status(426).json({ error: 'WebSocket upgrade required' });
-  });
+  installApiRoutes(app, { runner, sessionStore, sseManager, config });
 
   const disableFrontendHttpCache = (process.env.PI_WEB_DISABLE_FRONTEND_HTTP_CACHE ?? 'true').toLowerCase() !== 'false';
   const applyNoStoreHeaders = (res: express.Response): void => {
