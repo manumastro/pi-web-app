@@ -70,6 +70,10 @@ function routeMessage(params: {
   files?: Array<{ type: "file"; mime: string; url: string; filename: string }>
   additionalParts?: Array<{ text: string; synthetic?: boolean; files?: Array<{ type: "file"; mime: string; url: string; filename: string }> }>
 }): Promise<void> {
+  if (!params.sessionId) {
+    return Promise.reject(new Error("Cannot send message without an active session"))
+  }
+
   if (params.inputMode === "shell") {
     const sdk = opencodeClient.getSdkClient()
     const dir = opencodeClient.getDirectory() || undefined
@@ -810,49 +814,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     }
 
     // ---- Existing session ----
-    const currentSessionId = get().currentSessionId
+    let currentSessionId = get().currentSessionId
+    const configAgentName = useConfigStore.getState().currentAgentName
     const sessionAgentSelection = currentSessionId
       ? useSelectionStore.getState().getSessionAgentSelection(currentSessionId)
       : null
-    const configAgentName = useConfigStore.getState().currentAgentName
     const effectiveAgent = trimmedAgent || sessionAgentSelection || configAgentName || undefined
-
-    if (currentSessionId && effectiveAgent) {
-      useSelectionStore.getState().saveSessionAgentSelection(currentSessionId, effectiveAgent)
-      useSelectionStore.getState().saveAgentModelVariantForSession(currentSessionId, effectiveAgent, providerID, modelID, variant)
-    }
-
-    if (currentSessionId) {
-      const viewportState = useViewportStore.getState()
-      const memState = viewportState.sessionMemoryState.get(currentSessionId)
-      if (!memState || !memState.lastUserMessageAt) {
-        const newMemState = new Map(viewportState.sessionMemoryState)
-        newMemState.set(currentSessionId, {
-          viewportAnchor: 0,
-          isStreaming: false,
-          lastAccessedAt: Date.now(),
-          backgroundMessageCount: 0,
-          ...memState,
-          lastUserMessageAt: Date.now(),
-        })
-        useViewportStore.setState({ sessionMemoryState: newMemState })
-      }
-    }
-
-    const currentSessionDirectory = currentSessionId
-      ? normalizePath(get().getDirectoryForSession(currentSessionId))
-      : null
-    if (currentSessionDirectory) {
-      await waitForWorktreeBootstrap(currentSessionDirectory)
-    }
-
-    if (currentSessionId) {
-      notifyMessageSent(currentSessionId)
-    }
-
-    if (currentSessionId) {
-      markPendingUserSendAnimation(currentSessionId)
-    }
 
     const files = attachments?.map((a) => ({
       type: "file" as const,
@@ -861,8 +828,83 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       filename: a.filename,
     }))
 
+    // No active session: create one on-demand and send there.
+    if (!currentSessionId) {
+      const fallbackDirectory = normalizePath(opencodeClient.getDirectory() ?? useDirectoryStore.getState().currentDirectory ?? null)
+      const created = await get().createSession(content.trim() || 'New session', fallbackDirectory, null)
+      if (!created?.id) {
+        throw new Error('Failed to create session for message send')
+      }
+
+      currentSessionId = created.id
+      const createdDirectory = normalizePath(created.directory ?? fallbackDirectory)
+      get().setCurrentSession(created.id, createdDirectory)
+
+      if (effectiveAgent) {
+        useSelectionStore.getState().saveSessionAgentSelection(created.id, effectiveAgent)
+        useSelectionStore.getState().saveAgentModelVariantForSession(created.id, effectiveAgent, providerID, modelID, variant)
+      }
+
+      if (createdDirectory) {
+        await waitForWorktreeBootstrap(createdDirectory)
+      }
+
+      notifyMessageSent(created.id)
+      markPendingUserSendAnimation(created.id)
+
+      await routeMessage({
+        sessionId: created.id,
+        content,
+        providerID,
+        modelID,
+        agent: effectiveAgent,
+        variant,
+        inputMode,
+        files,
+        additionalParts: additionalParts?.map((p) => ({
+          text: p.text,
+          synthetic: p.synthetic,
+          files: p.attachments?.map((a) => ({
+            type: "file" as const,
+            mime: a.mimeType,
+            url: a.dataUrl,
+            filename: a.filename,
+          })),
+        })),
+      })
+      return
+    }
+
+    if (effectiveAgent) {
+      useSelectionStore.getState().saveSessionAgentSelection(currentSessionId, effectiveAgent)
+      useSelectionStore.getState().saveAgentModelVariantForSession(currentSessionId, effectiveAgent, providerID, modelID, variant)
+    }
+
+    const viewportState = useViewportStore.getState()
+    const memState = viewportState.sessionMemoryState.get(currentSessionId)
+    if (!memState || !memState.lastUserMessageAt) {
+      const newMemState = new Map(viewportState.sessionMemoryState)
+      newMemState.set(currentSessionId, {
+        viewportAnchor: 0,
+        isStreaming: false,
+        lastAccessedAt: Date.now(),
+        backgroundMessageCount: 0,
+        ...memState,
+        lastUserMessageAt: Date.now(),
+      })
+      useViewportStore.setState({ sessionMemoryState: newMemState })
+    }
+
+    const currentSessionDirectory = normalizePath(get().getDirectoryForSession(currentSessionId))
+    if (currentSessionDirectory) {
+      await waitForWorktreeBootstrap(currentSessionDirectory)
+    }
+
+    notifyMessageSent(currentSessionId)
+    markPendingUserSendAnimation(currentSessionId)
+
     await routeMessage({
-      sessionId: currentSessionId || "",
+      sessionId: currentSessionId,
       content,
       providerID,
       modelID,
