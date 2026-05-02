@@ -54,7 +54,9 @@ export function createPersistentSessionStore(sessionsDir: string): PersistentSes
     return {
       ...session,
       status: snapshot.status,
-      messages: snapshot.messages,
+      // Keep local store messages when present: they preserve frontend-facing
+      // message IDs used by optimistic reconciliation.
+      messages: session.messages.length > 0 ? session.messages : snapshot.messages,
       ...(snapshot.model !== undefined ? { model: snapshot.model } : {}),
       ...(snapshot.thinkingLevel !== undefined ? { thinkingLevel: snapshot.thinkingLevel } : {}),
       ...(snapshot.piSessionId !== undefined ? { piSessionId: snapshot.piSessionId } : {}),

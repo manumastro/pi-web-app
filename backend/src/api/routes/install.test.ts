@@ -131,10 +131,12 @@ describe('installApiRoutes', () => {
     const session = sessionStore.createSession('/tmp/project', 'demo/model-a', 'session-1');
     expect(session.id).toBe('session-1');
 
+    const clientMessageId = 'msg-client-1';
     const resp = await fetch(`${baseUrl}/session/session-1/prompt_async`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        messageID: clientMessageId,
         parts: [{ type: 'text', text: 'hello' }],
         model: { providerID: 'demo', modelID: 'model-a' },
       }),
@@ -142,9 +144,10 @@ describe('installApiRoutes', () => {
 
     expect(resp.status).toBe(204);
     expect(prompt).toHaveBeenCalledTimes(1);
-    const called = prompt.mock.calls[0]?.[0] as { message: string; displayMessage: string; model: string };
+    const called = prompt.mock.calls[0]?.[0] as { message: string; displayMessage: string; model: string; messageId?: string };
     expect(called.displayMessage).toBe('hello');
     expect(called.model).toBe('demo/model-a');
+    expect(called.messageId).toBe(clientMessageId);
   });
 
   it('returns provider and model payloads as arrays', async () => {

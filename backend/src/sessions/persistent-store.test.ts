@@ -77,4 +77,49 @@ describe('persistent session store', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('preserves local messages when merging pi snapshot metadata', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'pi-web-persist-'));
+    const piSessionFile = path.join(dir, 'pi-session.jsonl');
+    const localSession: Session = {
+      ...session,
+      piSessionFile,
+      messages: [
+        {
+          id: 'local-internal-id',
+          messageId: 'client-msg-id',
+          role: 'user',
+          content: 'hello from client id',
+          timestamp: '2026-04-15T10:00:00.000Z',
+        },
+      ],
+    };
+    const snapshotSession: Session = {
+      ...localSession,
+      messages: [
+        {
+          id: 'pi-short-id',
+          role: 'user',
+          content: 'hello from pi snapshot',
+          timestamp: '2026-04-15T10:00:01.000Z',
+        },
+      ],
+      status: 'idle',
+    };
+
+    try {
+      await writeFile(piSessionFile, sessionToJsonl(snapshotSession), 'utf8');
+      writeSessionFileSync(dir, localSession);
+      const store = createPersistentSessionStore(dir);
+      store.hydrateSync();
+
+      const loaded = store.getSession(localSession.id);
+      expect(loaded).toBeDefined();
+      expect(loaded?.messages[0]?.id).toBe('local-internal-id');
+      expect(loaded?.messages[0]?.messageId).toBe('client-msg-id');
+      expect(loaded?.status).toBe('idle');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

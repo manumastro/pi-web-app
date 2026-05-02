@@ -3,6 +3,11 @@ import type { SdkMessageInfo, SdkMessageWithParts, SdkPart, SdkSession } from '.
 
 type SessionMessage = Session['messages'][number];
 
+export function getExternalMessageId(msg: SessionMessage): string {
+  const candidate = typeof msg.messageId === 'string' ? msg.messageId.trim() : '';
+  return candidate || msg.id;
+}
+
 export function toSdkSession(session: Session, projectId = 'pi-web-project'): SdkSession {
   const title = session.title || 'Session';
   return {
@@ -20,8 +25,9 @@ export function toSdkSession(session: Session, projectId = 'pi-web-project'): Sd
 }
 
 export function toSdkMessageInfo(sessionId: string, msg: SessionMessage): SdkMessageInfo {
+  const messageId = getExternalMessageId(msg);
   return {
-    id: msg.id,
+    id: messageId,
     sessionID: sessionId,
     role: msg.role === 'assistant' ? 'assistant' : 'user',
     time: { created: new Date(msg.timestamp).getTime() },
@@ -30,13 +36,14 @@ export function toSdkMessageInfo(sessionId: string, msg: SessionMessage): SdkMes
 
 export function toSdkParts(sessionId: string, msg: SessionMessage): SdkPart[] {
   const parts: SdkPart[] = [];
+  const messageId = getExternalMessageId(msg);
 
   if (msg.content) {
     const partType = msg.role === 'tool_call' ? 'tool' : msg.role === 'tool_result' ? 'tool' : 'text';
     parts.push({
-      id: `${msg.id}-text`,
+      id: `${messageId}-text`,
       sessionID: sessionId,
-      messageID: msg.id,
+      messageID: messageId,
       type: partType,
       text: msg.content,
     });

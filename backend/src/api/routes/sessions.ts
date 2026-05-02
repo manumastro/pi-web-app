@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import type { ApiRouteContext } from './context.js';
 import { paramStr, queryStr } from '../shared/request.js';
-import { toSdkMessageInfo, toSdkMessages, toSdkParts, toSdkSession, toSdkSessionStatus } from '../sdk/mappers.js';
+import { getExternalMessageId, toSdkMessageInfo, toSdkMessages, toSdkParts, toSdkSession, toSdkSessionStatus } from '../sdk/mappers.js';
 
 export function createSessionRoutes(ctx: ApiRouteContext) {
   const { runner, sessionStore, config, publishGlobalEvent } = ctx;
@@ -125,7 +125,8 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
       return;
     }
 
-    const msg = session.messages.find((m) => m.id === paramStr(req.params.messageId));
+    const requestedMessageId = paramStr(req.params.messageId);
+    const msg = session.messages.find((m) => getExternalMessageId(m) === requestedMessageId || m.id === requestedMessageId);
     if (!msg) {
       res.status(404).json({ error: 'Message not found' });
       return;
