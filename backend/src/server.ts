@@ -86,15 +86,17 @@ export function createApp() {
     res.json(next);
   });
 
-  app.get('/api/fs/home', (_req, res) => {
-    res.json({ home: config.homeDir });
-  });
-
   // OpenChamber SDK compatibility routes (centralized in openchamber-routes.ts)
   installOpenChamberRoutes(app, { runner, sessionStore, sseManager, config });
 
-  registerApiRoutes(app, { runner, sessionStore, preferencesStore, imageUploadStore, config });
-  app.use('/api/events', createSseRouter(sseManager, sessionStore));
+  // Legacy Pi Web routes - commented out (replaced by OpenChamber)
+  // registerApiRoutes(app, { runner, sessionStore, preferencesStore, imageUploadStore, config });
+  // app.use('/api/events', createSseRouter(sseManager, sessionStore));
+
+  // Duplicate /api/fs/home removed (now in openchamber-routes.ts)
+  // app.get('/api/fs/home', (_req, res) => {
+  //   res.json({ home: config.homeDir });
+  // });
 
   app.get('/api/global/event/ws', (_req, res) => {
     res.status(426).json({ error: 'WebSocket upgrade required' });
