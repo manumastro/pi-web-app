@@ -1,4 +1,5 @@
 import type { Session } from '../../sessions/store.js';
+import { parseModelKey } from '../../models/resolver.js';
 import type { SdkMessageInfo, SdkMessageWithParts, SdkPart, SdkSession } from './types.js';
 
 type SessionMessage = Session['messages'][number];
@@ -31,13 +32,39 @@ export function toSdkSession(session: Session, projectId = 'pi-web-project'): Sd
   };
 }
 
-export function toSdkMessageInfo(sessionId: string, msg: SessionMessage): SdkMessageInfo {
+export function toSdkMessageInfo(session: Session, msg: SessionMessage): SdkMessageInfo {
   const messageId = getExternalMessageId(msg);
+  const created = new Date(msg.timestamp).getTime();
+  const parsedModel = parseModelKey(session.model);
+  const providerID = parsedModel?.provider ?? 'openai-codex';
+  const modelID = parsedModel?.modelId ?? 'gpt-5.4-mini';
+
+  if (msg.role === 'assistant') {
+    const previousUser = [...session.messages]
+      .reverse()
+      .find((candidate) => candidate.role === 'user' && new Date(candidate.timestamp).getTime() <= created);
+    return {
+      id: messageId,
+      sessionID: session.id,
+      role: 'assistant',
+      time: { created, completed: created },
+      parentID: previousUser ? getExternalMessageId(previousUser) : '',
+      providerID,
+      modelID,
+      mode: 'build',
+      path: { cwd: session.cwd, root: session.cwd },
+      cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    };
+  }
+
   return {
     id: messageId,
-    sessionID: sessionId,
-    role: msg.role === 'assistant' ? 'assistant' : 'user',
-    time: { created: new Date(msg.timestamp).getTime() },
+    sessionID: session.id,
+    role: 'user',
+    time: { created },
+    agent: 'build',
+    model: { providerID, modelID },
   };
 }
 
@@ -59,16 +86,16 @@ export function toSdkParts(sessionId: string, msg: SessionMessage): SdkPart[] {
   return parts;
 }
 
-export function toSdkMessages(sessionId: string, messages: Session['messages']): SdkMessageWithParts[] {
+export function toSdkMessages(session: Session): SdkMessageWithParts[] {
   const grouped: SdkMessageWithParts[] = [];
   let currentUser: SdkMessageWithParts | null = null;
 
-  for (const msg of messages) {
+  for (const msg of session.messages) {
     if (msg.role === 'user') {
       if (currentUser) grouped.push(currentUser);
       currentUser = {
-        info: toSdkMessageInfo(sessionId, msg),
-        parts: toSdkParts(sessionId, msg),
+        info: toSdkMessageInfo(session, msg),
+        parts: toSdkParts(session.id, msg),
       };
       continue;
     }
@@ -79,8 +106,8 @@ export function toSdkMessages(sessionId: string, messages: Session['messages']):
         currentUser = null;
       }
       grouped.push({
-        info: toSdkMessageInfo(sessionId, msg),
-        parts: toSdkParts(sessionId, msg),
+        info: toSdkMessageInfo(session, msg),
+        parts: toSdkParts(session.id, msg),
       });
       continue;
     }
@@ -93,7 +120,7 @@ export function toSdkMessages(sessionId: string, messages: Session['messages']):
     if (grouped.length > 0) {
       const last = grouped[grouped.length - 1]!;
       if (last.info.role === 'assistant') {
-        last.parts.push(...toSdkParts(sessionId, msg));
+        last.parts.push(...toSdkParts(session.id, msg));
       }
     }
   }

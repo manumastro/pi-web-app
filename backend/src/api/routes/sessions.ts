@@ -115,7 +115,7 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
       return;
     }
 
-    res.json(toSdkMessages(session.id, session.messages));
+    res.json(toSdkMessages(session));
   });
 
   router.get('/session/:sessionId/message/:messageId', (req: Request, res: Response) => {
@@ -133,7 +133,7 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
     }
 
     res.json({
-      info: toSdkMessageInfo(session.id, msg),
+      info: toSdkMessageInfo(session, msg),
       parts: toSdkParts(session.id, msg),
     });
   });

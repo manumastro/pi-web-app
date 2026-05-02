@@ -16,13 +16,19 @@ export interface SdkMessageInfo {
   id: string;
   sessionID: string;
   role: 'user' | 'assistant';
-  time: { created: number };
+  time: { created: number; completed?: number };
   error?: unknown;
+  // UserMessage shape
+  agent?: string;
+  model?: { providerID: string; modelID: string };
+  // AssistantMessage shape
+  parentID?: string;
   modelID?: string;
   providerID?: string;
   mode?: string;
+  path?: { cwd: string; root: string };
   cost?: number;
-  tokens?: { input: number; output: number; reasoning: number; cache?: { read: number; write: number } };
+  tokens?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } };
 }
 
 export interface SdkPart {

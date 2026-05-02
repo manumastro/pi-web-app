@@ -10,6 +10,14 @@ interface ProviderDescriptor {
   models: unknown[];
 }
 
+const FALLBACK_MODEL_KEY = 'openai-codex/gpt-5.4-mini';
+
+function defaultModelSelection(modelKey: string | undefined): { providerID: string; modelID: string } {
+  const key = modelKey?.trim() || FALLBACK_MODEL_KEY;
+  const [providerID, ...rest] = key.split('/');
+  return { providerID: providerID || 'openai-codex', modelID: rest.join('/') || 'gpt-5.4-mini' };
+}
+
 function modelCapability(model: {
   provider: string;
   id: string;
@@ -50,7 +58,7 @@ function modelCapability(model: {
 }
 
 export function createProviderRoutes(ctx: ApiRouteContext) {
-  const { runner } = ctx;
+  const { runner, config } = ctx;
   const router = express.Router();
 
   router.get('/provider', async (_req: Request, res: Response) => {
@@ -74,7 +82,11 @@ export function createProviderRoutes(ctx: ApiRouteContext) {
       }
 
       const all = Array.from(providerMap.values());
-      res.json({ all, default: {}, connected: all });
+      res.json({
+        all,
+        default: defaultModelSelection(config.model),
+        connected: all,
+      });
     } catch {
       res.json({ all: [], default: {}, connected: [] });
     }
@@ -105,7 +117,10 @@ export function createProviderRoutes(ctx: ApiRouteContext) {
         provider.models.push(modelCapability(model));
       }
 
-      res.json({ providers: Array.from(providerMap.values()), default: {} });
+      res.json({
+        providers: Array.from(providerMap.values()),
+        default: defaultModelSelection(config.model),
+      });
     } catch {
       res.json({ providers: [], default: {} });
     }

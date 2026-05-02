@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getExternalMessageId, toSdkMessageInfo, toSdkParts } from './mappers.js';
-import type { Message } from '../../sessions/store.js';
+import type { Message, Session } from '../../sessions/store.js';
 
 function createMessage(overrides: Partial<Message>): Message {
   return {
@@ -12,14 +12,28 @@ function createMessage(overrides: Partial<Message>): Message {
   };
 }
 
+function createSession(messages: Message[]): Session {
+  return {
+    id: 'session-1',
+    cwd: '/repo',
+    model: 'openai-codex/gpt-5.4-mini',
+    status: 'idle',
+    messages,
+    createdAt: '2026-05-02T12:00:00.000Z',
+    updatedAt: '2026-05-02T12:00:00.000Z',
+  };
+}
+
 describe('sdk mappers', () => {
   it('prefers messageId over internal id for external API identity', () => {
     const msg = createMessage({ id: 'internal', messageId: 'client-msg-id' });
 
     expect(getExternalMessageId(msg)).toBe('client-msg-id');
 
-    const info = toSdkMessageInfo('session-1', msg);
+    const info = toSdkMessageInfo(createSession([msg]), msg);
     expect(info.id).toBe('client-msg-id');
+    expect(info.model).toEqual({ providerID: 'openai-codex', modelID: 'gpt-5.4-mini' });
+    expect(info.agent).toBe('build');
 
     const parts = toSdkParts('session-1', msg);
     expect(parts[0]?.messageID).toBe('client-msg-id');
@@ -35,8 +49,11 @@ describe('sdk mappers', () => {
 
     expect(getExternalMessageId(msg)).toBe('assistant-internal-id');
 
-    const info = toSdkMessageInfo('session-1', msg);
+    const info = toSdkMessageInfo(createSession([msg]), msg);
     expect(info.id).toBe('assistant-internal-id');
+    expect(info.providerID).toBe('openai-codex');
+    expect(info.modelID).toBe('gpt-5.4-mini');
+    expect(info.path).toEqual({ cwd: '/repo', root: '/repo' });
 
     const parts = toSdkParts('session-1', msg);
     expect(parts[0]?.messageID).toBe('assistant-internal-id');
@@ -48,7 +65,7 @@ describe('sdk mappers', () => {
 
     expect(getExternalMessageId(msg)).toBe('internal-only');
 
-    const info = toSdkMessageInfo('session-1', msg);
+    const info = toSdkMessageInfo(createSession([msg]), msg);
     expect(info.id).toBe('internal-only');
   });
 });

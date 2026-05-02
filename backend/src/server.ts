@@ -67,8 +67,12 @@ export function createApp() {
 
   app.get('/api/config/settings', (_req, res) => {
     const settings = readSettings();
+    const defaultModel = typeof settings.defaultModel === 'string' && settings.defaultModel.trim().length > 0
+      ? settings.defaultModel
+      : (config.model ?? 'openai-codex/gpt-5.4-mini');
     res.json({
       ...settings,
+      defaultModel,
       homeDirectory: config.homeDir,
       homeDir: config.homeDir,
     });
