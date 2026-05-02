@@ -38,7 +38,8 @@ export interface RunnerOrchestrator {
 }
 
 interface ActiveTurn {
-  assistantMessageId: string | null;
+  userMessageId: string;
+  assistantMessageId: string;
   assistantContent: string;
 }
 
@@ -233,6 +234,14 @@ export function createRunnerOrchestrator(params: {
     if (!result.ok) throw new Error(result.error ?? 'Failed to start Pi runner session');
   }
 
+  function resolveAssistantMessageId(sessionId: string, fallbackMessageId: string): string {
+    const active = activeTurns.get(sessionId);
+    if (active?.assistantMessageId) {
+      return active.assistantMessageId;
+    }
+    return fallbackMessageId;
+  }
+
   function finalizeAssistant(sessionId: string, aborted: boolean, messageId: string): void {
     const active = activeTurns.get(sessionId);
     if (active && (active.assistantContent.length > 0 || aborted)) {
@@ -242,7 +251,7 @@ export function createRunnerOrchestrator(params: {
         messageId,
       });
     }
-    activeTurns.set(sessionId, { assistantMessageId: null, assistantContent: '' });
+    activeTurns.delete(sessionId);
     sessionStore.updateSession(sessionId, { status: 'idle' });
   }
 
@@ -307,41 +316,48 @@ export function createRunnerOrchestrator(params: {
         break;
       }
       case 'text': {
-        const active = activeTurns.get(event.sessionId) ?? { assistantMessageId: event.messageId, assistantContent: '' };
-        active.assistantMessageId = event.messageId;
+        const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
+        const active = activeTurns.get(event.sessionId) ?? {
+          userMessageId: event.messageId,
+          assistantMessageId,
+          assistantContent: '',
+        };
         active.assistantContent += event.delta;
         activeTurns.set(event.sessionId, active);
         emit(sseManager, {
           type: 'text_chunk',
           sessionId: event.sessionId,
-          messageId: event.messageId,
+          messageId: assistantMessageId,
           content: event.delta,
           timestamp: now(),
         });
         break;
       }
-      case 'thinking':
+      case 'thinking': {
+        const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
         emit(sseManager, {
           type: 'thinking',
           sessionId: event.sessionId,
-          messageId: event.messageId,
+          messageId: assistantMessageId,
           content: event.delta,
           done: false,
           timestamp: now(),
         });
         break;
-      case 'tool_call':
+      }
+      case 'tool_call': {
+        const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
         sessionStore.addMessage(event.sessionId, {
           role: 'tool_call',
           content: stringifyResult(event.input),
-          messageId: event.messageId,
+          messageId: assistantMessageId,
           toolName: event.toolName,
           toolCallId: event.toolCallId,
         });
         emit(sseManager, {
           type: 'tool_call',
           sessionId: event.sessionId,
-          messageId: event.messageId,
+          messageId: assistantMessageId,
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           input: event.input && typeof event.input === 'object' ? event.input as Record<string, unknown> : { value: event.input },
@@ -362,26 +378,30 @@ export function createRunnerOrchestrator(params: {
           }
         }
         break;
-      case 'tool_result':
+      }
+      case 'tool_result': {
+        const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
         sessionStore.addMessage(event.sessionId, {
           role: 'tool_result',
           content: stringifyResult(event.output),
-          messageId: event.messageId,
+          messageId: assistantMessageId,
           toolCallId: event.toolCallId,
           success: event.success ?? true,
         });
         emit(sseManager, {
           type: 'tool_result',
           sessionId: event.sessionId,
-          messageId: event.messageId,
+          messageId: assistantMessageId,
           toolCallId: event.toolCallId,
           result: stringifyResult(event.output),
           success: event.success ?? true,
           timestamp: now(),
         });
         break;
-      case 'done':
-        finalizeAssistant(event.sessionId, event.aborted ?? false, event.messageId);
+      }
+      case 'done': {
+        const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
+        finalizeAssistant(event.sessionId, event.aborted ?? false, assistantMessageId);
         sessionStore.updateSession(event.sessionId, {
           status: 'idle',
           statusMessage: event.aborted ? 'CLI stopped' : 'CLI idle',
@@ -389,7 +409,7 @@ export function createRunnerOrchestrator(params: {
         emit(sseManager, {
           type: 'done',
           sessionId: event.sessionId,
-          messageId: event.messageId,
+          messageId: assistantMessageId,
           aborted: event.aborted ?? false,
           timestamp: now(),
         });
@@ -401,6 +421,7 @@ export function createRunnerOrchestrator(params: {
           timestamp: now(),
         });
         break;
+      }
       case 'question_resolved':
         sessionStore.updateSession(event.sessionId, { status: 'busy' });
         emit(sseManager, {
@@ -494,6 +515,7 @@ export function createRunnerOrchestrator(params: {
     const cwd = request.cwd ?? config.piCwd;
     const session = ensureStoredSession(sessionId, cwd, request.model);
     const messageId = request.messageId ?? config.generateSessionId();
+    const assistantMessageId = `asst_${config.generateSessionId()}`;
 
     if (request.model) sessionStore.updateSession(session.id, { model: request.model });
     if (request.thinkingLevel) sessionStore.updateSession(session.id, { thinkingLevel: request.thinkingLevel });
@@ -522,7 +544,11 @@ export function createRunnerOrchestrator(params: {
       messageId,
       ...(request.attachments && request.attachments.length > 0 ? { attachments: request.attachments } : {}),
     });
-    activeTurns.set(session.id, { assistantMessageId: messageId, assistantContent: '' });
+    activeTurns.set(session.id, {
+      userMessageId: messageId,
+      assistantMessageId,
+      assistantContent: '',
+    });
     emit(sseManager, {
       type: 'status',
       sessionId: session.id,

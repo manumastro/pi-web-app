@@ -154,6 +154,14 @@ describe('RunnerOrchestrator', () => {
 
     expect(result.sessionId).toBe('session-1');
     expect(events.map((event) => event.type)).toEqual(['session_name', 'status', 'thinking', 'tool_call', 'status', 'tool_result', 'text_chunk', 'text_chunk', 'done', 'status']);
+
+    const assistantEventMessageIds = events
+      .filter((event) => event.type === 'thinking' || event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'text_chunk' || event.type === 'done')
+      .map((event) => event.messageId);
+    expect(assistantEventMessageIds.length).toBeGreaterThan(0);
+    expect(new Set(assistantEventMessageIds).size).toBe(1);
+    expect(assistantEventMessageIds[0]).not.toBe('message-1');
+
     const session = sessionStore.getSession('session-1');
     expect(session?.status).toBe('idle');
     expect(session?.title).toBe('Say hello');
