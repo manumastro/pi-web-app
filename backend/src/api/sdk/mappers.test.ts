@@ -40,24 +40,24 @@ describe('sdk mappers', () => {
     expect(parts[0]?.id).toBe('client-msg-id-text');
   });
 
-  it('uses internal id for assistant messages to avoid ID collisions', () => {
+  it('uses separate client-visible id for assistant messages', () => {
     const msg = createMessage({
       id: 'assistant-internal-id',
       role: 'assistant',
       messageId: 'client-msg-id',
     });
 
-    expect(getExternalMessageId(msg)).toBe('assistant-internal-id');
+    expect(getExternalMessageId(msg)).toBe('client-msg-id');
 
     const info = toSdkMessageInfo(createSession([msg]), msg);
-    expect(info.id).toBe('assistant-internal-id');
+    expect(info.id).toBe('client-msg-id');
     expect(info.providerID).toBe('openai-codex');
     expect(info.modelID).toBe('gpt-5.4-mini');
     expect(info.path).toEqual({ cwd: '/repo', root: '/repo' });
 
     const parts = toSdkParts('session-1', msg);
-    expect(parts[0]?.messageID).toBe('assistant-internal-id');
-    expect(parts[0]?.id).toBe('assistant-internal-id-text');
+    expect(parts[0]?.messageID).toBe('client-msg-id');
+    expect(parts[0]?.id).toBe('client-msg-id-text');
   });
 
   it('falls back to internal id when messageId is missing', () => {

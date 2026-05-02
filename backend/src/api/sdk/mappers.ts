@@ -5,13 +5,10 @@ import type { SdkMessageInfo, SdkMessageWithParts, SdkPart, SdkSession } from '.
 type SessionMessage = Session['messages'][number];
 
 export function getExternalMessageId(msg: SessionMessage): string {
-  // Keep optimistic reconciliation stable for user messages (client messageId),
-  // but avoid collisions for assistant messages where Pi may mirror the same
-  // messageId as the triggering user turn.
-  if (msg.role === 'assistant') {
-    return msg.id;
-  }
-
+  // Keep optimistic reconciliation stable for user messages (client messageId).
+  // Pi-wrapper assistant turns are assigned a separate client-visible id
+  // (`${userMessageId}_assistant`), which keeps OpenChamber's id-sorted arrays
+  // in user→assistant order during live streaming and reloads.
   const candidate = typeof msg.messageId === 'string' ? msg.messageId.trim() : '';
   return candidate || msg.id;
 }
@@ -32,30 +29,41 @@ export function toSdkSession(session: Session, projectId = 'pi-web-project'): Sd
   };
 }
 
+function modelForSession(session: Session): { providerID: string; modelID: string } {
+  const parsedModel = parseModelKey(session.model);
+  return {
+    providerID: parsedModel?.provider ?? 'openai-codex',
+    modelID: parsedModel?.modelId ?? 'gpt-5.4-mini',
+  };
+}
+
+export function toSdkAssistantMessageInfo(session: Session, messageId: string, created = Date.now(), parentID = ''): SdkMessageInfo {
+  const { providerID, modelID } = modelForSession(session);
+  return {
+    id: messageId,
+    sessionID: session.id,
+    role: 'assistant',
+    time: { created, completed: created },
+    parentID,
+    providerID,
+    modelID,
+    mode: 'build',
+    path: { cwd: session.cwd, root: session.cwd },
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+  };
+}
+
 export function toSdkMessageInfo(session: Session, msg: SessionMessage): SdkMessageInfo {
   const messageId = getExternalMessageId(msg);
   const created = new Date(msg.timestamp).getTime();
-  const parsedModel = parseModelKey(session.model);
-  const providerID = parsedModel?.provider ?? 'openai-codex';
-  const modelID = parsedModel?.modelId ?? 'gpt-5.4-mini';
+  const { providerID, modelID } = modelForSession(session);
 
   if (msg.role === 'assistant') {
     const previousUser = [...session.messages]
       .reverse()
       .find((candidate) => candidate.role === 'user' && new Date(candidate.timestamp).getTime() <= created);
-    return {
-      id: messageId,
-      sessionID: session.id,
-      role: 'assistant',
-      time: { created, completed: created },
-      parentID: previousUser ? getExternalMessageId(previousUser) : '',
-      providerID,
-      modelID,
-      mode: 'build',
-      path: { cwd: session.cwd, root: session.cwd },
-      cost: 0,
-      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-    };
+    return toSdkAssistantMessageInfo(session, messageId, created, previousUser ? getExternalMessageId(previousUser) : '');
   }
 
   return {

@@ -325,6 +325,12 @@ export function createRunnerOrchestrator(params: {
         active.assistantContent += event.delta;
         activeTurns.set(event.sessionId, active);
         emit(sseManager, {
+          type: 'message_updated',
+          sessionId: event.sessionId,
+          messageId: assistantMessageId,
+          timestamp: now(),
+        });
+        emit(sseManager, {
           type: 'text_chunk',
           sessionId: event.sessionId,
           messageId: assistantMessageId,
@@ -515,7 +521,7 @@ export function createRunnerOrchestrator(params: {
     const cwd = request.cwd ?? config.piCwd;
     const session = ensureStoredSession(sessionId, cwd, request.model);
     const messageId = request.messageId ?? config.generateSessionId();
-    const assistantMessageId = `asst_${config.generateSessionId()}`;
+    const assistantMessageId = `${messageId}_assistant`;
 
     if (request.model) sessionStore.updateSession(session.id, { model: request.model });
     if (request.thinkingLevel) sessionStore.updateSession(session.id, { thinkingLevel: request.thinkingLevel });
@@ -543,6 +549,12 @@ export function createRunnerOrchestrator(params: {
       content: request.displayMessage ?? request.message,
       messageId,
       ...(request.attachments && request.attachments.length > 0 ? { attachments: request.attachments } : {}),
+    });
+    emit(sseManager, {
+      type: 'message_updated',
+      sessionId: session.id,
+      messageId,
+      timestamp: now(),
     });
     activeTurns.set(session.id, {
       userMessageId: messageId,

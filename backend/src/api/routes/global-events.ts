@@ -34,6 +34,10 @@ export function createGlobalEventBridge(params: {
 
   sseManager.observe((event) => {
     const mapped = toSdkGlobalEvent(event, sessionStore);
+    if (Array.isArray(mapped)) {
+      for (const item of mapped) publish(item);
+      return;
+    }
     if (mapped) publish(mapped);
   });
 

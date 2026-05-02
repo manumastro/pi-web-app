@@ -1,10 +1,28 @@
 import type { SseEvent } from '../../events.js';
 import type { SessionStore, Session } from '../../sessions/store.js';
-import { toSdkSession, toSdkSessionStatus } from './mappers.js';
+import { getExternalMessageId, toSdkAssistantMessageInfo, toSdkMessageInfo, toSdkSession, toSdkSessionStatus } from './mappers.js';
 import type { SdkGlobalEvent } from './types.js';
 
-export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): SdkGlobalEvent | null {
+export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): SdkGlobalEvent | SdkGlobalEvent[] | null {
   switch (event.type) {
+    case 'message_updated': {
+      const session = sessionStore.getSession(event.sessionId);
+      if (!session) return null;
+      const stored = session.messages.find((message) => getExternalMessageId(message) === event.messageId || message.id === event.messageId);
+      if (stored) {
+        return {
+          type: 'message.updated',
+          properties: { info: toSdkMessageInfo(session, stored) },
+        };
+      }
+      const parent = session.messages.filter((message) => message.role === 'user').at(-1);
+      return {
+        type: 'message.updated',
+        properties: {
+          info: toSdkAssistantMessageInfo(session, event.messageId, new Date(event.timestamp).getTime(), parent ? getExternalMessageId(parent) : ''),
+        },
+      };
+    }
     case 'text_chunk': {
       return {
         type: 'message.part.updated',

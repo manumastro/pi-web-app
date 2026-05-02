@@ -105,6 +105,14 @@ export const DoneEventSchema = z.object({
 });
 export type DoneEvent = z.infer<typeof DoneEventSchema>;
 
+export const MessageUpdatedEventSchema = z.object({
+  type: z.literal('message_updated'),
+  sessionId: z.string(),
+  messageId: z.string(),
+  timestamp: z.string().datetime(),
+});
+export type MessageUpdatedEvent = z.infer<typeof MessageUpdatedEventSchema>;
+
 export const SseEventSchema = z.discriminatedUnion('type', [
   TextChunkEventSchema,
   ThinkingEventSchema,
@@ -116,6 +124,7 @@ export const SseEventSchema = z.discriminatedUnion('type', [
   SessionNameEventSchema,
   ErrorEventSchema,
   DoneEventSchema,
+  MessageUpdatedEventSchema,
 ]);
 
 export type SseEvent = z.infer<typeof SseEventSchema>;
