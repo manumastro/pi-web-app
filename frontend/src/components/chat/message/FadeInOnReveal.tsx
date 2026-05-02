@@ -1,113 +1,84 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import './FadeInOnReveal.css';
+import React from 'react';
+import { cn } from '@/lib/utils';
 
 interface FadeInOnRevealProps {
-  children: React.ReactNode;
-  animate?: boolean;
-  className?: string;
-  duration?: number;
-  delay?: number;
+    children: React.ReactNode;
+    className?: string;
+    skipAnimation?: boolean;
+    forceAnimation?: boolean;
+    ignoreContextDisabled?: boolean;
+    respectReducedMotion?: boolean;
 }
 
-export function FadeInOnReveal({
-  children,
-  animate = true,
-  className = '',
-  duration = 200,
-  delay = 0,
-}: FadeInOnRevealProps) {
-  const [isVisible, setIsVisible] = useState(!animate);
-  const ref = useRef<HTMLDivElement>(null);
+const FADE_ANIMATION_ENABLED = false;
 
-  useEffect(() => {
-    if (!animate) {
-      setIsVisible(true);
-      return;
+// Context to allow parent components (like VirtualMessageList) to disable animations
+// for items entering the viewport due to scrolling rather than new content
+const FadeInDisabledContext = React.createContext(false);
+
+export const FadeInDisabledProvider: React.FC<{ disabled: boolean; children: React.ReactNode }> = ({ disabled, children }) => (
+    <FadeInDisabledContext.Provider value={disabled}>
+        {children}
+    </FadeInDisabledContext.Provider>
+);
+
+export const FadeInOnReveal: React.FC<FadeInOnRevealProps> = ({
+    children,
+    className,
+    skipAnimation,
+    forceAnimation = false,
+    ignoreContextDisabled = false,
+    respectReducedMotion = false,
+}) => {
+    const contextDisabled = React.useContext(FadeInDisabledContext);
+    const reducedMotion =
+        respectReducedMotion &&
+        typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const shouldSkip = Boolean(skipAnimation) || (!ignoreContextDisabled && contextDisabled) || reducedMotion;
+    const animationEnabled = FADE_ANIMATION_ENABLED || forceAnimation;
+    const [visible, setVisible] = React.useState(shouldSkip);
+
+    React.useEffect(() => {
+        if (!animationEnabled || shouldSkip) {
+            return;
+        }
+
+        let frame: number | null = null;
+
+        const enable = () => setVisible(true);
+
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+            frame = window.requestAnimationFrame(enable);
+        } else {
+            enable();
+        }
+
+        return () => {
+            if (
+                frame !== null &&
+                typeof window !== 'undefined' &&
+                typeof window.cancelAnimationFrame === 'function'
+            ) {
+                window.cancelAnimationFrame(frame);
+            }
+        };
+    }, [animationEnabled, shouldSkip]);
+
+    if (!animationEnabled || shouldSkip) {
+        return <>{children}</>;
     }
 
-    const el = ref.current;
-    if (!el) {
-      setIsVisible(true);
-      return;
-    }
-
-    // Use requestAnimationFrame for smooth animation start
-    let rafId: number;
-    const timeoutId = setTimeout(() => {
-      rafId = requestAnimationFrame(() => {
-        setIsVisible(true);
-      });
-    }, delay > 0 ? delay : 0);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      clearTimeout(timeoutId);
-    };
-  }, [animate, delay]);
-
-  return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: isVisible ? 1 : 0,
-        transition: isVisible ? 'none' : `opacity ${duration}ms ease-out ${delay}ms`,
-      }}
-      data-fade-in={animate}
-      data-fade-in-visible={isVisible}
-    >
-      {children}
-    </div>
-  );
-}
-
-export const FadeInDisabledContext = React.createContext(false);
-
-export function useFadeInDisabled(): boolean {
-  return React.useContext(FadeInDisabledContext);
-}
-
-// Hook for wipe animation on mount
-export function useWipeReveal(isEnabled: boolean = true) {
-  const [revealed, setRevealed] = useState(!isEnabled);
-  const [shouldRender, setShouldRender] = useState(!isEnabled);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => {
-    if (!isEnabled) {
-      setRevealed(true);
-      setShouldRender(true);
-      return;
-    }
-
-    // Small delay before starting animation
-    timeoutRef.current = setTimeout(() => {
-      setRevealed(true);
-    }, 50);
-
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, [isEnabled]);
-
-  const onAnimationEnd = useCallback(() => {
-    if (!isEnabled) {
-      setShouldRender(false);
-    }
-  }, [isEnabled]);
-
-  return {
-    revealed,
-    shouldRender,
-    onAnimationEnd,
-    wipeStyle: {
-      transform: revealed ? 'scaleX(1)' : 'scaleX(0)',
-      transformOrigin: 'left',
-      transition: 'transform 280ms cubic-bezier(0.4, 0, 0.2, 1)',
-    } as React.CSSProperties,
-  };
-}
-
-export default FadeInOnReveal;
+    return (
+        <div
+            className={cn(
+                'w-full transition-all duration-300 ease-out',
+                visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2',
+                className
+            )}
+        >
+            {children}
+        </div>
+    );
+};

@@ -1,52 +1,109 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import { clearFrontendCacheStorage } from '@/lib/frontend-cache';
-import './index.css';
-import 'katex/dist/katex.min.css';
-import '@fontsource/ibm-plex-sans/400.css';
-import '@fontsource/ibm-plex-sans/500.css';
-import '@fontsource/ibm-plex-sans/600.css';
-import '@fontsource/ibm-plex-mono/400.css';
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './styles/fonts'
+import './index.css'
+import App from './App.tsx'
+import { SessionAuthGate } from './components/auth/SessionAuthGate'
+import { ThemeSystemProvider } from './contexts/ThemeSystemContext'
+import { ThemeProvider } from './components/providers/ThemeProvider'
+import './lib/debug'
+import { syncDesktopSettings, initializeAppearancePreferences } from './lib/persistence'
+import { startAppearanceAutoSave } from './lib/appearanceAutoSave'
+import { applyPersistedDirectoryPreferences } from './lib/directoryPersistence'
+import { startTypographyWatcher } from './lib/typographyWatcher'
+import { startModelPrefsAutoSave } from './lib/modelPrefsAutoSave'
+import { initializeLocale, I18nProvider } from './lib/i18n'
+import type { RuntimeAPIs } from './lib/api/types'
 
-clearFrontendCacheStorage();
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('/sw.js').then((registration) => {
-      registration.update().catch(() => undefined);
-
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-
-      registration.addEventListener('updatefound', () => {
-        const worker = registration.installing;
-        if (!worker) {
-          return;
-        }
-
-        worker.addEventListener('statechange', () => {
-          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-            registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
-          }
-        });
-      });
-    });
-
-    let reloaded = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (reloaded) {
-        return;
-      }
-      reloaded = true;
-      window.location.reload();
-    });
-  });
+declare global {
+  interface Window {
+    __OPENCHAMBER_RUNTIME_APIS__?: RuntimeAPIs;
+  }
 }
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+const createUnavailableNamespace = (namespace: string) => new Proxy({}, {
+  get: (_target, prop) => {
+    if (prop === Symbol.toStringTag) return namespace;
+    return async () => {
+      throw new Error(`[runtime:${namespace}] API "${String(prop)}" is not available in web mode.`);
+    };
+  },
+});
+
+const createSoftNamespace = (namespace: string, defaults: Record<string, unknown> = {}) => new Proxy(defaults, {
+  get: (target, prop) => {
+    if (prop === Symbol.toStringTag) return namespace;
+    if (prop in target) {
+      return target[prop as keyof typeof target];
+    }
+    return async () => undefined;
+  },
+});
+
+const runtimeAPIs = (typeof window !== 'undefined' && window.__OPENCHAMBER_RUNTIME_APIS__) || ({
+  runtime: {
+    platform: 'web',
+    isDesktop: false,
+    isVSCode: false,
+    label: 'OpenChamber Web',
+  },
+  terminal: createUnavailableNamespace('terminal'),
+  git: createSoftNamespace('git', {
+    checkIsGitRepository: async () => false,
+    getGitBranches: async () => [],
+    getGitStatus: async () => ({ clean: true, files: [] }),
+  }),
+  files: createUnavailableNamespace('files'),
+  settings: {
+    load: async () => ({ settings: {} }),
+    save: async () => undefined,
+    watch: () => ({ close: () => undefined }),
+  },
+  permissions: createUnavailableNamespace('permissions'),
+  notifications: createUnavailableNamespace('notifications'),
+  tools: {
+    list: async () => [],
+  },
+} as unknown as RuntimeAPIs);
+
+initializeLocale();
+
+// Initialize settings asynchronously — the app renders with defaults first
+// and hydrates once persisted preferences are applied. Users with non-default
+// themes may briefly see default appearance on cold start; accepted trade-off
+// for faster time-to-first-paint.
+void initializeAppearancePreferences().then(() => {
+  void Promise.all([
+    syncDesktopSettings(),
+    applyPersistedDirectoryPreferences(),
+  ]).catch((err) => {
+    console.error('[main] settings init failed:', err);
+  });
+
+  // Start watchers regardless of whether secondary settings succeed.
+  startAppearanceAutoSave();
+  startModelPrefsAutoSave();
+  startTypographyWatcher();
+}).catch((err) => {
+  console.error('[main] appearance init failed:', err);
+});
+
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Root element not found');
+}
+
+createRoot(rootElement).render(
+  <StrictMode>
+    <I18nProvider>
+      <ThemeSystemProvider>
+        <ThemeProvider>
+          <SessionAuthGate>
+            <App apis={runtimeAPIs} />
+          </SessionAuthGate>
+        </ThemeProvider>
+      </ThemeSystemProvider>
+    </I18nProvider>
+  </StrictMode>,
 );

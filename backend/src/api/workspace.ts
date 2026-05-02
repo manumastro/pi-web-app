@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import type { Router, Request, Response } from 'express';
 import express from 'express';
 import { resolveUnderHome } from './directories.js';
+import { setSseHeaders } from '../sse/headers.js';
 
 const execFileAsync = promisify(execFile);
 const MAX_READ_BYTES = 256 * 1024;
@@ -135,11 +136,8 @@ export function createWorkspaceRouter(homeDir: string): Router {
 
     try {
       const cwd = resolveUnderHome(homeDir, typeof req.query.cwd === 'string' ? req.query.cwd : undefined);
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
-      });
+      setSseHeaders(res);
+      res.flushHeaders();
       const child = spawn('/bin/bash', ['-lc', command], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
       terminalProcesses.set(terminalId, child);
       writeTerminalEvent(res, 'start', { terminalId, cwd, command });

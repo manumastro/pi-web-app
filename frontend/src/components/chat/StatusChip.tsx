@@ -1,56 +1,67 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import type { StreamingState } from '@/types';
-import './StatusChip.css';
+import { useConfigStore } from '@/stores/useConfigStore';
+import { useSessionUIStore } from '@/sync/session-ui-store';
+import { useContextStore } from '@/stores/contextStore';
+import { formatEffortLabel, getAgentDisplayName, getModelDisplayName } from './mobileControlsUtils';
+
+const STATUS_CHIP_STYLE = {
+    height: '28px',
+    maxHeight: '28px',
+    minHeight: '28px',
+};
 
 interface StatusChipProps {
-  state: StreamingState;
-  message: string;
-  agentName?: string;
-  modelName?: string;
-  onClick?: () => void;
-  className?: string;
+    onClick: () => void;
+    className?: string;
 }
 
-export function StatusChip({
-  state,
-  message,
-  agentName,
-  modelName,
-  onClick,
-  className,
-}: StatusChipProps) {
-  const chipClass = cn(
-    'status-chip',
-    (state === 'streaming' || state === 'connecting') && 'connecting',
-    state === 'error' && 'error',
-    onClick && 'cursor-pointer hover:bg-surface-3',
-    className
-  );
+export const StatusChip: React.FC<StatusChipProps> = ({ onClick, className }) => {
+    const currentModelId = useConfigStore((state) => state.currentModelId);
+    const currentVariant = useConfigStore((state) => state.currentVariant);
+    const currentAgentName = useConfigStore((state) => state.currentAgentName);
+    const getCurrentProvider = useConfigStore((state) => state.getCurrentProvider);
+    const getCurrentModelVariants = useConfigStore((state) => state.getCurrentModelVariants);
+    const getVisibleAgents = useConfigStore((state) => state.getVisibleAgents);
+    const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
+    const sessionAgentName = useContextStore((state) =>
+        currentSessionId ? state.getSessionAgentSelection(currentSessionId) : null
+    );
 
-  const dots =
-    state === 'streaming' || state === 'connecting' ? (
-      <span className="thinking-dots" aria-hidden>
-        <span />
-        <span />
-        <span />
-      </span>
-    ) : null;
+    const agents = getVisibleAgents();
+    const uiAgentName = currentSessionId ? (sessionAgentName || currentAgentName) : currentAgentName;
+    const agentLabel = getAgentDisplayName(agents, uiAgentName);
+    const currentProvider = getCurrentProvider();
+    const modelLabel = getModelDisplayName(currentProvider, currentModelId);
+    const hasEffort = getCurrentModelVariants().length > 0;
+    const effortLabel = hasEffort ? formatEffortLabel(currentVariant) : null;
+    const fullLabel = [agentLabel, modelLabel, effortLabel].filter(Boolean).join(' · ');
 
-  const fullLabel = [agentName, modelName, message].filter(Boolean).join(' · ');
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={chipClass}
-      title={fullLabel}
-      disabled={!onClick}
-    >
-      {dots}
-      <span className="truncate max-w-[200px]">{message}</span>
-    </button>
-  );
-}
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                'inline-flex min-w-0 items-center justify-center',
+                'rounded-md border border-border/50 px-1.5',
+                'text-[11px] font-medium text-foreground/80',
+                'focus:outline-none hover:bg-[var(--interactive-hover)]',
+                className
+            )}
+            style={STATUS_CHIP_STYLE}
+            title={fullLabel}
+        >
+            <span className="shrink-0">{agentLabel}</span>
+            <span className="shrink-0 text-muted-foreground mx-0.5">·</span>
+            <span className="min-w-0 truncate">{modelLabel}</span>
+            {effortLabel && (
+                <>
+                    <span className="shrink-0 text-muted-foreground mx-0.5">·</span>
+                    <span className="shrink-0">{effortLabel}</span>
+                </>
+            )}
+        </button>
+    );
+};
 
 export default StatusChip;

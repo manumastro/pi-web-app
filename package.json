@@ -13,6 +13,7 @@
     "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
     "test:coverage": "npm run test:coverage --workspace=backend && npm run test:coverage --workspace=frontend",
     "test:e2e:fullstack": "node scripts/e2e-fullstack-stream.mjs",
+    "test:e2e:reentry-replay": "node scripts/e2e-reentry-replay.mjs",
     "lint": "npm run lint --workspace=backend && npm run lint --workspace=frontend"
   },
   "devDependencies": {

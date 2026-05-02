@@ -1,22 +1,27 @@
-import { create } from 'zustand';
-import { INITIAL_SYNC_GLOBAL_STATE, type SyncGlobalState } from './types';
+import { create } from "zustand"
+import type { GlobalState } from "./types"
+import { INITIAL_GLOBAL_STATE } from "./types"
 
-export type GlobalSyncStore = SyncGlobalState & {
+export type GlobalSyncStore = GlobalState & {
   actions: {
-    set: (patch: Partial<SyncGlobalState>) => void;
-    reset: () => void;
-  };
-};
+    set: (patch: Partial<GlobalState>) => void
+    reset: () => void
+  }
+}
 
 export const useGlobalSyncStore = create<GlobalSyncStore>()((set) => ({
-  ...INITIAL_SYNC_GLOBAL_STATE,
+  ...INITIAL_GLOBAL_STATE,
   actions: {
     set: (patch) => set(patch),
-    reset: () => set(INITIAL_SYNC_GLOBAL_STATE),
+    reset: () => set(INITIAL_GLOBAL_STATE),
   },
-}));
+}))
 
-export const selectReady = (state: GlobalSyncStore) => state.ready;
-export const selectReload = (state: GlobalSyncStore) => state.reload;
-export const selectDirectories = (state: GlobalSyncStore) => state.directories;
-export const selectSessionsByDirectory = (state: GlobalSyncStore) => state.sessionsByDirectory;
+// Fine-grained selectors — use these in components for minimal re-renders
+export const selectReady = (s: GlobalSyncStore) => s.ready
+export const selectProjects = (s: GlobalSyncStore) => s.projects
+export const selectProviders = (s: GlobalSyncStore) => s.providers
+export const selectConfig = (s: GlobalSyncStore) => s.config
+export const selectPath = (s: GlobalSyncStore) => s.path
+export const selectReload = (s: GlobalSyncStore) => s.reload
+export const selectSessionTodo = (s: GlobalSyncStore) => s.sessionTodo

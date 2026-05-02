@@ -1,57 +1,91 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { cn } from '@/lib/utils';
-import { SimpleMarkdownRenderer } from '../../MarkdownRenderer';
-import './MinDurationShineText.css';
+
+const MAX_BUSY_DURATION_MS = 5 * 60 * 1000; // 5 minutes cap
 
 interface MinDurationShineTextProps {
-  text: string;
-  minDuration?: number;
-  className?: string;
-  renderMarkdown?: boolean;
+    active: boolean;
+    minDurationMs?: number;
+    className?: string;
+    children: React.ReactNode;
+    style?: React.CSSProperties;
+    title?: string;
 }
 
 export const MinDurationShineText: React.FC<MinDurationShineTextProps> = ({
-  text,
-  minDuration = 300,
-  className,
-  renderMarkdown = false,
+    active,
+    minDurationMs = 300,
+    className,
+    children,
+    style,
+    title,
 }) => {
-  const [isShining, setIsShining] = useState(false);
-  const [showContent, setShowContent] = useState(false);
-  const startTimeRef = React.useRef<number>(Date.now());
+    const busyStartRef = React.useRef<number | null>(active ? Date.now() : null);
+    const [isBusy, setIsBusy] = React.useState(active);
+    const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    startTimeRef.current = Date.now();
-    setShowContent(true);
-    setIsShining(true);
+    if (active && busyStartRef.current === null) {
+        busyStartRef.current = Date.now();
+    }
 
-    const elapsed = Date.now() - startTimeRef.current;
-    const remaining = Math.max(0, minDuration - elapsed);
+    React.useEffect(() => {
+        if (active) {
+            if (timerRef.current !== null) {
+                clearTimeout(timerRef.current);
+                timerRef.current = null;
+            }
+            if (busyStartRef.current === null) {
+                busyStartRef.current = Date.now();
+            }
 
-    const timer = setTimeout(() => {
-      setIsShining(false);
-    }, remaining + 200); // Add small buffer for animation
+            const elapsed = Date.now() - busyStartRef.current;
+            if (elapsed >= MAX_BUSY_DURATION_MS) {
+                setIsBusy(false);
+                busyStartRef.current = null;
+                return;
+            }
 
-    return () => clearTimeout(timer);
-  }, [minDuration, text]);
+            setIsBusy(true);
+            return;
+        }
 
-  return (
-    <div
-      className={cn(
-        'relative',
-        isShining && 'shine-text-container',
-        className
-      )}
-    >
-      <div className={cn(isShining && 'shine-text-content')}>
-        {renderMarkdown ? (
-          <SimpleMarkdownRenderer content={text} />
-        ) : (
-          text
-        )}
-      </div>
-    </div>
-  );
+        if (!isBusy) {
+            busyStartRef.current = null;
+            return;
+        }
+
+        const startedAt = busyStartRef.current ?? Date.now();
+        const elapsed = Date.now() - startedAt;
+
+        if (elapsed >= MAX_BUSY_DURATION_MS) {
+            setIsBusy(false);
+            busyStartRef.current = null;
+            return;
+        }
+
+        const remaining = Math.max(0, minDurationMs - elapsed);
+
+        timerRef.current = setTimeout(() => {
+            setIsBusy(false);
+            busyStartRef.current = null;
+            timerRef.current = null;
+        }, remaining);
+
+        return () => {
+            if (timerRef.current !== null) {
+                clearTimeout(timerRef.current);
+                timerRef.current = null;
+            }
+        };
+    }, [active, minDurationMs, isBusy]);
+
+    return (
+        <span
+            className={cn('transition-opacity duration-200', isBusy && 'opacity-70', className)}
+            style={style}
+            title={title}
+        >
+            {children}
+        </span>
+    );
 };
-
-export default MinDurationShineText;

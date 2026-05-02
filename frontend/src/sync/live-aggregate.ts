@@ -1,135 +1,212 @@
-import type { SyncSessionStatus } from './types';
-import { getSyncChildStores } from './sync-refs';
-import type { SessionInfo } from '@/types';
+import type { SessionStatus } from '@opencode-ai/sdk/v2/client'
+import type { Session } from '@opencode-ai/sdk/v2'
+import type { State } from './types'
 
-const getSessionUpdatedAt = (session: SessionInfo): number => {
-  const updatedAt = Date.parse(session.updatedAt);
-  if (Number.isFinite(updatedAt)) {
-    return updatedAt;
+type LiveStateSlice = Pick<State, 'session' | 'session_status'>
+
+const getSessionUpdatedAt = (session: Session): number => {
+  const updatedAt = session.time?.updated
+  if (typeof updatedAt === 'number' && Number.isFinite(updatedAt)) {
+    return updatedAt
   }
-  const createdAt = Date.parse(session.createdAt);
-  return Number.isFinite(createdAt) ? createdAt : 0;
-};
 
-const getStatusPriority = (status: SyncSessionStatus | undefined): number => {
+  const createdAt = session.time?.created
+  return typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : 0
+}
+
+const getSessionSignature = (session: Session): string => {
+  const directory = (session as Session & { directory?: string | null }).directory ?? ''
+  const parentID = (session as Session & { parentID?: string | null }).parentID ?? ''
+  return [
+    session.id,
+    session.title ?? '',
+    session.time?.created ?? 0,
+    session.time?.updated ?? 0,
+    session.time?.archived ?? 0,
+    directory,
+    parentID,
+    session.share?.url ?? '',
+  ].join('|')
+}
+
+const getStatusPriority = (status: SessionStatus | undefined): number => {
   switch (status?.type) {
     case 'retry':
-      return 4;
+      return 4
     case 'busy':
-      return 3;
+      return 3
     case 'idle':
-      return 1;
+      return 1
     default:
-      return 0;
+      return 0
   }
-};
+}
+
+const getStatusMessage = (status: SessionStatus | undefined): string | null => {
+  const message = (status as { message?: unknown } | undefined)?.message
+  return typeof message === 'string' ? message : null
+}
 
 type StatusCandidate = {
-  status: SyncSessionStatus;
-  sessionUpdatedAt: number;
-};
+  status: SessionStatus
+  sessionUpdatedAt: number
+}
+
+const getStatusCandidate = (state: LiveStateSlice, sessionId: string): StatusCandidate | null => {
+  const status = state.session_status?.[sessionId]
+  if (!status) {
+    return null
+  }
+
+  const session = state.session.find((candidate) => candidate.id === sessionId)
+  return {
+    status,
+    sessionUpdatedAt: session ? getSessionUpdatedAt(session) : -1,
+  }
+}
 
 const shouldReplaceStatusCandidate = (current: StatusCandidate | undefined, next: StatusCandidate): boolean => {
   if (!current) {
-    return true;
+    return true
   }
 
   if (next.sessionUpdatedAt !== current.sessionUpdatedAt) {
-    return next.sessionUpdatedAt > current.sessionUpdatedAt;
+    return next.sessionUpdatedAt > current.sessionUpdatedAt
   }
 
-  return getStatusPriority(next.status) >= getStatusPriority(current.status);
-};
+  return getStatusPriority(next.status) >= getStatusPriority(current.status)
+}
 
-export function aggregateLiveSessions(states: Iterable<{ session: SessionInfo[] }>): SessionInfo[] {
-  const sessionsById = new Map<string, SessionInfo>();
+export const areSessionListsEquivalent = (left: Session[], right: Session[]): boolean => {
+  if (left === right) {
+    return true
+  }
+  if (left.length !== right.length) {
+    return false
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (getSessionSignature(left[index]) !== getSessionSignature(right[index])) {
+      return false
+    }
+  }
+
+  return true
+}
+
+export const areStatusMapsEquivalent = (
+  left: Record<string, SessionStatus>,
+  right: Record<string, SessionStatus>,
+): boolean => {
+  if (left === right) {
+    return true
+  }
+
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) {
+    return false
+  }
+
+  for (const key of leftKeys) {
+    if (!(key in right)) {
+      return false
+    }
+    const leftStatus = left[key]
+    const rightStatus = right[key]
+    if (leftStatus?.type !== rightStatus?.type) {
+      return false
+    }
+    if (getStatusMessage(leftStatus) !== getStatusMessage(rightStatus)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+export function aggregateLiveSessions(states: Iterable<LiveStateSlice>): Session[] {
+  const sessionsById = new Map<string, Session>()
 
   for (const state of states) {
     for (const session of state.session) {
       if (!session?.id) {
-        continue;
+        continue
       }
-      const current = sessionsById.get(session.id);
+      const current = sessionsById.get(session.id)
       if (!current || getSessionUpdatedAt(session) >= getSessionUpdatedAt(current)) {
-        sessionsById.set(session.id, session);
+        sessionsById.set(session.id, session)
       }
     }
   }
 
-  return Array.from(sessionsById.values()).sort((left, right) => getSessionUpdatedAt(right) - getSessionUpdatedAt(left));
+  return Array.from(sessionsById.values()).sort((left, right) => {
+    return getSessionUpdatedAt(right) - getSessionUpdatedAt(left)
+  })
 }
 
-export function aggregateLiveSessionStatuses(states: Iterable<{ session: SessionInfo[]; session_status: Record<string, SyncSessionStatus> }>): Record<string, SyncSessionStatus> {
-  const candidates = new Map<string, StatusCandidate>();
+export function aggregateLiveSessionStatuses(states: Iterable<LiveStateSlice>): Record<string, SessionStatus> {
+  const candidates = new Map<string, StatusCandidate>()
 
   for (const state of states) {
     for (const sessionId of Object.keys(state.session_status ?? {})) {
-      const status = state.session_status[sessionId];
-      if (!status) {
-        continue;
+      const next = getStatusCandidate(state, sessionId)
+      if (!next) {
+        continue
       }
 
-      const session = state.session.find((candidate) => candidate.id === sessionId);
-      const next: StatusCandidate = {
-        status,
-        sessionUpdatedAt: session ? getSessionUpdatedAt(session) : -1,
-      };
-
-      const current = candidates.get(sessionId);
+      const current = candidates.get(sessionId)
       if (shouldReplaceStatusCandidate(current, next)) {
-        candidates.set(sessionId, next);
+        candidates.set(sessionId, next)
       }
     }
   }
 
-  const statuses: Record<string, SyncSessionStatus> = {};
+  const statuses: Record<string, SessionStatus> = {}
   for (const [sessionId, candidate] of candidates) {
-    statuses[sessionId] = candidate.status;
+    statuses[sessionId] = candidate.status
   }
 
-  return statuses;
+  return statuses
 }
 
-export function findLiveSession(sessionID?: string | null): SessionInfo | undefined {
+export function findLiveSession(states: Iterable<LiveStateSlice>, sessionID?: string | null): Session | undefined {
   if (!sessionID) {
-    return undefined;
+    return undefined
   }
 
-  let match: SessionInfo | undefined;
-  for (const store of getSyncChildStores().children.values()) {
-    const session = store.getState().session.find((candidate) => candidate.id === sessionID);
+  let match: Session | undefined
+  for (const state of states) {
+    const session = state.session.find((candidate) => candidate.id === sessionID)
     if (!session) {
-      continue;
+      continue
     }
     if (!match || getSessionUpdatedAt(session) >= getSessionUpdatedAt(match)) {
-      match = session;
+      match = session
     }
   }
 
-  return match;
+  return match
 }
 
-export function findLiveSessionStatus(sessionID?: string | null): SyncSessionStatus | undefined {
+export function findLiveSessionStatus(
+  states: Iterable<LiveStateSlice>,
+  sessionID?: string | null,
+): SessionStatus | undefined {
   if (!sessionID) {
-    return undefined;
+    return undefined
   }
 
-  let match: StatusCandidate | undefined;
-  for (const store of getSyncChildStores().children.values()) {
-    const state = store.getState();
-    const status = state.session_status[sessionID];
-    if (!status) {
-      continue;
+  let match: StatusCandidate | undefined
+  for (const state of states) {
+    const next = getStatusCandidate(state, sessionID)
+    if (!next) {
+      continue
     }
-    const session = state.session.find((candidate) => candidate.id === sessionID);
-    const next: StatusCandidate = {
-      status,
-      sessionUpdatedAt: session ? getSessionUpdatedAt(session) : -1,
-    };
     if (shouldReplaceStatusCandidate(match, next)) {
-      match = next;
+      match = next
     }
   }
 
-  return match?.status;
+  return match?.status
 }

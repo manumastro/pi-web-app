@@ -1,196 +1,241 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSession, sendPrompt, updateSessionModel } from './session-actions';
-import { useChatStore } from '@/stores/chatStore';
-import { useSessionStore } from '@/stores/sessionStore';
-import { useSessionUiStore } from '@/stores/sessionUiStore';
-import { useUIStore } from '@/stores/uiStore';
+import { describe, expect, test, beforeEach, mock } from "bun:test"
+import type { PermissionRequest } from "@/types/permission"
 
-const sessionFixture = {
-  id: 'session-1',
-  cwd: '/workspace/demo',
-  title: 'Demo session',
-  model: 'provider/demo-model',
-  status: 'idle',
-  messages: [],
-  createdAt: '2026-04-20T00:00:00.000Z',
-  updatedAt: '2026-04-20T00:00:00.000Z',
-};
+// Mock SDK client that records permission.reply / question.reply calls
+const replyCalls: Array<{ method: string; params: Record<string, unknown> }> = []
 
-function resetStores(): void {
-  useSessionStore.setState({
-    sessions: [],
-    sessionStatuses: {},
-    sortedSessions: [],
-  });
-
-  useSessionUiStore.setState({
-    selectedDirectory: '/',
-    selectedSessionId: '',
-    currentSession: undefined,
-    visibleSessions: [],
-  });
-
-  useUIStore.setState({
-    sidebarOpen: true,
-    modelFilter: '',
-    showReasoningTraces: true,
-    models: [
-      {
-        key: 'provider/demo-model',
-        id: 'demo-model',
-        label: 'Demo model',
-        available: true,
-        active: true,
-        provider: 'provider',
-        reasoning: true,
-      },
-    ],
-    activeModelKey: 'provider/demo-model',
-    prompt: 'hello',
-  });
-
-  useChatStore.setState({
-    conversation: [],
-    streaming: 'idle',
-    statusMessage: '',
-    error: '',
-  });
+const mockScopedClient = {
+  permission: {
+    reply: mock((params: Record<string, unknown>) => {
+      replyCalls.push({ method: "permission.reply", params })
+      return Promise.resolve({ data: true })
+    }),
+  },
+  question: {
+    reply: mock((params: Record<string, unknown>) => {
+      replyCalls.push({ method: "question.reply", params })
+      return Promise.resolve({ data: true })
+    }),
+    reject: mock((params: Record<string, unknown>) => {
+      replyCalls.push({ method: "question.reject", params })
+      return Promise.resolve({ data: true })
+    }),
+  },
 }
 
-describe('session actions', () => {
+const mockSdk = {
+  permission: {
+    reply: mock((params: Record<string, unknown>) => {
+      replyCalls.push({ method: "permission.reply", params })
+      return Promise.resolve({ data: true })
+    }),
+  },
+  question: {
+    reply: mock((params: Record<string, unknown>) => {
+      replyCalls.push({ method: "question.reply", params })
+      return Promise.resolve({ data: true })
+    }),
+    reject: mock((params: Record<string, unknown>) => {
+      replyCalls.push({ method: "question.reject", params })
+      return Promise.resolve({ data: true })
+    }),
+  },
+}
+
+// Mock opencodeClient singleton
+mock.module("@/lib/opencode/client", () => ({
+  opencodeClient: {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    getScopedSdkClient: (_: string) => mockScopedClient,
+    getDirectory: () => "/test/project",
+  },
+}))
+
+// Mock useConfigStore
+mock.module("@/stores/useConfigStore", () => ({
+  useConfigStore: {
+    getState: () => ({
+      isConnected: true,
+      hasEverConnected: true,
+    }),
+  },
+}))
+
+// Mock useSessionUIStore
+mock.module("./session-ui-store", () => ({
+  useSessionUIStore: {
+    getState: () => ({
+      getDirectoryForSession: (sessionId: string) => {
+        if (sessionId === "session-a") return "/test/project"
+        if (sessionId === "session-b") return "/other/project"
+        return null
+      },
+    }),
+  },
+}))
+
+// Mock useInputStore (imported but not used in permission functions)
+mock.module("./input-store", () => ({
+  useInputStore: {},
+}))
+
+// Mock useGlobalSessionsStore (imported but not used in permission functions)
+mock.module("@/stores/useGlobalSessionsStore", () => ({
+  useGlobalSessionsStore: {},
+}))
+
+// Mock sync-refs (imported but not used in permission functions)
+mock.module("./sync-refs", () => ({
+  registerSessionDirectory: () => {},
+}))
+
+import { create, type StoreApi } from "zustand"
+import { INITIAL_STATE } from "./types"
+import type { DirectoryStore } from "./child-store"
+import type { OpencodeClient } from "@opencode-ai/sdk/v2/client"
+
+function createStore(permissions: Record<string, PermissionRequest[]>): StoreApi<DirectoryStore> {
+  return create<DirectoryStore>()((set) => ({
+    ...INITIAL_STATE,
+    permission: permissions,
+    patch: (partial) => set(partial),
+    replace: (next) => set(next),
+  }))
+}
+
+function createChildStores(entries: Array<[string, StoreApi<DirectoryStore>]>) {
+  return {
+    children: new Map(entries),
+    ensureChild: (dir: string) => {
+      const store = new Map(entries).get(dir)
+      if (!store) throw new Error(`No store for ${dir}`)
+      return store
+    },
+  } as unknown as import("./child-store").ChildStoreManager
+}
+
+describe("respondToPermission passes directory", () => {
   beforeEach(() => {
-    resetStores();
-    vi.restoreAllMocks();
-  });
+    replyCalls.length = 0
+  })
 
-  it('creates a session and selects it in the local stores', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url === '/api/sessions' && init?.method === 'POST') {
-        return new Response(JSON.stringify({ session: sessionFixture }), {
-          status: 201,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      throw new Error(`Unexpected request: ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const created = await createSession({ cwd: '/workspace/demo', model: 'provider/demo-model' });
-
-    expect(created).toEqual(sessionFixture);
-    expect(useSessionUiStore.getState().selectedSessionId).toBe('session-1');
-    expect(useSessionUiStore.getState().selectedDirectory).toBe('/workspace/demo');
-    expect(useUIStore.getState().activeModelKey).toBe('provider/demo-model');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('optimistically sends a prompt without a model preflight request', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url === '/api/messages/prompt' && init?.method === 'POST') {
-        return new Response('', { status: 202 });
-      }
-      throw new Error(`Unexpected request: ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    useSessionStore.setState({
-      sessions: [sessionFixture],
-      sessionStatuses: { 'session-1': 'idle' },
-      sortedSessions: [sessionFixture],
-    });
-
-    useSessionUiStore.setState({
-      selectedDirectory: '/workspace/demo',
-      selectedSessionId: 'session-1',
-      currentSession: sessionFixture,
-      visibleSessions: [sessionFixture],
-    });
-
-    const ok = await sendPrompt({
-      sessionId: 'session-1',
-      cwd: '/workspace/demo',
-      message: 'Run the build',
-      model: 'provider/demo-model',
-      turnId: 'turn-1',
-    });
-
-    expect(ok).toBe(true);
-    expect(useChatStore.getState().conversation).toHaveLength(3);
-    expect(useUIStore.getState().prompt).toBe('');
-    expect(useChatStore.getState().streaming).toBe('streaming');
-    expect(useSessionStore.getState().sessions.find((entry) => entry.id === 'session-1')?.status).toBe('busy');
-    expect(useSessionUiStore.getState().currentSession?.status).toBe('busy');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('generates and reuses a turn id when none is provided', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url === '/api/messages/prompt' && init?.method === 'POST') {
-        return new Response('', { status: 202 });
-      }
-      throw new Error(`Unexpected request: ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    useSessionStore.setState({
-      sessions: [sessionFixture],
-      sessionStatuses: { 'session-1': 'idle' },
-      sortedSessions: [sessionFixture],
-    });
-
-    useSessionUiStore.setState({
-      selectedDirectory: '/workspace/demo',
-      selectedSessionId: 'session-1',
-      currentSession: sessionFixture,
-      visibleSessions: [sessionFixture],
-    });
-
-    const ok = await sendPrompt({
-      sessionId: 'session-1',
-      cwd: '/workspace/demo',
-      message: 'Run the build',
-      model: 'provider/demo-model',
-    });
-
-    expect(ok).toBe(true);
-    const [promptCall] = fetchMock.mock.calls;
-    const promptBody = JSON.parse(String(promptCall?.[1]?.body ?? '{}')) as { messageId?: string };
-    expect(typeof promptBody.messageId).toBe('string');
-    expect(promptBody.messageId).toBeTruthy();
-
-    const [optimisticUser, optimisticThinking, optimisticAssistant] = useChatStore.getState().conversation;
-    expect(optimisticUser?.kind).toBe('message');
-    expect(optimisticThinking?.kind).toBe('thinking');
-    expect(optimisticAssistant?.kind).toBe('message');
-    if (optimisticUser?.kind === 'message' && optimisticThinking?.kind === 'thinking' && optimisticAssistant?.kind === 'message') {
-      expect(optimisticUser.messageId).toBe(promptBody.messageId);
-      expect(optimisticThinking.messageId).toBe(promptBody.messageId);
-      expect(optimisticAssistant.messageId).toBe(promptBody.messageId);
+  test("passes directory from child store when permission is found", async () => {
+    const permission: PermissionRequest = {
+      id: "perm-1",
+      sessionID: "session-a",
+      permission: "bash",
+      patterns: [],
+      metadata: {},
+      always: [],
     }
-  });
 
-  it('keeps the active model in sync when the backend returns an updated session', async () => {
-    const updatedSession = { ...sessionFixture, model: 'provider/alternate-model' };
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url === '/api/models/session/model' && init?.method === 'PUT') {
-        return new Response(JSON.stringify({ session: updatedSession }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      throw new Error(`Unexpected request: ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    const store = createStore({ "session-a": [permission] })
+    const childStores = createChildStores([["/test/project", store]])
 
-    const result = await updateSessionModel('session-1', 'provider/alternate-model');
+    const { setActionRefs, respondToPermission } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as OpencodeClient, childStores, () => "/test/project")
 
-    expect(result).toEqual(updatedSession);
-    expect(useSessionUiStore.getState().selectedSessionId).toBe('session-1');
-    expect(useUIStore.getState().activeModelKey).toBe('provider/alternate-model');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-});
+    await respondToPermission("session-a", "perm-1", "once")
+
+    expect(replyCalls.length).toBe(1)
+    expect(replyCalls[0].params.requestID).toBe("perm-1")
+    expect(replyCalls[0].params.reply).toBe("once")
+    expect(replyCalls[0].params.directory).toBe("/test/project")
+  })
+
+  test("passes directory from session mapping when permission not in store", async () => {
+    const childStores = createChildStores([])
+
+    const { setActionRefs, respondToPermission } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as OpencodeClient, childStores, () => "/test/project")
+
+    await respondToPermission("session-b", "perm-2", "always")
+
+    expect(replyCalls.length).toBe(1)
+    expect(replyCalls[0].params.requestID).toBe("perm-2")
+    expect(replyCalls[0].params.reply).toBe("always")
+    expect(replyCalls[0].params.directory).toBe("/other/project")
+  })
+
+  test("passes directory from current directory as last resort", async () => {
+    const childStores = createChildStores([])
+
+    const { setActionRefs, respondToPermission } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as OpencodeClient, childStores, () => "/fallback/dir")
+
+    await respondToPermission("unknown-session", "perm-3", "reject")
+
+    expect(replyCalls.length).toBe(1)
+    expect(replyCalls[0].params.requestID).toBe("perm-3")
+    expect(replyCalls[0].params.reply).toBe("reject")
+    expect(replyCalls[0].params.directory).toBe("/fallback/dir")
+  })
+})
+
+describe("dismissPermission passes directory", () => {
+  beforeEach(() => {
+    replyCalls.length = 0
+  })
+
+  test("passes directory and reply=reject", async () => {
+    const permission: PermissionRequest = {
+      id: "perm-10",
+      sessionID: "session-a",
+      permission: "edit",
+      patterns: [],
+      metadata: {},
+      always: [],
+    }
+
+    const store = createStore({ "session-a": [permission] })
+    const childStores = createChildStores([["/test/project", store]])
+
+    const { setActionRefs, dismissPermission } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as OpencodeClient, childStores, () => "/test/project")
+
+    await dismissPermission("session-a", "perm-10")
+
+    expect(replyCalls.length).toBe(1)
+    expect(replyCalls[0].params.requestID).toBe("perm-10")
+    expect(replyCalls[0].params.reply).toBe("reject")
+    expect(replyCalls[0].params.directory).toBe("/test/project")
+  })
+})
+
+describe("respondToQuestion passes directory", () => {
+  beforeEach(() => {
+    replyCalls.length = 0
+  })
+
+  test("passes directory to question.reply", async () => {
+    const childStores = createChildStores([])
+
+    const { setActionRefs, respondToQuestion } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as OpencodeClient, childStores, () => "/test/project")
+
+    await respondToQuestion("session-a", "q-1", [["answer1"]])
+
+    expect(replyCalls.length).toBe(1)
+    expect(replyCalls[0].params.requestID).toBe("q-1")
+    expect(replyCalls[0].params.directory).toBe("/test/project")
+  })
+})
+
+describe("rejectQuestion passes directory", () => {
+  beforeEach(() => {
+    replyCalls.length = 0
+  })
+
+  test("passes directory to question.reject", async () => {
+    const childStores = createChildStores([])
+
+    const { setActionRefs, rejectQuestion } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as OpencodeClient, childStores, () => "/test/project")
+
+    await rejectQuestion("session-a", "q-2")
+
+    expect(replyCalls.length).toBe(1)
+    expect(replyCalls[0].params.requestID).toBe("q-2")
+    expect(replyCalls[0].params.directory).toBe("/test/project")
+  })
+})

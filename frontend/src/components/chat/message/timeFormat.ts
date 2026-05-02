@@ -1,24 +1,48 @@
-export function formatTimestampForDisplay(timestamp: string): string {
-  if (timestamp === 'streaming') {
-    return 'streaming';
-  }
+const pad2 = (value: number): string => String(value).padStart(2, '0');
 
-  const date = new Date(timestamp);
-  if (isNaN(date.getTime())) {
-    return timestamp;
-  }
+const isSameDay = (left: Date, right: Date): boolean => {
+    return (
+        left.getFullYear() === right.getFullYear() &&
+        left.getMonth() === right.getMonth() &&
+        left.getDate() === right.getDate()
+    );
+};
 
-  return date.toLocaleString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const isYesterday = (date: Date, now: Date): boolean => {
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    return isSameDay(date, yesterday);
+};
 
-export function formatDuration(start: number, end?: number, now: number = Date.now()): string {
-  const duration = end ? end - start : now - start;
-  const seconds = duration / 1000;
-  const displaySeconds = seconds < 0.05 && end !== undefined ? 0.1 : seconds;
-  return `${displaySeconds.toFixed(1)}s`;
-}
+const isValidTimestamp = (timestamp: number): boolean => {
+    return Number.isFinite(timestamp) && !Number.isNaN(new Date(timestamp).getTime());
+};
+
+export const formatTimestampForDisplay = (timestamp: number): string => {
+    if (!isValidTimestamp(timestamp)) {
+        return '';
+    }
+
+    const date = new Date(timestamp);
+    const now = new Date();
+
+    const timePart = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+
+    if (isSameDay(date, now)) {
+        return timePart;
+    }
+
+    if (isYesterday(date, now)) {
+        return `Yesterday ${timePart}`;
+    }
+
+    const monthPart = date.toLocaleString(undefined, { month: 'short' });
+    const dayPart = date.getDate();
+    const datePart = `${monthPart} ${dayPart}`;
+
+    if (date.getFullYear() === now.getFullYear()) {
+        return `${datePart}, ${timePart}`;
+    }
+
+    return `${datePart}, ${date.getFullYear()}, ${timePart}`;
+};

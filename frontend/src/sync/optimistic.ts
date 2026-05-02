@@ -1,118 +1,127 @@
-import type { SessionInfo, SessionMessage } from '@/types';
+import type { Message, Part } from "@opencode-ai/sdk/v2/client"
+import { Binary } from "./binary"
 
-const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
-function compareMessageOrder(left: SessionMessage, right: SessionMessage): number {
-  const leftTs = Date.parse(left.timestamp);
-  const rightTs = Date.parse(right.timestamp);
-  const leftHasTs = Number.isFinite(leftTs);
-  const rightHasTs = Number.isFinite(rightTs);
-
-  if (leftHasTs && rightHasTs && leftTs !== rightTs) {
-    return leftTs - rightTs;
-  }
-
-  return cmp(left.id, right.id);
-}
-
-function sortMessages(messages: SessionMessage[]): SessionMessage[] {
-  return [...messages].sort(compareMessageOrder);
+function sortParts(parts: Part[]) {
+  return parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id))
 }
 
 export type OptimisticStore = {
-  message: Record<string, SessionMessage[] | undefined>;
-};
+  message: Record<string, Message[] | undefined>
+  part: Record<string, Part[] | undefined>
+}
 
 export type OptimisticItem = {
-  message: SessionMessage;
-  parts: unknown[];
-};
+  message: Message
+  parts: Part[]
+}
 
 export type OptimisticAddInput = {
-  sessionID: string;
-  message: SessionMessage;
-  parts: unknown[];
-};
+  sessionID: string
+  message: Message
+  parts: Part[]
+}
 
 export type OptimisticRemoveInput = {
-  sessionID: string;
-  messageID: string;
-};
+  sessionID: string
+  messageID: string
+}
 
 export type MessagePage = {
-  session: SessionMessage[];
-  part?: { id: string; part: unknown[] }[];
-  cursor?: string;
-  complete: boolean;
-};
+  session: Message[]
+  part: { id: string; part: Part[] }[]
+  cursor?: string
+  complete: boolean
+}
 
-function mergeMessages<T extends { id: string }>(a: readonly T[], b: readonly T[]): T[] {
-  const existing = new Map(a.map((item) => [item.id, item] as const));
-  let changed = false;
-  for (const item of b) {
-    if (!existing.has(item.id)) {
-      existing.set(item.id, item);
-      changed = true;
-    }
+const hasParts = (parts: Part[] | undefined, want: Part[]) => {
+  if (!parts) return want.length === 0
+  return want.every((part) => Binary.search(parts, part.id, (item) => item.id).found)
+}
+
+const mergeParts = (parts: Part[] | undefined, want: Part[]) => {
+  if (!parts) return sortParts(want)
+  const next = [...parts]
+  let changed = false
+  for (const part of want) {
+    const result = Binary.search(next, part.id, (item) => item.id)
+    if (result.found) continue
+    next.splice(result.index, 0, part)
+    changed = true
   }
-  if (!changed) {
-    return a as T[];
-  }
-  return [...existing.values()].sort((left, right) => cmp(left.id, right.id));
+  if (!changed) return parts
+  return next
 }
 
 export function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) {
-  if (items.length === 0) {
-    return { ...page, confirmed: [] as string[] };
-  }
+  if (items.length === 0) return { ...page, confirmed: [] as string[] }
 
-  const session = [...page.session];
-  const confirmed: string[] = [];
+  const session = [...page.session]
+  const part = new Map(page.part.map((item) => [item.id, sortParts(item.part)]))
+  const confirmed: string[] = []
 
   for (const item of items) {
-    const existing = session.find((message) => message.id === item.message.id);
-    if (!existing) {
-      session.push(item.message);
-      continue;
+    const result = Binary.search(session, item.message.id, (message) => message.id)
+    const found = result.found
+    if (!found) session.splice(result.index, 0, item.message)
+
+    const current = part.get(item.message.id)
+    if (found && hasParts(current, item.parts)) {
+      confirmed.push(item.message.id)
+      continue
     }
-    confirmed.push(item.message.id);
+
+    part.set(item.message.id, mergeParts(current, item.parts))
   }
 
   return {
     cursor: page.cursor,
     complete: page.complete,
-    session: sortMessages(session),
-    part: page.part ?? [],
+    session,
+    part: [...part.entries()]
+      .sort((a, b) => cmp(a[0], b[0]))
+      .map(([id, part]) => ({ id, part })),
     confirmed,
-  };
+  }
 }
 
-export function applyOptimisticAdd(draft: OptimisticStore, input: OptimisticAddInput): void {
-  const messages = draft.message[input.sessionID];
+/** Apply optimistic add to a mutable draft (for immer/produce) */
+export function applyOptimisticAdd(draft: OptimisticStore, input: OptimisticAddInput) {
+  const messages = draft.message[input.sessionID]
   if (messages) {
-    if (!messages.some((entry) => entry.id === input.message.id)) {
-      messages.push(input.message);
-      draft.message[input.sessionID] = sortMessages(messages);
+    const result = Binary.search(messages, input.message.id, (m) => m.id)
+    if (!result.found) {
+      messages.splice(result.index, 0, input.message)
     }
   } else {
-    draft.message[input.sessionID] = [input.message];
+    draft.message[input.sessionID] = [input.message]
   }
+  draft.part[input.message.id] = sortParts(input.parts)
 }
 
-export function applyOptimisticRemove(draft: OptimisticStore, input: OptimisticRemoveInput): void {
-  const messages = draft.message[input.sessionID];
-  if (!messages) {
-    return;
+/** Apply optimistic remove to a mutable draft (for immer/produce) */
+export function applyOptimisticRemove(draft: OptimisticStore, input: OptimisticRemoveInput) {
+  const messages = draft.message[input.sessionID]
+  if (messages) {
+    const result = Binary.search(messages, input.messageID, (m) => m.id)
+    if (result.found) messages.splice(result.index, 1)
   }
-  draft.message[input.sessionID] = messages.filter((message) => message.id !== input.messageID);
+  delete draft.part[input.messageID]
 }
 
-export function mergeMessagesSorted<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
-  return mergeMessages(a, b);
-}
-
-export { mergeMessagesSorted as mergeMessages };
-
-export function optimisticConversationFromSession(session: SessionInfo): SessionMessage[] {
-  return [...session.messages];
+/** Merge two sorted message arrays by id, deduplicating.
+ *  Preserves references from `a` for items that already exist — avoids
+ *  unnecessary React re-renders when prepending older history. */
+export function mergeMessages<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
+  const existing = new Map(a.map((item) => [item.id, item] as const))
+  let changed = false
+  for (const item of b) {
+    if (!existing.has(item.id)) {
+      existing.set(item.id, item)
+      changed = true
+    }
+  }
+  if (!changed) return a as T[]
+  return [...existing.values()].sort((x, y) => cmp(x.id, y.id))
 }

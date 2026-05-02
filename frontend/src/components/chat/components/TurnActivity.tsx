@@ -1,20 +1,38 @@
 import React from 'react';
-import './TurnActivity.css';
 
-interface TurnActivityProps {
-  phase?: 'idle' | 'busy' | 'retry' | 'cooldown';
-  className?: string;
+import ProgressiveGroup from '../message/parts/ProgressiveGroup';
+import type { TurnActivityRecord } from '../lib/turns/types';
+import type { ToolPopupContent } from '../message/types';
+import type { StreamPhase } from '../message/types';
+import type { ContentChangeReason } from '@/hooks/useChatScrollManager';
+
+interface DiffStats {
+    additions: number;
+    deletions: number;
+    files: number;
 }
 
-export const TurnActivity: React.FC<TurnActivityProps> = ({ phase = 'idle', className }) => {
-  const dots = ['one', 'two', 'three'] as const;
-  return (
-    <span className={`turn-activity turn-activity-${phase} ${className ?? ''}`} aria-hidden="true">
-      {dots.map((dot) => (
-        <span key={dot} className={`turn-activity-dot turn-activity-dot-${dot}`} />
-      ))}
-    </span>
-  );
+interface TurnActivityProps {
+    parts: TurnActivityRecord[];
+    isExpanded: boolean;
+    collapsedPreviewCount?: number;
+    onToggle: () => void;
+    syntaxTheme: Record<string, React.CSSProperties>;
+    isMobile: boolean;
+    expandedTools: Set<string>;
+    onToggleTool: (toolId: string) => void;
+    onShowPopup: (content: ToolPopupContent) => void;
+    onContentChange?: (reason?: ContentChangeReason) => void;
+    streamPhase: StreamPhase;
+    showHeader: boolean;
+    animateRows?: boolean;
+    animatedToolIds?: Set<string>;
+    diffStats?: DiffStats;
+    renderJustificationActions?: (activity: TurnActivityRecord) => React.ReactNode;
+}
+
+const TurnActivity: React.FC<TurnActivityProps> = (props) => {
+    return <ProgressiveGroup {...props} />;
 };
 
-export default TurnActivity;
+export default React.memo(TurnActivity);

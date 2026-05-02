@@ -1,26 +1,31 @@
 import React from 'react';
-import './ChatEmptyState.css';
+import { OpenChamberLogo } from '@/components/ui/OpenChamberLogo';
+import { useThemeSystem } from '@/contexts/useThemeSystem';
+import { useGlobalSyncStore } from '@/sync/global-sync-store';
+import { useI18n } from '@/lib/i18n';
 
-interface ChatEmptyStateProps {
-  onNewSession?: () => void;
-}
+const ChatEmptyState: React.FC = () => {
+    const { t } = useI18n();
+    const { currentTheme } = useThemeSystem();
+    const initError = useGlobalSyncStore((s) => s.error);
 
-export function ChatEmptyState({ onNewSession }: ChatEmptyStateProps) {
-  return (
-    <div className="empty-state">
-      <div className="empty-state-illustration" aria-hidden="true">
-        <div className="empty-state-ring" />
-        <div className="empty-state-core" />
-      </div>
-      <p className="empty-state-title">No sessions in this project yet.</p>
-      <p className="empty-state-subtitle">Create a session in the current project to start chatting.</p>
-      {onNewSession && (
-        <button type="button" className="btn btn-primary btn-sm" onClick={onNewSession}>
-          New session
-        </button>
-      )}
-    </div>
-  );
-}
+    const textColor = currentTheme?.colors?.surface?.mutedForeground || 'var(--muted-foreground)';
 
-export default ChatEmptyState;
+    return (
+        <div className="flex flex-col items-center justify-center min-h-full w-full gap-6">
+            <OpenChamberLogo width={140} height={140} className="opacity-20" />
+            {initError ? (
+                <div className="flex flex-col items-center gap-2 max-w-md text-center px-4">
+                    <span className="text-body-md font-medium text-destructive">{t('chat.emptyState.opencodeUnreachable')}</span>
+                    <span className="text-body-sm" style={{ color: textColor }}>
+                        {initError.message}
+                    </span>
+                </div>
+            ) : (
+                <span className="text-body-md" style={{ color: textColor }}>{t('chat.emptyState.startNewChat')}</span>
+            )}
+        </div>
+    );
+};
+
+export default React.memo(ChatEmptyState);

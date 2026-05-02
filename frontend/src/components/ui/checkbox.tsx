@@ -1,27 +1,72 @@
-import * as React from "react"
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
+import * as React from 'react';
+import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
+import { RiCheckLine, RiSubtractLine } from '@remixicon/react';
+import { cn } from '@/lib/utils';
 
-import { cn } from "@/lib/utils"
+interface CheckboxProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  indeterminate?: boolean;
+  ariaLabel?: string;
+  className?: string;
+  iconClassName?: string;
+  /** @deprecated size is fixed; prop retained for backwards compatibility */
+  size?: 'sm' | 'default';
+}
 
-const Checkbox = React.forwardRef<
-  React.ComponentRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <CheckboxPrimitive.Root
-    ref={ref}
-    className={cn(
-      "peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
-      className
-    )}
-    {...props}
-  >
-    <CheckboxPrimitive.Indicator className={cn("flex items-center justify-center text-current")}>
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M11.4669 3.72684C11.7558 3.91574 11.8369 4.30308 11.648 4.59198L7.39799 11.092C7.29783 11.2452 7.13556 11.3467 6.95402 11.3699C6.77247 11.3931 6.58989 11.3355 6.45446 11.2124L3.70446 8.71241C3.44905 8.48022 3.43023 8.08494 3.66242 7.82953C3.89461 7.57412 4.28989 7.55529 4.5453 7.78749L6.75292 9.79441L10.6018 3.90792C10.7907 3.61902 11.178 3.53795 11.4669 3.72684Z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    </CheckboxPrimitive.Indicator>
-  </CheckboxPrimitive.Root>
-))
-Checkbox.displayName = CheckboxPrimitive.Root.displayName
 
-export { Checkbox }
+export const Checkbox = React.memo<CheckboxProps>(function Checkbox({
+  checked,
+  onChange,
+  disabled = false,
+  indeterminate,
+  ariaLabel,
+  className,
+  iconClassName,
+}) {
+  const boxSize = 'h-[14px] w-[14px] min-h-[14px] min-w-[14px]';
+  const iconSize = 'h-[10px] w-[10px] min-h-[10px] min-w-[10px]';
+  const isOn = checked || indeterminate;
+  return (
+    <BaseCheckbox.Root
+      checked={checked}
+      onCheckedChange={(next) => onChange(Boolean(next))}
+      disabled={disabled}
+      indeterminate={indeterminate}
+      aria-label={ariaLabel}
+      className={cn(
+        // AlignUI-style rounded box. Use a real border so press/hover states never lose the outline.
+        'group/checkbox relative flex shrink-0 self-center items-center justify-center rounded-[4px] border outline-none',
+        boxSize,
+        'transition-[background-color,border-color,box-shadow] duration-200 ease-out',
+        // Drive fill directly from React props so the initial paint matches
+        // the final state without waiting for Base UI to hydrate data attrs.
+        isOn
+          ? 'border-[color:color-mix(in_srgb,var(--primary-base)_65%,var(--interactive-border))] bg-transparent shadow-none hover:bg-[var(--interactive-hover)] hover:border-[color:color-mix(in_srgb,var(--primary-base)_75%,var(--interactive-border))]'
+          : 'border-[var(--interactive-border)] bg-transparent shadow-none hover:bg-[var(--interactive-hover)] hover:border-[var(--interactive-border)]',
+        // focus: transparent offset so parent bg (e.g. sidebar) doesn't create a visible gap
+        'focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-transparent',
+        // disabled
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+    >
+      <BaseCheckbox.Indicator
+        keepMounted
+        className={cn(
+          'flex items-center justify-center text-[var(--primary-base)]',
+          // hide when fully unchecked (no state)
+          'data-[unchecked]:hidden',
+          iconClassName,
+        )}
+      >
+        {indeterminate ? (
+          <RiSubtractLine className={cn(iconSize, 'text-[var(--primary-base)]')} />
+        ) : (
+          <RiCheckLine className={cn(iconSize, 'text-[var(--primary-base)]')} />
+        )}
+      </BaseCheckbox.Indicator>
+    </BaseCheckbox.Root>
+  );
+});

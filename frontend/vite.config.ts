@@ -7,9 +7,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   root: '.',
   base: '/',
+  worker: {
+    format: 'es',
+  },
+  define: {
+    'process.env': {},
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: ['@opencode-ai/sdk/v2'],
+  },
   build: {
     outDir: '../dist/public',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -17,16 +28,32 @@ export default defineConfig({
             return undefined;
           }
 
-          if (id.includes('react-markdown') || id.includes('remark-gfm') || id.includes('marked')) {
-            return 'markdown-vendor';
+          const match = id.split('node_modules/')[1];
+          if (!match) {
+            return undefined;
           }
 
-          if (id.includes('@radix-ui') || id.includes('sonner')) {
-            return 'ui-vendor';
+          const segments = match.split('/');
+          const packageName = match.startsWith('@') ? `${segments[0]}/${segments[1]}` : segments[0];
+
+          if (packageName === 'react' || packageName === 'react-dom') {
+            return 'vendor-react';
           }
 
-          if (id.includes('lucide-react')) {
-            return 'icon-vendor';
+          if (packageName === '@opencode-ai/sdk') {
+            return 'vendor-opencode-sdk';
+          }
+
+          if (packageName.includes('remark') || packageName.includes('rehype') || packageName === 'react-markdown' || packageName === 'marked') {
+            return 'vendor-markdown';
+          }
+
+          if (packageName === '@base-ui/react' || packageName.startsWith('@base-ui') || packageName.startsWith('@radix-ui') || packageName === 'sonner' || packageName === 'cmdk') {
+            return 'vendor-ui';
+          }
+
+          if (packageName === 'lucide-react' || packageName === '@remixicon/react') {
+            return 'vendor-icons';
           }
 
           return undefined;
@@ -37,6 +64,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@opencode-ai/sdk/v2': path.resolve(__dirname, '../node_modules/@opencode-ai/sdk/dist/v2/client.js'),
     },
   },
   server: {

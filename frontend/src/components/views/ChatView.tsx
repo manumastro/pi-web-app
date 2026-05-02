@@ -1,21 +1,14 @@
 import React from 'react';
-import { ChatErrorBoundary } from '@/components/chat/ChatErrorBoundary';
 import { ChatContainer } from '@/components/chat/ChatContainer';
-import './ChatView.css';
+import { ChatErrorBoundary } from '@/components/chat/ChatErrorBoundary';
+import { useSessionUIStore } from '@/sync/session-ui-store';
 
-interface ChatViewProps {
-  sessionId?: string | null;
-  children: React.ReactNode;
-}
+export const ChatView: React.FC = () => {
+    const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
 
-export function ChatView({ sessionId, children }: ChatViewProps) {
-  return (
-    <ChatErrorBoundary>
-      <ChatContainer>
-        {children}
-      </ChatContainer>
-    </ChatErrorBoundary>
-  );
-}
-
-export default ChatView;
+    return (
+        <ChatErrorBoundary sessionId={currentSessionId || undefined}>
+            <ChatContainer />
+        </ChatErrorBoundary>
+    );
+};
