@@ -10,11 +10,11 @@ const DOT_DELAYS_MS = [0, 200, 400] as const;
 export const BusyDots: React.FC<BusyDotsProps> = ({ className }) => (
   <>
     {'\u00A0'}
-    <span className={cn('inline-flex', className)} aria-hidden="true">
+    <span className={cn('inline-flex align-baseline', className)} aria-hidden="true">
       {DOT_DELAYS_MS.map((delay) => (
         <span
           key={delay}
-          className="animate-busy-pulse"
+          className="inline-block animate-busy-pulse will-change-transform"
           style={{ animationDelay: `${delay}ms` }}
         >
           .

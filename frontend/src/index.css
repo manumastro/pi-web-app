@@ -1345,15 +1345,17 @@ textarea[data-terminal-hidden-input="true"]::placeholder {
 
 @keyframes oc-busy-pulse {
   0%, 100% {
-    opacity: 0.2;
+    opacity: 0.35;
+    transform: translateY(0);
   }
   50% {
     opacity: 1;
+    transform: translateY(-0.14em);
   }
 }
 
 .animate-busy-pulse {
-  animation: oc-busy-pulse 1.2s ease-in-out infinite;
+  animation: oc-busy-pulse 1.05s ease-in-out infinite;
 }
 
 @keyframes navrail-dot-wave {
