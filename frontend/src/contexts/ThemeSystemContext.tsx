@@ -209,6 +209,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
   const [preferences, setPreferences] = useState<ThemePreferences>(() => buildInitialPreferences(defaultThemeId));
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => getSystemPreference());
   const [customThemes, setCustomThemes] = useState<Theme[]>([]);
+  const hasUserThemeOverrideRef = React.useRef(false);
   const [customThemesLoading, setCustomThemesLoading] = useState(false);
   const [vscodeTheme, setVSCodeTheme] = useState<Theme | null>(() => {
     if (typeof window === 'undefined' || !isVSCodeRuntime()) {
@@ -591,7 +592,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
     }
     const handleSettingsSynced = (event: Event) => {
       const detail = (event as CustomEvent<DesktopSettings>).detail;
-      if (!detail) {
+      if (!detail || hasUserThemeOverrideRef.current) {
         return;
       }
 
@@ -658,6 +659,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
         return;
       }
 
+      hasUserThemeOverrideRef.current = true;
       const next: ThemePreferences = theme.metadata.variant === 'dark'
         ? { ...preferences, darkThemeId: theme.metadata.id, themeMode: 'dark' }
         : { ...preferences, lightThemeId: theme.metadata.id, themeMode: 'light' };
@@ -691,6 +693,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
   );
 
   const setThemeModeHandler = useCallback((mode: ThemeMode) => {
+    hasUserThemeOverrideRef.current = true;
     const next: ThemePreferences = { ...preferences, themeMode: mode };
     setPreferences((prev) => {
       if (prev.themeMode === mode) {
@@ -707,6 +710,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
   const setSystemPreferenceHandler = useCallback(
     (use: boolean) => {
       if (use) {
+        hasUserThemeOverrideRef.current = true;
         const next: ThemePreferences = { ...preferences, themeMode: 'system' };
         setPreferences((prev) => {
           if (prev.themeMode === 'system') {
@@ -721,6 +725,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
         return;
       }
 
+      hasUserThemeOverrideRef.current = true;
       const fallbackMode: ThemeMode =
         currentTheme.metadata.variant === 'dark' ? 'dark' : 'light';
       const next: ThemePreferences = { ...preferences, themeMode: fallbackMode };
