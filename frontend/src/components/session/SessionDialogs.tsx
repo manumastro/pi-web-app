@@ -14,7 +14,7 @@ import { RiCheckboxBlankLine, RiCheckboxLine, RiDeleteBinLine, RiGitBranchLine }
 import { MobileOverlayPanel } from '@/components/ui/MobileOverlayPanel';
 import { DirectoryExplorerDialog } from './DirectoryExplorerDialog';
 import { cn, formatPathForDisplay } from '@/lib/utils';
-import type { Session } from '@opencode-ai/sdk/v2';
+import type { Project, Session } from '@opencode-ai/sdk/v2';
 import type { WorktreeMetadata } from '@/types/worktree';
 import { getWorktreeStatus } from '@/lib/worktrees/worktreeStatus';
 import { removeProjectWorktree } from '@/lib/worktrees/worktreeManager';
@@ -26,6 +26,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useDeviceInfo } from '@/lib/device';
 import { sessionEvents } from '@/lib/sessionEvents';
 import { useI18n } from '@/lib/i18n';
+import { opencodeClient } from '@/lib/opencode/client';
 
 const renderToastDescription = (text?: string) =>
     text ? <span className="text-foreground/80 dark:text-foreground/70">{text}</span> : undefined;
@@ -59,6 +60,7 @@ export const SessionDialogs: React.FC = () => {
     const [isProcessingDelete, setIsProcessingDelete] = React.useState(false);
     const [hasCompletedDirtyCheck, setHasCompletedDirtyCheck] = React.useState(false);
     const [dirtyWorktreePaths, setDirtyWorktreePaths] = React.useState<Set<string>>(new Set());
+    const [isHydratingInitialProjects, setIsHydratingInitialProjects] = React.useState(false);
 
     const getWorktreeMetadata = useSessionUIStore((s) => s.getWorktreeMetadata);
     const newSessionDraft = useSessionUIStore((s) => s.newSessionDraft);
@@ -75,6 +77,8 @@ export const SessionDialogs: React.FC = () => {
     const isHomeReady = useDirectoryStore((s) => s.isHomeReady);
     const projects = useProjectsStore((s) => s.projects);
     const activeProjectId = useProjectsStore((s) => s.activeProjectId);
+    const addProject = useProjectsStore((s) => s.addProject);
+    const setActiveProjectIdOnly = useProjectsStore((s) => s.setActiveProjectIdOnly);
     const { isMobile, isTablet, hasTouchInput } = useDeviceInfo();
     const useMobileOverlay = isMobile || isTablet || hasTouchInput;
 
@@ -116,17 +120,58 @@ export const SessionDialogs: React.FC = () => {
     // Session loading is handled by sync bootstrap — no manual loadSessions needed.
 
     React.useEffect(() => {
-        if (hasShownInitialDirectoryPrompt || !isHomeReady || projects.length > 0) {
+        if (hasShownInitialDirectoryPrompt || !isHomeReady || projects.length > 0 || isHydratingInitialProjects) {
             return;
         }
 
-        setHasShownInitialDirectoryPrompt(true);
+        let cancelled = false;
+        setIsHydratingInitialProjects(true);
 
-        setIsDirectoryDialogOpen(true);
+        void (async () => {
+            try {
+                const response = await opencodeClient.getSdkClient().project.list();
+                const remoteProjects: Project[] = response.data ?? [];
+                if (cancelled) return;
+
+                const worktrees = remoteProjects
+                    .map((project: Project) => project?.worktree?.trim())
+                    .filter((worktree: string | undefined): worktree is string => typeof worktree === 'string' && worktree.length > 0);
+
+                if (worktrees.length > 0) {
+                    for (const worktree of worktrees) {
+                        addProject(worktree);
+                    }
+                    const firstProject = useProjectsStore.getState().projects[0];
+                    if (firstProject?.id) {
+                        setActiveProjectIdOnly(firstProject.id);
+                    }
+                    setHasShownInitialDirectoryPrompt(true);
+                    return;
+                }
+            } catch {
+                // fallback to prompt below
+            }
+
+            if (!cancelled) {
+                setHasShownInitialDirectoryPrompt(true);
+                setIsDirectoryDialogOpen(true);
+            }
+        })().finally(() => {
+            if (!cancelled) {
+                setIsHydratingInitialProjects(false);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [
+        addProject,
         hasShownInitialDirectoryPrompt,
         isHomeReady,
+        isHydratingInitialProjects,
         projects.length,
+        setActiveProjectIdOnly,
     ]);
 
     const openDeleteDialog = React.useCallback((payload: { sessions: Session[]; dateLabel?: string; mode?: 'session' | 'worktree'; worktree?: WorktreeMetadata | null }) => {
