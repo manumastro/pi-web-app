@@ -250,7 +250,16 @@ const VirtualizedRows: React.FC<VirtualizedRowsProps> = React.memo(({
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20, // render 20 extra rows above/below viewport
+    // React 19 + zustand v5 can trigger error #185 when flushSync
+    // fires during useLayoutEffect re-render cascades.
+    useFlushSync: false,
   });
+
+  const totalSize = virtualizer.getTotalSize();
+  const virtualRows = React.useMemo(
+    () => virtualizer.getVirtualItems(),
+    [virtualizer, totalSize],
+  );
 
   return (
     <div
@@ -261,12 +270,12 @@ const VirtualizedRows: React.FC<VirtualizedRowsProps> = React.memo(({
       {prismThemeCss ? <style>{prismThemeCss}</style> : null}
       <div
         style={{
-          height: `${virtualizer.getTotalSize()}px`,
+          height: `${totalSize}px`,
           width: '100%',
           position: 'relative',
         }}
       >
-        {virtualizer.getVirtualItems().map((vItem) => {
+        {virtualRows.map((vItem) => {
           const line = lines[vItem.index];
           return (
             <div

@@ -210,6 +210,9 @@ const JsonTreeViewer = React.forwardRef<{ expandAll: () => void; collapseAll: ()
       estimateSize: () => ROW_HEIGHT,
       overscan: 20,
       enabled: shouldVirtualize,
+      // React 19 + zustand v5 can trigger error #185 when flushSync
+      // fires during useLayoutEffect re-render cascades.
+      useFlushSync: false,
     });
 
     const handleToggle = React.useCallback((id: string) => {
@@ -239,6 +242,12 @@ const JsonTreeViewer = React.forwardRef<{ expandAll: () => void; collapseAll: ()
       return null;
     }
 
+    const totalSize = virtualizer.getTotalSize();
+    const virtualRows = React.useMemo(
+      () => (shouldVirtualize ? virtualizer.getVirtualItems() : []),
+      [shouldVirtualize, virtualizer, totalSize],
+    );
+
     if (shouldVirtualize) {
       return (
         <div
@@ -248,12 +257,12 @@ const JsonTreeViewer = React.forwardRef<{ expandAll: () => void; collapseAll: ()
         >
           <div
             style={{
-              height: `${virtualizer.getTotalSize()}px`,
+              height: `${totalSize}px`,
               width: '100%',
               position: 'relative',
             }}
           >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
+            {virtualRows.map((virtualRow) => {
               const flatNode = flatNodes[virtualRow.index];
               if (!flatNode) return null;
               return (

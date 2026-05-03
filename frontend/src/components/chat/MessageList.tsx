@@ -1312,6 +1312,10 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
         useAnimationFrameWithResizeObserver: true,
         overscan: MESSAGE_LIST_OVERSCAN,
         enabled: shouldVirtualizeHistory,
+        // React 19 + useSyncExternalStore (zustand v5) can trigger error #185
+        // when flushSync is called during useLayoutEffect re-render cascades.
+        // Deferring to async rerender avoids nested-update detection.
+        useFlushSync: false,
     });
 
     React.useEffect(() => {
@@ -1346,9 +1350,10 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(({
         };
     }, []);
 
+    const historyTotalSize = historyVirtualizer.getTotalSize();
     const historyVirtualRows = React.useMemo(
-        () => (shouldVirtualizeHistory ? historyVirtualizer.getVirtualItems() : []),
-        [historyVirtualizer, shouldVirtualizeHistory],
+        () => (shouldVirtualizeHistory && historyTotalSize >= 0 ? historyVirtualizer.getVirtualItems() : []),
+        [historyVirtualizer, shouldVirtualizeHistory, historyTotalSize],
     );
 
     const allEntries = React.useMemo(() => {

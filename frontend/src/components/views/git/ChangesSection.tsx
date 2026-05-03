@@ -237,6 +237,9 @@ export const ChangesSection: React.FC<ChangesSectionProps> = ({
     estimateSize: () => CHANGE_ROW_ESTIMATE_PX,
     overscan: 10,
     enabled: shouldVirtualize,
+    // React 19 + zustand v5 can trigger error #185 when flushSync
+    // fires during useLayoutEffect re-render cascades.
+    useFlushSync: false,
   });
 
   // Force virtualizer to remeasure when the scroll container transitions
