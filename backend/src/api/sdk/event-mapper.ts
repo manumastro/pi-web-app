@@ -143,10 +143,19 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
       };
     }
     case 'done': {
-      return {
-        type: 'session.idle',
+      const session = sessionStore.getSession(event.sessionId);
+      const stored = session?.messages.find((message) => getExternalMessageId(message) === event.messageId || message.id === event.messageId);
+      const messageUpdated = session && stored
+        ? {
+            type: 'message.updated' as const,
+            properties: { info: toSdkMessageInfo(session, stored) },
+          }
+        : null;
+      const idle = {
+        type: 'session.idle' as const,
         properties: { sessionID: event.sessionId },
       };
+      return messageUpdated ? [messageUpdated, idle] : idle;
     }
     case 'session_name': {
       const session = sessionStore.getSession(event.sessionId);

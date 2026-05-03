@@ -37,13 +37,19 @@ function modelForSession(session: Session): { providerID: string; modelID: strin
   };
 }
 
-export function toSdkAssistantMessageInfo(session: Session, messageId: string, created = Date.now(), parentID = ''): SdkMessageInfo {
+export function toSdkAssistantMessageInfo(
+  session: Session,
+  messageId: string,
+  created = Date.now(),
+  parentID = '',
+  completed?: number,
+): SdkMessageInfo {
   const { providerID, modelID } = modelForSession(session);
   return {
     id: messageId,
     sessionID: session.id,
     role: 'assistant',
-    time: { created, completed: created },
+    time: { created, ...(typeof completed === 'number' ? { completed } : {}) },
     parentID,
     providerID,
     modelID,
@@ -63,7 +69,7 @@ export function toSdkMessageInfo(session: Session, msg: SessionMessage): SdkMess
     const previousUser = [...session.messages]
       .reverse()
       .find((candidate) => candidate.role === 'user' && new Date(candidate.timestamp).getTime() <= created);
-    return toSdkAssistantMessageInfo(session, messageId, created, previousUser ? getExternalMessageId(previousUser) : '');
+    return toSdkAssistantMessageInfo(session, messageId, created, previousUser ? getExternalMessageId(previousUser) : '', created);
   }
 
   return {

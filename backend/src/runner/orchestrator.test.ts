@@ -153,7 +153,7 @@ describe('RunnerOrchestrator', () => {
     const result = await orchestrator.prompt({ sessionId: 'session-1', cwd: '/tmp/project', message: 'Say hello', messageId: 'message-1' });
 
     expect(result.sessionId).toBe('session-1');
-    expect(events.map((event) => event.type)).toEqual(['session_name', 'message_updated', 'status', 'message_updated', 'thinking', 'tool_call', 'status', 'tool_result', 'text_chunk', 'text_chunk', 'done', 'status']);
+    expect(events.map((event) => event.type)).toEqual(['session_name', 'message_updated', 'message_updated', 'status', 'thinking', 'tool_call', 'status', 'tool_result', 'text_chunk', 'text_chunk', 'done', 'status']);
 
     const assistantEventMessageIds = events
       .filter((event) => event.type === 'thinking' || event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'text_chunk' || event.type === 'done')

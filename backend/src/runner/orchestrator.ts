@@ -576,11 +576,13 @@ export function createRunnerOrchestrator(params: {
       messageId,
       timestamp: now(),
     });
-    activeTurns.set(session.id, {
+    const activeTurn: ActiveTurn = {
       userMessageId: messageId,
       assistantMessageId,
       assistantContent: '',
-    });
+    };
+    activeTurns.set(session.id, activeTurn);
+    announceAssistantMessage(session.id, activeTurn);
     emit(sseManager, {
       type: 'status',
       sessionId: session.id,
