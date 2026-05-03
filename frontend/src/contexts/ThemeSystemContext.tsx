@@ -572,7 +572,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
       splashFgLight: lightTheme.colors.surface.foreground,
       splashBgDark: darkTheme.colors.surface.background,
       splashFgDark: darkTheme.colors.surface.foreground,
-    });
+    }, { immediate: true });
   }, [currentTheme.metadata.id, currentTheme.metadata.variant, ensureThemeById, preferences.themeMode, preferences.lightThemeId, preferences.darkThemeId]);
 
   useEffect(() => {
