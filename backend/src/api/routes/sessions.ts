@@ -138,6 +138,20 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
     });
   });
 
+  const normalizeIncomingModelKey = (raw: string | undefined): string | undefined => {
+    if (!raw) return undefined;
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    const normalized = trimmed.toLowerCase();
+    if (normalized === 'minimax/minimax-m2.7' || normalized === 'minimax.minimax-m2.7') {
+      return 'minimax/MiniMax-M2.7';
+    }
+    if (normalized === 'minimax/minimax-m2.7-highspeed' || normalized === 'minimax.minimax-m2.7-highspeed') {
+      return 'minimax/MiniMax-M2.7-highspeed';
+    }
+    return trimmed;
+  };
+
   router.post('/session/:sessionId/prompt_async', async (req: Request, res: Response) => {
     const sessionId = paramStr(req.params.sessionId);
     const session = sessionStore.getSession(sessionId);
@@ -150,7 +164,8 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
     const textPart = parts.find((p: Record<string, unknown>) => p.type === 'text');
     const message = typeof textPart?.text === 'string' ? textPart.text.trim() : '';
     const model = req.body?.model;
-    const modelKey = model ? `${String(model.providerID)}/${String(model.modelID)}` : undefined;
+    const rawModelKey = model ? `${String(model.providerID)}/${String(model.modelID)}` : undefined;
+    const modelKey = normalizeIncomingModelKey(rawModelKey);
     const messageId = typeof req.body?.messageID === 'string' ? req.body.messageID : undefined;
 
     if (!message) {

@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import { RunnerCommandSchema, type RunnerCommand, type RunnerEvent, type RunnerModelRef } from '../runner/protocol.js';
 
 interface RpcClientOptions {
@@ -57,13 +59,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object';
 }
 
+function resolvePiCliPath(): string {
+  if (process.env.PI_WEB_PI_CLI_PATH?.trim()) {
+    return fs.realpathSync(path.resolve(process.env.PI_WEB_PI_CLI_PATH.trim()));
+  }
+
+  const whichPi = spawnSync('which', ['pi'], { encoding: 'utf8', env: process.env });
+  const fromPath = whichPi.status === 0 ? whichPi.stdout.trim() : '';
+  if (fromPath) {
+    return fs.realpathSync(path.resolve(fromPath));
+  }
+
+  return path.resolve(process.cwd(), 'node_modules', '@mariozechner', 'pi-coding-agent', 'dist', 'cli.js');
+}
+
 async function loadOfficialRpcClient(): Promise<{ RpcClient: RpcClientCtor; cliPath: string }> {
   if (rpcClientCtorPromise) return rpcClientCtorPromise;
 
   rpcClientCtorPromise = (async () => {
-    const packageDir = path.resolve(process.cwd(), 'node_modules', '@mariozechner', 'pi-coding-agent');
+    const cliPath = resolvePiCliPath();
+    const packageDir = path.dirname(path.dirname(cliPath));
     const modulePath = path.join(packageDir, 'dist', 'modes', 'rpc', 'rpc-client.js');
-    const cliPath = process.env.PI_WEB_PI_CLI_PATH || path.join(packageDir, 'dist', 'cli.js');
     const module = await import(pathToFileURL(modulePath).href) as { RpcClient?: RpcClientCtor };
     if (!module.RpcClient) {
       throw new Error('Official Pi RpcClient export not found');

@@ -1,6 +1,6 @@
+import type { Config } from '../config/index.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Config } from '../config/index.js';
 import { THINKING_LEVELS, type ThinkingLevel } from '../types/thinking.js';
 import { modelKey, parseModelKey, summarizeModels, type ModelLike, type ModelSummary } from '../models/resolver.js';
 import { getHiddenModelKeysFromEnv, isHiddenModelKey } from '../models/visibility.js';
@@ -93,15 +93,47 @@ function readEnabledModelKeys(homeDir: string): string[] {
   }
 }
 
+function normalizeModelKey(key: string): string {
+  const trimmed = key.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('/')) return trimmed.toLowerCase();
+  const dot = trimmed.indexOf('.');
+  if (dot > 0 && dot < trimmed.length - 1) {
+    return `${trimmed.slice(0, dot)}/${trimmed.slice(dot + 1)}`.toLowerCase();
+  }
+  return trimmed.toLowerCase();
+}
+
 function applyModelVisibility(models: RunnerModelInfo[], hiddenModelKeys: Set<string>, enabledModelKeys: string[]): RunnerModelInfo[] {
   const visibleModels = models.filter((model) => !isHiddenModelKey(modelKey(model), hiddenModelKeys));
   if (enabledModelKeys.length === 0) return visibleModels;
 
-  const byKey = new Map(visibleModels.map((model) => [modelKey(model), model]));
-  return enabledModelKeys.flatMap((key) => {
-    const model = byKey.get(key);
-    return model ? [model] : [];
-  });
+  const byKey = new Map(visibleModels.map((model) => [normalizeModelKey(modelKey(model)), model]));
+  const enabledVisibleModels: RunnerModelInfo[] = [];
+
+  for (const enabledKey of enabledModelKeys) {
+    const normalized = normalizeModelKey(enabledKey);
+    const existing = byKey.get(normalized);
+    if (existing) {
+      enabledVisibleModels.push(existing);
+      continue;
+    }
+
+    const parsed = parseModelKey(normalized);
+    if (!parsed) continue;
+
+    enabledVisibleModels.push({
+      provider: parsed.provider,
+      id: parsed.modelId,
+      name: parsed.modelId,
+      reasoning: false,
+      input: ['text'],
+      contextWindow: 0,
+      maxTokens: 0,
+    });
+  }
+
+  return enabledVisibleModels.length > 0 ? enabledVisibleModels : visibleModels;
 }
 
 function toModelLike(model: RunnerModelInfo): ModelLike {
@@ -255,17 +287,80 @@ export function createRunnerOrchestrator(params: {
     });
   }
 
-  function finalizeAssistant(sessionId: string, aborted: boolean, messageId: string): void {
+  function getLatestPiAssistantError(sessionId: string): string | null {
+    const session = sessionStore.getSession(sessionId);
+    const piSessionFile = session?.piSessionFile;
+    if (!piSessionFile) {
+      return null;
+    }
+
+    try {
+      const raw = fs.readFileSync(piSessionFile, 'utf8');
+      const lines = raw.split('\n').filter((line) => line.trim().length > 0);
+      for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const line = lines[index];
+        if (!line) {
+          continue;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (!parsed || typeof parsed !== 'object') {
+          continue;
+        }
+        const candidate = parsed as {
+          type?: unknown;
+          message?: { role?: unknown; stopReason?: unknown; errorMessage?: unknown };
+        };
+        if (candidate.type !== 'message' || !candidate.message || typeof candidate.message !== 'object') {
+          continue;
+        }
+        if (candidate.message.role !== 'assistant') {
+          continue;
+        }
+        const stopReason = typeof candidate.message.stopReason === 'string' ? candidate.message.stopReason : '';
+        const errorMessage = typeof candidate.message.errorMessage === 'string' ? candidate.message.errorMessage.trim() : '';
+        if (stopReason === 'error' && errorMessage.length > 0) {
+          return errorMessage;
+        }
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  function finalizeAssistant(sessionId: string, aborted: boolean, messageId: string): string | null {
     const active = activeTurns.get(sessionId);
-    if (active && (active.assistantContent.length > 0 || aborted)) {
+    const content = active?.assistantContent ?? '';
+    let fallbackContent: string | null = null;
+
+    if (content.length > 0 || aborted) {
       sessionStore.addMessage(sessionId, {
         role: 'assistant',
-        content: active.assistantContent,
+        content,
         messageId,
       });
+    } else {
+      const piError = getLatestPiAssistantError(sessionId);
+      if (piError) {
+        const fallback = `Model error: ${piError}`;
+        sessionStore.addMessage(sessionId, {
+          role: 'assistant',
+          content: fallback,
+          messageId,
+        });
+        fallbackContent = fallback;
+      }
     }
+
     activeTurns.delete(sessionId);
     sessionStore.updateSession(sessionId, { status: 'idle' });
+    return fallbackContent;
   }
 
   function handleRunnerEvent(event: RunnerEvent): void {
@@ -427,7 +522,16 @@ export function createRunnerOrchestrator(params: {
       }
       case 'done': {
         const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
-        finalizeAssistant(event.sessionId, event.aborted ?? false, assistantMessageId);
+        const fallbackContent = finalizeAssistant(event.sessionId, event.aborted ?? false, assistantMessageId);
+        if (fallbackContent && fallbackContent.length > 0) {
+          emit(sseManager, {
+            type: 'text_chunk',
+            sessionId: event.sessionId,
+            messageId: assistantMessageId,
+            content: fallbackContent,
+            timestamp: now(),
+          });
+        }
         sessionStore.updateSession(event.sessionId, {
           status: 'idle',
           statusMessage: event.aborted ? 'CLI stopped' : 'CLI idle',

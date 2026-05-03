@@ -138,6 +138,21 @@ const isValidCustomTheme = (value: unknown): value is Theme => {
   return variant === 'light' || variant === 'dark';
 };
 
+const hasPersistedThemePreference = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const storedMode = localStorage.getItem('themeMode');
+  if (storedMode === 'light' || storedMode === 'dark' || storedMode === 'system') {
+    return true;
+  }
+
+  return localStorage.getItem('useSystemTheme') !== null
+    || localStorage.getItem('selectedThemeVariant') === 'light'
+    || localStorage.getItem('selectedThemeVariant') === 'dark';
+};
+
 const buildInitialPreferences = (defaultThemeId?: string): ThemePreferences => {
   let lightThemeId: string = DEFAULT_LIGHT_ID;
   let darkThemeId: string = DEFAULT_DARK_ID;
@@ -209,7 +224,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
   const [preferences, setPreferences] = useState<ThemePreferences>(() => buildInitialPreferences(defaultThemeId));
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => getSystemPreference());
   const [customThemes, setCustomThemes] = useState<Theme[]>([]);
-  const hasUserThemeOverrideRef = React.useRef(false);
+  const hasUserThemeOverrideRef = React.useRef(hasPersistedThemePreference());
   const [customThemesLoading, setCustomThemesLoading] = useState(false);
   const [vscodeTheme, setVSCodeTheme] = useState<Theme | null>(() => {
     if (typeof window === 'undefined') {
