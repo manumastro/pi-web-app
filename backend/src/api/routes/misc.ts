@@ -27,6 +27,12 @@ export function createMiscRoutes(ctx: ApiRouteContext) {
     res.json({ themes: [] });
   });
 
+  router.post('/config/reload', (_req: Request, res: Response) => {
+    // Pi Web has no separate OpenCode daemon to reload in-process.
+    // Keep compatibility with OpenChamber clients expecting this endpoint.
+    res.json({ ok: true, requiresReload: false });
+  });
+
   router.get('/github/auth/status', (_req: Request, res: Response) => {
     res.json({ authenticated: false });
   });

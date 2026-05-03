@@ -636,12 +636,31 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
     return () => window.removeEventListener('openchamber:settings-synced', handleSettingsSynced);
   }, []);
 
+  const persistThemePreferences = useCallback((next: ThemePreferences) => {
+    const variant = next.themeMode === 'system'
+      ? (systemPrefersDark ? 'dark' : 'light')
+      : next.themeMode;
+    const resolvedThemeId = variant === 'dark' ? next.darkThemeId : next.lightThemeId;
+
+    void updateDesktopSettings({
+      themeId: resolvedThemeId,
+      themeVariant: variant,
+      useSystemTheme: next.themeMode === 'system',
+      lightThemeId: next.lightThemeId,
+      darkThemeId: next.darkThemeId,
+    }, { immediate: true });
+  }, [systemPrefersDark]);
+
   const setTheme = useCallback(
     (themeId: string) => {
       const theme = availableThemes.find((candidate) => candidate.metadata.id === themeId);
       if (!theme) {
         return;
       }
+
+      const next: ThemePreferences = theme.metadata.variant === 'dark'
+        ? { ...preferences, darkThemeId: theme.metadata.id, themeMode: 'dark' }
+        : { ...preferences, lightThemeId: theme.metadata.id, themeMode: 'light' };
 
       setPreferences((prev) => {
         if (theme.metadata.variant === 'dark') {
@@ -665,11 +684,14 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
           themeMode: 'light',
         };
       });
+
+      persistThemePreferences(next);
     },
-    [availableThemes],
+    [availableThemes, persistThemePreferences, preferences],
   );
 
   const setThemeModeHandler = useCallback((mode: ThemeMode) => {
+    const next: ThemePreferences = { ...preferences, themeMode: mode };
     setPreferences((prev) => {
       if (prev.themeMode === mode) {
         return prev;
@@ -679,11 +701,13 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
         themeMode: mode,
       };
     });
-  }, []);
+    persistThemePreferences(next);
+  }, [persistThemePreferences, preferences]);
 
   const setSystemPreferenceHandler = useCallback(
     (use: boolean) => {
       if (use) {
+        const next: ThemePreferences = { ...preferences, themeMode: 'system' };
         setPreferences((prev) => {
           if (prev.themeMode === 'system') {
             return prev;
@@ -693,11 +717,13 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
             themeMode: 'system',
           };
         });
+        persistThemePreferences(next);
         return;
       }
 
       const fallbackMode: ThemeMode =
         currentTheme.metadata.variant === 'dark' ? 'dark' : 'light';
+      const next: ThemePreferences = { ...preferences, themeMode: fallbackMode };
       setPreferences((prev) => {
         if (prev.themeMode === fallbackMode) {
           return prev;
@@ -707,8 +733,9 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
           themeMode: fallbackMode,
         };
       });
+      persistThemePreferences(next);
     },
-    [currentTheme.metadata.variant],
+    [currentTheme.metadata.variant, persistThemePreferences, preferences],
   );
 
   const setLightThemePreference = useCallback(
