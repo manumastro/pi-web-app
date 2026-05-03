@@ -16,7 +16,10 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
     case 'message_updated': {
       const session = sessionStore.getSession(event.sessionId);
       if (!session) return null;
-      const stored = session.messages.find((message) => getExternalMessageId(message) === event.messageId || message.id === event.messageId);
+      const stored = session.messages.find((message) =>
+        (message.role === 'user' || message.role === 'assistant')
+        && (getExternalMessageId(message) === event.messageId || message.id === event.messageId)
+      );
       if (stored) {
         return {
           type: 'message.updated',
@@ -150,7 +153,10 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
     }
     case 'done': {
       const session = sessionStore.getSession(event.sessionId);
-      const stored = session?.messages.find((message) => getExternalMessageId(message) === event.messageId || message.id === event.messageId);
+      const stored = session?.messages.find((message) =>
+        message.role === 'assistant'
+        && (getExternalMessageId(message) === event.messageId || message.id === event.messageId)
+      );
       const messageUpdated = session && stored
         ? {
             type: 'message.updated' as const,
