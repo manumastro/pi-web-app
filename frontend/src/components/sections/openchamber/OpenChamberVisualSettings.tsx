@@ -393,6 +393,36 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
         void updateDesktopSettings({ messageStreamTransport: mode });
     }, [setMessageStreamTransport]);
 
+    const handleUiFontChange = React.useCallback((value: UiFontOption) => {
+        setUiFont(value);
+        void updateDesktopSettings({ uiFont: value });
+    }, [setUiFont]);
+
+    const handleMonoFontChange = React.useCallback((value: MonoFontOption) => {
+        setMonoFont(value);
+        void updateDesktopSettings({ monoFont: value });
+    }, [setMonoFont]);
+
+    const handleFontSizeChange = React.useCallback((value: number) => {
+        setFontSize(value);
+        void updateDesktopSettings({ fontSize: value });
+    }, [setFontSize]);
+
+    const handleTerminalFontSizeChange = React.useCallback((value: number) => {
+        setTerminalFontSize(value);
+        void updateDesktopSettings({ terminalFontSize: value });
+    }, [setTerminalFontSize]);
+
+    const handlePaddingChange = React.useCallback((value: number) => {
+        setPadding(value);
+        void updateDesktopSettings({ padding: value });
+    }, [setPadding]);
+
+    const handleInputBarOffsetChange = React.useCallback((value: number) => {
+        setInputBarOffset(value);
+        void updateDesktopSettings({ inputBarOffset: value });
+    }, [setInputBarOffset]);
+
     const handleActivityRenderModeChange = React.useCallback((mode: 'collapsed' | 'summary') => {
         setActivityRenderMode(mode);
         void updateDesktopSettings({ activityRenderMode: mode });
@@ -876,7 +906,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                         <span className="typography-ui-label text-foreground">{t('settings.openchamber.visual.field.interfaceFont')}</span>
                                     </div>
                                     <div className="flex items-center gap-2 w-fit">
-                                        <Select value={uiFont} onValueChange={(value) => setUiFont(value as UiFontOption)}>
+                                        <Select value={uiFont} onValueChange={(value) => handleUiFontChange(value as UiFontOption)}>
                                             <SelectTrigger aria-label={t('settings.openchamber.visual.field.selectInterfaceFontAria')} className="w-[13rem]">
                                                 <SelectValue>{UI_FONT_OPTIONS.find((option) => option.id === uiFont)?.label}</SelectValue>
                                             </SelectTrigger>
@@ -891,7 +921,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                         <Button size="sm"
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => setUiFont(DEFAULT_UI_FONT)}
+                                            onClick={() => handleUiFontChange(DEFAULT_UI_FONT)}
                                             disabled={uiFont === DEFAULT_UI_FONT}
                                             className="h-7 w-7 px-0 text-muted-foreground hover:text-foreground"
                                             aria-label={t('settings.openchamber.visual.actions.resetInterfaceFontAria')}
@@ -909,7 +939,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                         <span className="typography-ui-label text-foreground">{t('settings.openchamber.visual.field.codeFont')}</span>
                                     </div>
                                     <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
-                                        <Select value={monoFont} onValueChange={(value) => setMonoFont(value as MonoFontOption)}>
+                                        <Select value={monoFont} onValueChange={(value) => handleMonoFontChange(value as MonoFontOption)}>
                                             <SelectTrigger aria-label={t('settings.openchamber.visual.field.selectCodeFontAria')} className="w-[13rem]">
                                                 <SelectValue>{CODE_FONT_OPTIONS.find((option) => option.id === monoFont)?.label}</SelectValue>
                                             </SelectTrigger>
@@ -924,7 +954,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                         <Button size="sm"
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => setMonoFont(DEFAULT_MONO_FONT)}
+                                            onClick={() => handleMonoFontChange(DEFAULT_MONO_FONT)}
                                             disabled={monoFont === DEFAULT_MONO_FONT}
                                             className="h-7 w-7 px-0 text-muted-foreground hover:text-foreground"
                                             aria-label={t('settings.openchamber.visual.actions.resetCodeFontAria')}
@@ -944,7 +974,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                     <div className="flex items-center gap-2 w-fit">
                                         <NumberInput
                                             value={fontSize}
-                                            onValueChange={setFontSize}
+                                            onValueChange={handleFontSizeChange}
                                             min={50}
                                             max={200}
                                             step={5}
@@ -954,7 +984,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                         <Button size="sm"
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => setFontSize(100)}
+                                            onClick={() => handleFontSizeChange(100)}
                                             disabled={fontSize === 100}
                                             className="h-7 w-7 px-0 text-muted-foreground hover:text-foreground"
                                             aria-label={t('settings.openchamber.visual.actions.resetFontSizeAria')}
@@ -974,7 +1004,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                     <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
                                         <NumberInput
                                             value={terminalFontSize}
-                                            onValueChange={setTerminalFontSize}
+                                            onValueChange={handleTerminalFontSizeChange}
                                             min={9}
                                             max={52}
                                             step={1}
@@ -983,7 +1013,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                         <Button size="sm"
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => setTerminalFontSize(13)}
+                                            onClick={() => handleTerminalFontSizeChange(13)}
                                             disabled={terminalFontSize === 13}
                                             className="h-7 w-7 px-0 text-muted-foreground hover:text-foreground"
                                             aria-label={t('settings.openchamber.visual.actions.resetTerminalFontSizeAria')}
@@ -1003,7 +1033,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                     <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
                                         <NumberInput
                                             value={padding}
-                                            onValueChange={setPadding}
+                                            onValueChange={handlePaddingChange}
                                             min={50}
                                             max={200}
                                             step={5}
@@ -1012,7 +1042,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                         <Button size="sm"
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => setPadding(100)}
+                                            onClick={() => handlePaddingChange(100)}
                                             disabled={padding === 100}
                                             className="h-7 w-7 px-0 text-muted-foreground hover:text-foreground"
                                             aria-label={t('settings.openchamber.visual.actions.resetSpacingAria')}
@@ -1042,7 +1072,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                     <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
                                         <NumberInput
                                             value={inputBarOffset}
-                                            onValueChange={setInputBarOffset}
+                                            onValueChange={handleInputBarOffsetChange}
                                             min={0}
                                             max={100}
                                             step={5}
@@ -1051,7 +1081,7 @@ export const OpenChamberVisualSettings: React.FC<OpenChamberVisualSettingsProps>
                                         <Button size="sm"
                                             type="button"
                                             variant="ghost"
-                                            onClick={() => setInputBarOffset(0)}
+                                            onClick={() => handleInputBarOffsetChange(0)}
                                             disabled={inputBarOffset === 0}
                                             className="h-7 w-7 px-0 text-muted-foreground hover:text-foreground"
                                             aria-label={t('settings.openchamber.visual.actions.resetInputBarOffsetAria')}
