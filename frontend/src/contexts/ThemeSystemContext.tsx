@@ -7,7 +7,7 @@ import React, {
 import { flushSync } from 'react-dom';
 import type { Theme, ThemeMode } from '@/types/theme';
 import type { DesktopSettings } from '@/lib/desktop';
-import { isDesktopLocalOriginActive, isTauriShell, isVSCodeRuntime } from '@/lib/desktop';
+import { isDesktopLocalOriginActive, isTauriShell } from '@/lib/desktop';
 import { setDesktopWindowTheme } from '@/lib/desktopNative';
 import { CSSVariableGenerator } from '@/lib/theme/cssGenerator';
 import { updateDesktopSettings } from '@/lib/persistence';
@@ -212,13 +212,24 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
   const hasUserThemeOverrideRef = React.useRef(false);
   const [customThemesLoading, setCustomThemesLoading] = useState(false);
   const [vscodeTheme, setVSCodeTheme] = useState<Theme | null>(() => {
-    if (typeof window === 'undefined' || !isVSCodeRuntime()) {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const runtime = (window as unknown as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean; platform?: string } } }).__OPENCHAMBER_RUNTIME_APIS__;
+    const isRealVSCode = runtime?.runtime?.isVSCode === true && runtime?.runtime?.platform === 'vscode';
+    if (!isRealVSCode) {
       return null;
     }
     const existing = (window as unknown as { __OPENCHAMBER_VSCODE_THEME__?: Theme }).__OPENCHAMBER_VSCODE_THEME__;
     return existing || null;
   });
-  const isVSCode = useMemo(() => isVSCodeRuntime(), []);
+  const isVSCode = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    const runtime = (window as unknown as { __OPENCHAMBER_RUNTIME_APIS__?: { runtime?: { isVSCode?: boolean; platform?: string } } }).__OPENCHAMBER_RUNTIME_APIS__;
+    return runtime?.runtime?.isVSCode === true && runtime?.runtime?.platform === 'vscode';
+  }, []);
   const isLocalDesktopOrigin = useMemo(() => isDesktopLocalOriginActive(), []);
   const isDesktopShell = useMemo(() => isTauriShell(), []);
 
