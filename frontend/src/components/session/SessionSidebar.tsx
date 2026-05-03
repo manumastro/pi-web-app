@@ -849,7 +849,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   }, [isVSCode, safeStorage, scheduleCollapsedProjectsPersist]);
 
   const normalizedProjects = React.useMemo(() => {
-    return projects
+    const fromStore = projects
       .map((project) => ({
         ...project,
         normalizedPath: normalizePath(project.path),
@@ -864,7 +864,28 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         iconImage?: { mime: string; updatedAt: number; source: 'custom' | 'auto' };
         iconBackground?: string;
       }>;
-  }, [projects]);
+
+    if (fromStore.length > 0) {
+      return fromStore;
+    }
+
+    const directories = new Set<string>();
+    [...sessions, ...archivedSessions].forEach((session) => {
+      const directory = normalizePath(resolveGlobalSessionDirectory(session));
+      if (directory) {
+        directories.add(directory);
+      }
+    });
+
+    return Array.from(directories)
+      .sort((a, b) => a.localeCompare(b))
+      .map((directory) => ({
+        id: `path:${directory}`,
+        path: directory,
+        label: formatDirectoryName(directory, homeDirectory),
+        normalizedPath: directory,
+      }));
+  }, [archivedSessions, homeDirectory, projects, sessions]);
 
   const normalizedProjectPaths = React.useMemo(
     () => normalizedProjects.map((project) => project.normalizedPath),
