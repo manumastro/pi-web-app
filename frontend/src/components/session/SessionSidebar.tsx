@@ -4,6 +4,7 @@ import { RiLayoutLeftLine } from '@remixicon/react';
 import { toast } from '@/components/ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useI18n } from '@/lib/i18n';
+import { opencodeClient } from '@/lib/opencode/client';
 import { isDesktopShell } from '@/lib/desktop';
 import { isDesktopWindowFullscreen as getDesktopWindowFullscreen, onDesktopWindowResized, startDesktopWindowDrag } from '@/lib/desktopNative';
 import { sessionEvents } from '@/lib/sessionEvents';
@@ -308,6 +309,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const hasLoadedGlobalSessions = useGlobalSessionsStore((state) => state.hasLoaded);
   const globalActiveSessions = useGlobalSessionsStore((state) => state.activeSessions);
   const archivedSessions = useGlobalSessionsStore((state) => state.archivedSessions);
+  const applyGlobalSessionSnapshot = useGlobalSessionsStore((state) => state.applySnapshot);
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId);
   const newSessionDraftOpen = useSessionUIStore((state) => Boolean(state.newSessionDraft?.open));
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession);
@@ -362,9 +364,49 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   );
 
   const syncSessionsSnapshotRef = React.useRef<Session[]>(liveSessions);
+  const emptySidebarRecoveryRef = React.useRef<Set<string>>(new Set());
   React.useEffect(() => {
     syncSessionsSnapshotRef.current = liveSessions;
   }, [syncSessionStructureSignature, liveSessions]);
+
+  React.useEffect(() => {
+    if (sessions.length > 0 || projects.length === 0) {
+      return;
+    }
+
+    const activeProject = activeProjectId
+      ? projects.find((project) => project.id === activeProjectId) ?? projects[0]
+      : projects[0];
+    const directory = normalizePath(activeProject?.path ?? null);
+    if (!directory || emptySidebarRecoveryRef.current.has(directory)) {
+      return;
+    }
+
+    emptySidebarRecoveryRef.current.add(directory);
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const result = await opencodeClient.getSdkClient().session.list({ directory, roots: true, limit: 200 });
+        const recovered = Array.isArray(result.data)
+          ? result.data.filter((session): session is Session => Boolean(session?.id))
+          : [];
+        if (cancelled || recovered.length === 0) {
+          return;
+        }
+
+        const archived = recovered.filter((session) => Boolean(session.time?.archived));
+        const active = recovered.filter((session) => !session.time?.archived);
+        applyGlobalSessionSnapshot(active, archivedSessions.length > 0 ? archivedSessions : archived, 'ready');
+      } catch {
+        // keep existing state; normal refresh path will retry
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectId, applyGlobalSessionSnapshot, archivedSessions, projects, sessions.length]);
 
   React.useEffect(() => {
     let cancelled = false;
