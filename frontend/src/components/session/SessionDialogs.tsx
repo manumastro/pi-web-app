@@ -73,12 +73,14 @@ export const SessionDialogs: React.FC = () => {
     const showDeletionDialog = useUIStore((state) => state.showDeletionDialog);
     const setShowDeletionDialog = useUIStore((state) => state.setShowDeletionDialog);
     const currentDirectory = useDirectoryStore((s) => s.currentDirectory);
+    const setDirectory = useDirectoryStore((s) => s.setDirectory);
     const homeDirectory = useDirectoryStore((s) => s.homeDirectory);
     const isHomeReady = useDirectoryStore((s) => s.isHomeReady);
     const projects = useProjectsStore((s) => s.projects);
     const activeProjectId = useProjectsStore((s) => s.activeProjectId);
     const addProject = useProjectsStore((s) => s.addProject);
     const setActiveProjectIdOnly = useProjectsStore((s) => s.setActiveProjectIdOnly);
+    const getSessionsByDirectory = useSessionUIStore((s) => s.getSessionsByDirectory);
     const { isMobile, isTablet, hasTouchInput } = useDeviceInfo();
     const useMobileOverlay = isMobile || isTablet || hasTouchInput;
 
@@ -144,6 +146,7 @@ export const SessionDialogs: React.FC = () => {
                     const firstProject = useProjectsStore.getState().projects[0];
                     if (firstProject?.id) {
                         setActiveProjectIdOnly(firstProject.id);
+                        setDirectory(firstProject.path, { showOverlay: false });
                     }
                     setHasShownInitialDirectoryPrompt(true);
                     return;
@@ -172,7 +175,33 @@ export const SessionDialogs: React.FC = () => {
         isHydratingInitialProjects,
         projects.length,
         setActiveProjectIdOnly,
+        setDirectory,
     ]);
+
+    React.useEffect(() => {
+        if (!isHomeReady || projects.length === 0) {
+            return;
+        }
+
+        const knownSessions = getSessionsByDirectory(currentDirectory || '');
+        if (knownSessions.length > 0) {
+            return;
+        }
+
+        const activeProject = activeProjectId
+            ? projects.find((project) => project.id === activeProjectId) ?? projects[0]
+            : projects[0];
+        if (!activeProject?.path) {
+            return;
+        }
+
+        const normalize = (value: string) => value.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+        const activePath = normalize(activeProject.path);
+        const currentPath = normalize(currentDirectory || '');
+        if (activePath && activePath !== currentPath) {
+            setDirectory(activeProject.path, { showOverlay: false });
+        }
+    }, [activeProjectId, currentDirectory, getSessionsByDirectory, isHomeReady, projects, setDirectory]);
 
     const openDeleteDialog = React.useCallback((payload: { sessions: Session[]; dateLabel?: string; mode?: 'session' | 'worktree'; worktree?: WorktreeMetadata | null }) => {
         setDeleteDialog({

@@ -8,4 +8,4 @@ Add or update tests for every meaningful change; keep builds green.
 Use npm workspaces; verify with build/test before handoff.
 After each significant change, **always run `npm run build`** and restart the systemd service (`systemctl --user restart pi-web`) when the change affects the production build (CSS/UI changes, API changes, new dependencies, etc.).
 After each significant change, update BOTH current-state references: `BLUEPRINT.md` (section **15.0 Status Snapshot**, plus feature matrix/checklists when impacted) and `AGENTS.md` (`Current state` line in this file), keeping the `Current state` entry short.
-Current state (2026-05-03): Modular backend API is live with passing tests; fixed stream/tool role regressions and now auto-hydrates projects from backend on refresh to avoid repeated add-directory prompts.
+Current state (2026-05-03): Modular backend API is live with passing tests; fixed stream/tool regressions and startup hydration now restores project+directory context so existing sessions appear after refresh.
