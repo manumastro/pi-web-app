@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getExternalMessageId, toSdkMessageInfo, toSdkParts } from './mappers.js';
+import { getExternalMessageId, toSdkMessageInfo, toSdkMessages, toSdkParts } from './mappers.js';
 import type { Message, Session } from '../../sessions/store.js';
 
 function createMessage(overrides: Partial<Message>): Message {
@@ -67,5 +67,39 @@ describe('sdk mappers', () => {
 
     const info = toSdkMessageInfo(createSession([msg]), msg);
     expect(info.id).toBe('internal-only');
+  });
+
+  it('attaches persisted tool calls and results to the assistant message', () => {
+    const messages = [
+      createMessage({ id: 'u1', role: 'user', content: 'search', messageId: 'msg-1' }),
+      createMessage({
+        id: 'tc1',
+        role: 'tool_call',
+        content: '{"query":"serie a"}',
+        messageId: 'msg-1_assistant',
+        toolName: 'web_search',
+        toolCallId: 'call-1',
+      }),
+      createMessage({
+        id: 'tr1',
+        role: 'tool_result',
+        content: 'result text',
+        messageId: 'msg-1_assistant',
+        toolCallId: 'call-1',
+        success: true,
+      }),
+      createMessage({ id: 'a1', role: 'assistant', content: 'answer', messageId: 'msg-1_assistant' }),
+    ];
+
+    const mapped = toSdkMessages(createSession(messages));
+    const assistant = mapped.find((message) => message.info.role === 'assistant');
+    expect(assistant?.info.id).toBe('msg-1_assistant');
+    expect(assistant?.parts[0]).toMatchObject({
+      id: 'msg-1_assistant-call-1',
+      type: 'tool',
+      tool: 'web_search',
+      state: { status: 'completed', output: 'result text', title: 'web_search' },
+    });
+    expect(assistant?.parts.at(-1)).toMatchObject({ type: 'text', text: 'answer' });
   });
 });

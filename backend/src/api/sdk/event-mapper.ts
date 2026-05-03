@@ -5,6 +5,7 @@ import type { SdkGlobalEvent } from './types.js';
 
 const initializedTextParts = new Set<string>();
 const initializedReasoningParts = new Set<string>();
+const toolNames = new Map<string, string>();
 
 function partKey(sessionId: string, messageId: string, suffix: string): string {
   return `${sessionId}:${messageId}:${suffix}`;
@@ -93,6 +94,8 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
       ];
     }
     case 'tool_call': {
+      const key = `${event.sessionId}:${event.messageId}:${event.toolCallId}`;
+      toolNames.set(key, event.toolName);
       return {
         type: 'message.part.updated',
         properties: {
@@ -103,12 +106,15 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
             type: 'tool',
             callID: event.toolCallId,
             tool: event.toolName,
-            state: { status: 'running', input: event.input, time: { start: Date.now() } },
+            state: { status: 'running', input: event.input, title: event.toolName, time: { start: Date.now() } },
           },
         },
       };
     }
     case 'tool_result': {
+      const key = `${event.sessionId}:${event.messageId}:${event.toolCallId}`;
+      const toolName = toolNames.get(key) ?? 'tool';
+      if (event.success) toolNames.delete(key);
       return {
         type: 'message.part.updated',
         properties: {
@@ -118,12 +124,12 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
             messageID: event.messageId,
             type: 'tool',
             callID: event.toolCallId,
-            tool: '',
+            tool: toolName,
             state: {
               status: event.success ? 'completed' : 'error',
               input: {},
               output: event.result,
-              title: '',
+              title: toolName,
               ...(event.success
                 ? { time: { start: Date.now() - 1000, end: Date.now() } }
                 : { error: event.result, time: { start: Date.now() - 1000, end: Date.now() } }),

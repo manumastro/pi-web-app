@@ -100,25 +100,80 @@ export function toSdkParts(sessionId: string, msg: SessionMessage): SdkPart[] {
   return parts;
 }
 
+function parseJsonObject(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function toolPartId(messageId: string, msg: SessionMessage): string {
+  const callId = typeof msg.toolCallId === 'string' && msg.toolCallId.length > 0 ? msg.toolCallId : msg.id;
+  return `${messageId}-${callId}`;
+}
+
+function upsertToolPart(parts: SdkPart[], sessionId: string, msg: SessionMessage): void {
+  const messageId = getExternalMessageId(msg);
+  const id = toolPartId(messageId, msg);
+  const existing = parts.find((part) => part.id === id);
+  const tool = typeof msg.toolName === 'string' && msg.toolName.length > 0
+    ? msg.toolName
+    : typeof existing?.tool === 'string'
+      ? existing.tool
+      : 'tool';
+  const callID = typeof msg.toolCallId === 'string' && msg.toolCallId.length > 0 ? msg.toolCallId : id;
+
+  if (msg.role === 'tool_result') {
+    const resultState = {
+      status: msg.success === false ? 'error' : 'completed',
+      input: (existing?.state as { input?: unknown } | undefined)?.input ?? {},
+      output: msg.content,
+      title: tool,
+      time: { start: new Date(msg.timestamp).getTime() - 1000, end: new Date(msg.timestamp).getTime() },
+      ...(msg.success === false ? { error: msg.content } : {}),
+    };
+    if (existing) {
+      existing.tool = tool;
+      existing.callID = callID;
+      existing.state = resultState;
+      return;
+    }
+    parts.push({ id, sessionID: sessionId, messageID: messageId, type: 'tool', callID, tool, state: resultState });
+    return;
+  }
+
+  const input = parseJsonObject(msg.content);
+  const runningState = {
+    status: 'running',
+    input,
+    title: tool,
+    time: { start: new Date(msg.timestamp).getTime() },
+  };
+  if (existing) {
+    existing.tool = tool;
+    existing.callID = callID;
+    existing.state = runningState;
+    return;
+  }
+  parts.push({ id, sessionID: sessionId, messageID: messageId, type: 'tool', callID, tool, state: runningState });
+}
+
 export function toSdkMessages(session: Session): SdkMessageWithParts[] {
   const grouped: SdkMessageWithParts[] = [];
-  let currentUser: SdkMessageWithParts | null = null;
+  const toolPartsByAssistantId = new Map<string, SdkPart[]>();
 
   for (const msg of session.messages) {
-    if (msg.role === 'user') {
-      if (currentUser) grouped.push(currentUser);
-      currentUser = {
-        info: toSdkMessageInfo(session, msg),
-        parts: toSdkParts(session.id, msg),
-      };
+    if (msg.role === 'tool_call' || msg.role === 'tool_result') {
+      const assistantId = getExternalMessageId(msg);
+      const parts = toolPartsByAssistantId.get(assistantId) ?? [];
+      upsertToolPart(parts, session.id, msg);
+      toolPartsByAssistantId.set(assistantId, parts);
       continue;
     }
 
-    if (msg.role === 'assistant') {
-      if (currentUser) {
-        grouped.push(currentUser);
-        currentUser = null;
-      }
+    if (msg.role === 'user') {
       grouped.push({
         info: toSdkMessageInfo(session, msg),
         parts: toSdkParts(session.id, msg),
@@ -126,20 +181,18 @@ export function toSdkMessages(session: Session): SdkMessageWithParts[] {
       continue;
     }
 
-    if (currentUser) {
-      grouped.push(currentUser);
-      currentUser = null;
-    }
-
-    if (grouped.length > 0) {
-      const last = grouped[grouped.length - 1]!;
-      if (last.info.role === 'assistant') {
-        last.parts.push(...toSdkParts(session.id, msg));
-      }
+    if (msg.role === 'assistant') {
+      const assistantId = getExternalMessageId(msg);
+      grouped.push({
+        info: toSdkMessageInfo(session, msg),
+        parts: [
+          ...(toolPartsByAssistantId.get(assistantId) ?? []),
+          ...toSdkParts(session.id, msg),
+        ],
+      });
     }
   }
 
-  if (currentUser) grouped.push(currentUser);
   return grouped;
 }
 

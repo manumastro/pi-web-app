@@ -1355,7 +1355,22 @@ textarea[data-terminal-hidden-input="true"]::placeholder {
 }
 
 .animate-busy-pulse {
-  animation: oc-busy-pulse 1.05s ease-in-out infinite;
+  animation: oc-busy-pulse 1.05s ease-in-out infinite !important;
+}
+
+@keyframes oc-working-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.working-placeholder {
+  animation: oc-working-enter 180ms ease-out both;
 }
 
 @keyframes navrail-dot-wave {
@@ -1442,8 +1457,9 @@ textarea[data-terminal-hidden-input="true"]::placeholder {
     animation: none;
   }
 
-  .animate-busy-pulse {
-    animation: none;
+  .animate-busy-pulse,
+  .working-placeholder {
+    animation: none !important;
   }
 
 

@@ -194,7 +194,7 @@ export function WorkingPlaceholder({
 
     return (
       <div
-        className="flex h-full items-center text-muted-foreground pl-0.5"
+        className="working-placeholder flex h-full items-center text-muted-foreground pl-0.5"
         role="status"
         aria-live="polite"
         aria-label={`${retryText}...`}
@@ -216,7 +216,7 @@ export function WorkingPlaceholder({
   return (
     <div
       className={
-        'flex h-full items-center text-muted-foreground pl-0.5'
+        'working-placeholder flex h-full items-center text-muted-foreground pl-0.5'
       }
       role="status"
       aria-live={displayedPermission ? 'assertive' : 'polite'}
