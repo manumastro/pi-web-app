@@ -132,6 +132,8 @@ Earlier versions used a custom multi-layer CLI wrapper and broad OpenChamber UI 
 
 ## 8. Status Snapshot
 
+2026-05-04: Fixed assistant text duplication root cause for some provider event shapes. In `runner-process`, text emission now tracks per-turn emitted text buffer and normalizes incoming text events (delta/snapshot/overlap-aware) before forwarding SSE `text` chunks, preventing repeated cumulative payloads from being appended twice while preserving genuine new suffixes. Added debug-safe normalization skip diagnostics. Backend tests passed, frontend rebuilt, and service restarted.
+
 2026-05-04: Fixed model+thinking persistence UX across draft/new/existing sessions. Added persistent thinking-level memory store with session-scoped values, per-model memory, and global last-used pair tracking; migrated draft thinking to the created session on first send; updated send flows to persist session/global model-thinking pairs after successful routing; and adjusted thinking selector visibility/fallback logic to remain visible for reasoning-capable models (including post-first-send) while hiding for non-reasoning models. Frontend rebuilt and service restarted.
 
 2026-05-04: Added deeper assistant `message_end` diagnostics for provider shape analysis: fallback logs now include `partTypes` counts extracted from assistant `content[]` (e.g. `text`, `thinking`, unknown), plus existing text-length/already-emitted fields. Also tightened final assistant text extraction to prioritize only `type:"text"` parts. Frontend rebuilt and service restarted.

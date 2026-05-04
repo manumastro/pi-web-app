@@ -39,6 +39,7 @@ interface RpcSession {
   assistantMessageId: string | null;
   emittedTextInTurn: boolean;
   lastTextDelta: string | null;
+  emittedTextBuffer: string;
   aborted: boolean;
   model: RunnerModelRef | null;
   modelApi?: string;
@@ -309,6 +310,23 @@ function extractErrorMessage(value: unknown): string {
   return extractText(value).trim();
 }
 
+function appendNonOverlapping(existingValue: string, incoming: string): { append: string; reason: 'empty' | 'snapshot' | 'duplicate' | 'overlap' | 'new' } {
+  if (!incoming) return { append: '', reason: 'empty' };
+  if (!existingValue) return { append: incoming, reason: 'new' };
+  if (incoming === existingValue) return { append: '', reason: 'snapshot' };
+  if (incoming.startsWith(existingValue)) return { append: incoming.slice(existingValue.length), reason: 'snapshot' };
+  if (existingValue.endsWith(incoming)) return { append: '', reason: 'duplicate' };
+
+  const maxOverlap = Math.min(existingValue.length, incoming.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap--) {
+    if (existingValue.endsWith(incoming.slice(0, overlap))) {
+      return { append: incoming.slice(overlap), reason: 'overlap' };
+    }
+  }
+
+  return { append: incoming, reason: 'new' };
+}
+
 function emitTextDelta(active: RpcSession, delta: string): void {
   if (!active.assistantMessageId) return;
   if (!delta) return;
@@ -316,7 +334,21 @@ function emitTextDelta(active: RpcSession, delta: string): void {
     diag('dedupe_text_delta_skipped', { sessionId: active.sessionId, length: delta.length });
     return;
   }
-  emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta });
+
+  const { append, reason } = appendNonOverlapping(active.emittedTextBuffer, delta);
+  if (!append) {
+    diag('dedupe_text_delta_normalized_skip', {
+      sessionId: active.sessionId,
+      reason,
+      incomingLength: delta.length,
+      bufferLength: active.emittedTextBuffer.length,
+    });
+    active.lastTextDelta = delta;
+    return;
+  }
+
+  emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: append });
+  active.emittedTextBuffer += append;
   active.lastTextDelta = delta;
   active.emittedTextInTurn = true;
 }
@@ -327,6 +359,7 @@ function completeTurn(active: RpcSession): void {
   active.assistantMessageId = null;
   active.emittedTextInTurn = false;
   active.lastTextDelta = null;
+  active.emittedTextBuffer = '';
   active.aborted = false;
 }
 
@@ -353,6 +386,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
       active.lastTextDelta = null;
+      active.emittedTextBuffer = '';
     }
     return;
   }
@@ -362,6 +396,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
       active.lastTextDelta = null;
+      active.emittedTextBuffer = '';
     }
     const update = isRecord(event.assistantMessageEvent) ? event.assistantMessageEvent : {};
     const updateType = typeof update.type === 'string' ? update.type : '';
@@ -441,6 +476,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
       active.lastTextDelta = null;
+      active.emittedTextBuffer = '';
     }
     emit({
       type: 'tool_call',
@@ -466,6 +502,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
       active.lastTextDelta = null;
+      active.emittedTextBuffer = '';
     }
     emit({
       type: 'tool_result',
@@ -496,6 +533,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
       active.lastTextDelta = null;
+      active.emittedTextBuffer = '';
     }
     const message = isRecord(event.message) ? event.message : event;
     const role = isRecord(message) && typeof message.role === 'string' ? message.role : null;
@@ -543,7 +581,7 @@ async function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: s
     env: process.env as Record<string, string>,
     args,
   });
-  const active: RpcSession = { sessionId, cwd, client, unsubscribe: null, assistantMessageId: null, emittedTextInTurn: false, lastTextDelta: null, aborted: false, model: null };
+  const active: RpcSession = { sessionId, cwd, client, unsubscribe: null, assistantMessageId: null, emittedTextInTurn: false, lastTextDelta: null, emittedTextBuffer: '', aborted: false, model: null };
   active.unsubscribe = client.onEvent((event) => handleRpcEvent(active, isRecord(event) ? event : { type: 'unknown' }));
   await client.start();
   sessions.set(sessionId, active);
@@ -649,6 +687,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       active.assistantMessageId = command.messageId ?? crypto.randomUUID();
       active.emittedTextInTurn = false;
       active.lastTextDelta = null;
+      active.emittedTextBuffer = '';
       active.aborted = false;
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       const send = command.deliverAs === 'steer'
@@ -669,6 +708,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
       active.lastTextDelta = null;
+      active.emittedTextBuffer = '';
       active.aborted = false;
       await active.client.prompt(command.answer);
       emit({ type: 'question_resolved', sessionId: command.sessionId, questionId: command.questionId });

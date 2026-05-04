@@ -10,4 +10,4 @@ After each significant change, **always build the frontend** and restart the sys
 
 **Frontend build**: use `cd frontend && npx vite build --logLevel silent` (~1m25s) instead of `npm run build` (~2m35s) — navigating the npm workspace root adds ~45% overhead. The result lands in `dist/public/` the same way.
 After each significant change, update BOTH current-state references: `BLUEPRINT.md` (section **15.0 Status Snapshot**, plus feature matrix/checklists when impacted) and `AGENTS.md` (`Current state` line in this file), keeping the `Current state` entry short.
-Current state (2026-05-04): Fixed session/draft/global model+thinking persistence and selector visibility rules (including draft->session thinking migration and reasoning-capable selector persistence after first send). Frontend rebuilt and deployed.
+Current state (2026-05-04): Fixed assistant text duplication root cause by normalizing cumulative/overlapping runner text events before SSE emission; backend tests passed, frontend rebuilt, and service restarted.
