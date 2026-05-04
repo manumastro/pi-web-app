@@ -10,4 +10,4 @@ After each significant change, **always build the frontend** and restart the sys
 
 **Frontend build**: use `cd frontend && npx vite build --logLevel silent` (~1m25s) instead of `npm run build` (~2m35s) — navigating the npm workspace root adds ~45% overhead. The result lands in `dist/public/` the same way.
 After each significant change, update BOTH current-state references: `BLUEPRINT.md` (section **15.0 Status Snapshot**, plus feature matrix/checklists when impacted) and `AGENTS.md` (`Current state` line in this file), keeping the `Current state` entry short.
-Current state (2026-05-04): Fixed text + thinking duplication by extending runner-process overlap normalization to thinking deltas and lowering text correction threshold to 50%. Frontend rebuilt and deployed.
+Current state (2026-05-04): Fixed cross-duplication: some adapters emit thinking in both thinking/text streams. Orchestrator now strips thinking prefixes from text deltas, preventing reasoning blocks from appearing duplicated in text output. Frontend rebuilt and deployed.

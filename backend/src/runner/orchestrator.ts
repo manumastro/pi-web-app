@@ -41,6 +41,7 @@ interface ActiveTurn {
   userMessageId: string;
   assistantMessageId: string;
   assistantContent: string;
+  thinkingContent: string;
   model?: string;
   assistantAnnounced?: boolean;
 }
@@ -501,11 +502,26 @@ export function createRunnerOrchestrator(params: {
           userMessageId: event.messageId,
           assistantMessageId,
           assistantContent: '',
+          thinkingContent: '',
         };
         announceAssistantMessage(event.sessionId, active);
 
         const delta = event.delta;
         const currentContent = active.assistantContent;
+
+        // Strip thinking prefix from text deltas: some adapters emit the same
+        // content as both thinking_delta and text_delta, causing visual duplication.
+        let cleanedDelta = delta;
+        if (active.thinkingContent.length > 0 && delta.startsWith(active.thinkingContent)) {
+          cleanedDelta = delta.slice(active.thinkingContent.length);
+          if (cleanedDelta.length === 0) return; // pure thinking duplicate, skip
+          console.info('[runner][diag] text_chunk stripped thinking prefix', {
+            sessionId: event.sessionId,
+            thinkingLen: active.thinkingContent.length,
+            deltaLen: delta.length,
+            cleanedLen: cleanedDelta.length,
+          });
+        }
 
         // Detect snapshot corrections: incoming text shares significant prefix
         // with already-emitted content but is NOT a pure extension (typo fix, rephrasing).
@@ -513,46 +529,46 @@ export function createRunnerOrchestrator(params: {
         // that shares >50% prefix — common in single-chunk adapter responses.
         const isCorrection =
           currentContent.length > 0
-          && delta.length > 0
-          && !delta.startsWith(currentContent)
+          && cleanedDelta.length > 0
+          && !cleanedDelta.startsWith(currentContent)
           && (() => {
-            const prefixLen = longestCommonPrefix(currentContent, delta);
+            const prefixLen = longestCommonPrefix(currentContent, cleanedDelta);
             const prefixRatio = prefixLen / Math.max(currentContent.length, 1);
-            const deltaRatio = delta.length / Math.max(currentContent.length, 1);
+            const deltaRatio = cleanedDelta.length / Math.max(currentContent.length, 1);
             // High prefix overlap (>50%) indicates a correction, not new content
             return prefixRatio > 0.5 && deltaRatio > 0.4;
           })();
 
         if (isCorrection) {
-          active.assistantContent = delta; // replace full text with corrected version
+          active.assistantContent = cleanedDelta; // replace full text with corrected version
           activeTurns.set(event.sessionId, active);
           emit(sseManager, {
             type: 'text_chunk',
             sessionId: event.sessionId,
             messageId: assistantMessageId,
-            content: delta,
+            content: cleanedDelta,
             replace: true,
             timestamp: now(),
           });
           console.info('[runner][diag] text_chunk correction', {
             sessionId: event.sessionId,
-            prefixLen: longestCommonPrefix(currentContent, delta),
+            prefixLen: longestCommonPrefix(currentContent, cleanedDelta),
             oldLen: currentContent.length,
-            newLen: delta.length,
+            newLen: cleanedDelta.length,
           });
         } else {
-          active.assistantContent += delta;
+          active.assistantContent += cleanedDelta;
           activeTurns.set(event.sessionId, active);
           emit(sseManager, {
             type: 'text_chunk',
             sessionId: event.sessionId,
             messageId: assistantMessageId,
-            content: delta,
+            content: cleanedDelta,
             timestamp: now(),
           });
           console.info('[runner][diag] text_chunk delta', {
             sessionId: event.sessionId,
-            deltaLen: delta.length,
+            deltaLen: cleanedDelta.length,
             totalLen: active.assistantContent.length,
           });
         }
@@ -564,8 +580,11 @@ export function createRunnerOrchestrator(params: {
           userMessageId: event.messageId,
           assistantMessageId,
           assistantContent: '',
+          thinkingContent: '',
         };
         announceAssistantMessage(event.sessionId, active);
+        active.thinkingContent += event.delta;
+        activeTurns.set(event.sessionId, active);
         emit(sseManager, {
           type: 'thinking',
           sessionId: event.sessionId,
@@ -582,6 +601,7 @@ export function createRunnerOrchestrator(params: {
           userMessageId: event.messageId,
           assistantMessageId,
           assistantContent: '',
+          thinkingContent: '',
         };
         announceAssistantMessage(event.sessionId, active);
         sessionStore.addMessage(event.sessionId, {
@@ -825,6 +845,7 @@ export function createRunnerOrchestrator(params: {
       userMessageId: messageId,
       assistantMessageId,
       assistantContent: '',
+      thinkingContent: '',
       ...(turnModel ? { model: turnModel } : {}),
     };
     activeTurns.set(session.id, activeTurn);
