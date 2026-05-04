@@ -509,11 +509,19 @@ export function createRunnerOrchestrator(params: {
 
         // Detect snapshot corrections: incoming text shares significant prefix
         // with already-emitted content but is NOT a pure extension (typo fix, rephrasing).
+        // Also trigger if the delta is a large snapshot (>=50% of current content length)
+        // that shares >50% prefix — common in single-chunk adapter responses.
         const isCorrection =
           currentContent.length > 0
           && delta.length > 0
           && !delta.startsWith(currentContent)
-          && longestCommonPrefix(currentContent, delta) > currentContent.length * 0.6;
+          && (() => {
+            const prefixLen = longestCommonPrefix(currentContent, delta);
+            const prefixRatio = prefixLen / Math.max(currentContent.length, 1);
+            const deltaRatio = delta.length / Math.max(currentContent.length, 1);
+            // High prefix overlap (>50%) indicates a correction, not new content
+            return prefixRatio > 0.5 && deltaRatio > 0.4;
+          })();
 
         if (isCorrection) {
           active.assistantContent = delta; // replace full text with corrected version
@@ -541,6 +549,11 @@ export function createRunnerOrchestrator(params: {
             messageId: assistantMessageId,
             content: delta,
             timestamp: now(),
+          });
+          console.info('[runner][diag] text_chunk delta', {
+            sessionId: event.sessionId,
+            deltaLen: delta.length,
+            totalLen: active.assistantContent.length,
           });
         }
         break;
