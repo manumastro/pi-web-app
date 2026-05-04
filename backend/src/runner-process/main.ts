@@ -38,6 +38,7 @@ interface RpcSession {
   unsubscribe: (() => void) | null;
   assistantMessageId: string | null;
   emittedTextInTurn: boolean;
+  lastTextDelta: string | null;
   aborted: boolean;
   model: RunnerModelRef | null;
   modelApi?: string;
@@ -181,6 +182,33 @@ function extractText(value: unknown): string {
   return '';
 }
 
+function summarizeAssistantContentParts(message: unknown): Record<string, number> | null {
+  if (!isRecord(message) || !Array.isArray(message.content)) return null;
+  const counts: Record<string, number> = {};
+  for (const part of message.content) {
+    const key = isRecord(part) && typeof part.type === 'string' ? part.type : 'unknown';
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function extractAssistantFinalText(message: unknown): string {
+  if (!isRecord(message)) return extractText(message).trim();
+  const content = message.content;
+  if (!Array.isArray(content)) return extractText(content ?? message).trim();
+
+  const textParts = content
+    .filter((part) => isRecord(part) && part.type === 'text')
+    .map((part) => extractText(part))
+    .filter((part) => part.trim().length > 0);
+
+  if (textParts.length > 0) {
+    return textParts.join('').trim();
+  }
+
+  return extractText(content).trim();
+}
+
 function extractSessionName(value: unknown): string | undefined {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -281,11 +309,24 @@ function extractErrorMessage(value: unknown): string {
   return extractText(value).trim();
 }
 
+function emitTextDelta(active: RpcSession, delta: string): void {
+  if (!active.assistantMessageId) return;
+  if (!delta) return;
+  if (active.lastTextDelta === delta) {
+    diag('dedupe_text_delta_skipped', { sessionId: active.sessionId, length: delta.length });
+    return;
+  }
+  emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta });
+  active.lastTextDelta = delta;
+  active.emittedTextInTurn = true;
+}
+
 function completeTurn(active: RpcSession): void {
   if (!active.assistantMessageId) return;
   emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId, aborted: active.aborted });
   active.assistantMessageId = null;
   active.emittedTextInTurn = false;
+  active.lastTextDelta = null;
   active.aborted = false;
 }
 
@@ -311,6 +352,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     if (isRecord(message) && message.role === 'assistant' && !active.assistantMessageId) {
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
+      active.lastTextDelta = null;
     }
     return;
   }
@@ -319,13 +361,13 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     if (!active.assistantMessageId) {
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
+      active.lastTextDelta = null;
     }
     const update = isRecord(event.assistantMessageEvent) ? event.assistantMessageEvent : {};
     const updateType = typeof update.type === 'string' ? update.type : '';
 
     if (updateType === 'text_delta') {
-      emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: typeof update.delta === 'string' ? update.delta : '' });
-      active.emittedTextInTurn = true;
+      emitTextDelta(active, typeof update.delta === 'string' ? update.delta : '');
       return;
     }
 
@@ -365,8 +407,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     if (updateType === 'text_end') {
       const finalText = extractText(update.content ?? update).trim();
       if (finalText.length > 0) {
-        emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: finalText });
-        active.emittedTextInTurn = true;
+        emitTextDelta(active, finalText);
       }
       return;
     }
@@ -381,8 +422,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
         keys: Object.keys(update),
         textLength: fallbackText.length,
       }));
-      emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: fallbackText });
-      active.emittedTextInTurn = true;
+      emitTextDelta(active, fallbackText);
       return;
     }
 
@@ -400,6 +440,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     if (!active.assistantMessageId) {
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
+      active.lastTextDelta = null;
     }
     emit({
       type: 'tool_call',
@@ -424,6 +465,7 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     if (!active.assistantMessageId) {
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
+      active.lastTextDelta = null;
     }
     emit({
       type: 'tool_result',
@@ -453,20 +495,24 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     if (!active.assistantMessageId) {
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
+      active.lastTextDelta = null;
     }
     const message = isRecord(event.message) ? event.message : event;
     const role = isRecord(message) && typeof message.role === 'string' ? message.role : null;
-    const finalText = extractText(message).trim();
+    const finalText = role === 'assistant'
+      ? extractAssistantFinalText(message)
+      : extractText(message).trim();
 
-    if (role === 'assistant' && finalText.length > 0 && !active.emittedTextInTurn) {
+    if (role === 'assistant' && finalText.length > 0) {
       console.error('[runner-process][diag] message_end text fallback', JSON.stringify({
         sessionId: active.sessionId,
         role,
         keys: isRecord(message) ? Object.keys(message) : [],
+        partTypes: summarizeAssistantContentParts(message),
         textLength: finalText.length,
+        alreadyEmitted: active.emittedTextInTurn,
       }));
-      emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: finalText });
-      active.emittedTextInTurn = true;
+      emitTextDelta(active, finalText);
       return;
     }
 
@@ -497,7 +543,7 @@ async function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: s
     env: process.env as Record<string, string>,
     args,
   });
-  const active: RpcSession = { sessionId, cwd, client, unsubscribe: null, assistantMessageId: null, emittedTextInTurn: false, aborted: false, model: null };
+  const active: RpcSession = { sessionId, cwd, client, unsubscribe: null, assistantMessageId: null, emittedTextInTurn: false, lastTextDelta: null, aborted: false, model: null };
   active.unsubscribe = client.onEvent((event) => handleRpcEvent(active, isRecord(event) ? event : { type: 'unknown' }));
   await client.start();
   sessions.set(sessionId, active);
@@ -602,6 +648,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
       active.assistantMessageId = command.messageId ?? crypto.randomUUID();
       active.emittedTextInTurn = false;
+      active.lastTextDelta = null;
       active.aborted = false;
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       const send = command.deliverAs === 'steer'
@@ -621,6 +668,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
       active.assistantMessageId = crypto.randomUUID();
       active.emittedTextInTurn = false;
+      active.lastTextDelta = null;
       active.aborted = false;
       await active.client.prompt(command.answer);
       emit({ type: 'question_resolved', sessionId: command.sessionId, questionId: command.questionId });

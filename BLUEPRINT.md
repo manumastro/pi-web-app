@@ -132,7 +132,7 @@ Earlier versions used a custom multi-layer CLI wrapper and broad OpenChamber UI 
 
 ## 8. Status Snapshot
 
-2026-05-04: Fixed another frontend-no-output edge case in runner message-end fallback: fallback text emission is now gated to `role === 'assistant'` and diagnostics include `role/textLength/alreadyEmitted`, preventing non-assistant `message_end` payloads from consuming the turn text slot and hiding the actual assistant reply. Frontend rebuilt and service restarted.
+2026-05-04: Added deeper assistant `message_end` diagnostics for provider shape analysis: fallback logs now include `partTypes` counts extracted from assistant `content[]` (e.g. `text`, `thinking`, unknown), plus existing text-length/already-emitted fields. Also tightened final assistant text extraction to prioritize only `type:"text"` parts. Frontend rebuilt and service restarted.
 
 2026-05-04: Extended sidebar null-safety again after residual production `undefined.length` reports: in addition to earlier guards, added `Array.isArray` protections in `SidebarProjectsList.tsx` and `useProjectSessionSelection.ts` for `section.groups`/`group.sessions` during project selection and main-workspace rendering paths (including `candidate.sessions.length`). Frontend rebuilt and service restarted.
 
