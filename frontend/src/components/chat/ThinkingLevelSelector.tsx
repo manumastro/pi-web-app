@@ -32,7 +32,7 @@ export const ThinkingLevelSelector: React.FC<ThinkingLevelSelectorProps> = ({
     const { currentLevel, availableLevels, loading, supported, setLevel } = useThinkingLevel();
     const [open, setOpen] = React.useState(false);
 
-    if ((!currentSessionId && !newSessionDraftOpen) || !supported || availableLevels.length === 0) {
+    if ((!currentSessionId && !newSessionDraftOpen) || !supported) {
         return null;
     }
 

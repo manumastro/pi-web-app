@@ -50,6 +50,7 @@ import {
 import { useInputStore, type SyntheticContextPart } from "./input-store"
 import { useSelectionStore } from "./selection-store"
 import { useViewportStore } from "./viewport-store"
+import { THINKING_LEVELS, useThinkingLevelStore, type ThinkingLevel } from "@/stores/thinkingLevelStore"
 import { useSessionWorktreeStore } from "./session-worktree-store"
 import { getAttachedSessionDirectory } from "./session-worktree-contract"
 
@@ -317,6 +318,12 @@ const persistDraftTarget = (target: PersistedDraftTarget): void => {
 
 const resolveDraftProjectForDirectory = resolveProjectForSessionDirectory
 
+const normalizeThinkingLevel = (level?: string): ThinkingLevel | null => {
+  if (!level) return null
+  const candidate = level as ThinkingLevel
+  return THINKING_LEVELS.includes(candidate) ? candidate : null
+}
+
 const getAttachmentForSession = (sessionId: string | null | undefined): SessionWorktreeAttachment | undefined => {
   if (!sessionId) return undefined
   return useSessionWorktreeStore.getState().getAttachment(sessionId)
@@ -434,6 +441,8 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   // openNewSessionDraft
   // ---------------------------------------------------------------------------
   openNewSessionDraft: (options) => {
+    useThinkingLevelStore.getState().clearDraft()
+
     const projectsState = useProjectsStore.getState()
     const projects = projectsState.projects
     const availableWorktreesByProject = get().availableWorktreesByProject
@@ -508,6 +517,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   // closeNewSessionDraft
   // ---------------------------------------------------------------------------
   closeNewSessionDraft: () => {
+    useThinkingLevelStore.getState().clearDraft()
     set({
       newSessionDraft: {
         open: false,
@@ -752,6 +762,16 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       if (configState.currentProviderId && configState.currentModelId) {
         useSelectionStore.getState().saveSessionModelSelection(created.id, configState.currentProviderId, configState.currentModelId)
       }
+      useSelectionStore.getState().saveSessionModelSelection(created.id, providerID, modelID)
+
+      const normalizedThinking = normalizeThinkingLevel(thinkingLevel)
+      const thinkingStore = useThinkingLevelStore.getState()
+      thinkingStore.moveDraftToSession(created.id)
+      if (normalizedThinking) {
+        thinkingStore.setLevel(created.id, normalizedThinking)
+        thinkingStore.rememberModelThinking(providerID, modelID, normalizedThinking)
+      }
+      thinkingStore.rememberGlobalPair(providerID, modelID, normalizedThinking)
 
       if (effectiveDraftAgent) {
         useSelectionStore.getState().saveSessionAgentSelection(created.id, effectiveDraftAgent)
@@ -849,6 +869,13 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         useSelectionStore.getState().saveSessionAgentSelection(created.id, effectiveAgent)
         useSelectionStore.getState().saveAgentModelVariantForSession(created.id, effectiveAgent, providerID, modelID, variant)
       }
+      useSelectionStore.getState().saveSessionModelSelection(created.id, providerID, modelID)
+      const normalizedThinking = normalizeThinkingLevel(thinkingLevel)
+      if (normalizedThinking) {
+        useThinkingLevelStore.getState().setLevel(created.id, normalizedThinking)
+        useThinkingLevelStore.getState().rememberModelThinking(providerID, modelID, normalizedThinking)
+      }
+      useThinkingLevelStore.getState().rememberGlobalPair(providerID, modelID, normalizedThinking)
 
       if (createdDirectory) {
         await waitForWorktreeBootstrap(createdDirectory)
@@ -905,6 +932,14 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     if (currentSessionDirectory) {
       await waitForWorktreeBootstrap(currentSessionDirectory)
     }
+
+    useSelectionStore.getState().saveSessionModelSelection(currentSessionId, providerID, modelID)
+    const normalizedThinking = normalizeThinkingLevel(thinkingLevel)
+    if (normalizedThinking) {
+      useThinkingLevelStore.getState().setLevel(currentSessionId, normalizedThinking)
+      useThinkingLevelStore.getState().rememberModelThinking(providerID, modelID, normalizedThinking)
+    }
+    useThinkingLevelStore.getState().rememberGlobalPair(providerID, modelID, normalizedThinking)
 
     notifyMessageSent(currentSessionId)
     markPendingUserSendAnimation(currentSessionId)

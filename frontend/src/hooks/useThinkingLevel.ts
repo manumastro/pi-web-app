@@ -30,6 +30,9 @@ export function useThinkingLevel(): ThinkingLevelState {
   const newSessionDraftOpen = useSessionUIStore((s) => s.newSessionDraft.open);
   const storeGetLevel = useThinkingLevelStore((s) => s.getLevel);
   const storeSetLevel = useThinkingLevelStore((s) => s.setLevel);
+  const storeGetLastThinkingForModel = useThinkingLevelStore((s) => s.getLastThinkingForModel);
+  const storeGetLastGlobalPair = useThinkingLevelStore((s) => s.getLastGlobalPair);
+  const storeRememberModelThinking = useThinkingLevelStore((s) => s.rememberModelThinking);
   const currentProviderId = useConfigStore((s) => s.currentProviderId);
   const currentModelId = useConfigStore((s) => s.currentModelId);
   const getModelMetadata = useConfigStore((s) => s.getModelMetadata);
@@ -47,6 +50,10 @@ export function useThinkingLevel(): ThinkingLevelState {
     && currentModelId
     && getModelMetadata(currentProviderId, currentModelId)?.reasoning,
   );
+
+  const currentModelKey = currentProviderId && currentModelId
+    ? `${currentProviderId}/${currentModelId}`.toLowerCase()
+    : null;
 
   const refresh = useCallback(async () => {
     if (!currentSessionId) {
@@ -70,25 +77,30 @@ export function useThinkingLevel(): ThinkingLevelState {
       });
       if (response.ok) {
         const data = await response.json();
-        if (Array.isArray(data.levels)) {
+        if (Array.isArray(data.levels) && data.levels.length > 0) {
           setAvailableLevels(data.levels as ThinkingLevel[]);
+        } else {
+          setAvailableLevels(supportsThinkingForCurrentModel ? THINKING_LEVELS : []);
         }
         // Sync backend's current level with local store if available
         if (data.current && data.current !== storeGetLevel(currentSessionId)) {
           storeSetLevel(currentSessionId, data.current as ThinkingLevel);
         }
+        if (data.current && currentProviderId && currentModelId) {
+          storeRememberModelThinking(currentProviderId, currentModelId, data.current as ThinkingLevel);
+        }
       } else {
-        setAvailableLevels([]);
+        setAvailableLevels(supportsThinkingForCurrentModel ? THINKING_LEVELS : []);
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return;
-      setAvailableLevels([]);
+      setAvailableLevels(supportsThinkingForCurrentModel ? THINKING_LEVELS : []);
     } finally {
       if (!controller.signal.aborted) {
         setLoading(false);
       }
     }
-  }, [currentSessionId, newSessionDraftOpen, supportsThinkingForCurrentModel, storeGetLevel, storeSetLevel]);
+  }, [currentSessionId, newSessionDraftOpen, supportsThinkingForCurrentModel, storeGetLevel, storeSetLevel, currentProviderId, currentModelId, storeRememberModelThinking]);
 
   const setLevel = useCallback(async (level: ThinkingLevel) => {
     if (!storeKey) return;
@@ -118,7 +130,30 @@ export function useThinkingLevel(): ThinkingLevelState {
     };
   }, [refresh]);
 
-  const supported = availableLevels.length > 0 && (currentSessionId ? true : supportsThinkingForCurrentModel);
+  useEffect(() => {
+    if (!storeKey || !supportsThinkingForCurrentModel || !currentProviderId || !currentModelId) return;
+    const current = storeGetLevel(storeKey);
+    if (current) return;
+
+    const fromModel = storeGetLastThinkingForModel(currentProviderId, currentModelId);
+    const globalPair = storeGetLastGlobalPair();
+    const fallback = fromModel ?? (globalPair.modelKey === currentModelKey ? globalPair.thinking : null);
+    if (fallback) {
+      storeSetLevel(storeKey, fallback);
+    }
+  }, [
+    storeKey,
+    supportsThinkingForCurrentModel,
+    currentProviderId,
+    currentModelId,
+    currentModelKey,
+    storeGetLevel,
+    storeGetLastThinkingForModel,
+    storeGetLastGlobalPair,
+    storeSetLevel,
+  ]);
+
+  const supported = supportsThinkingForCurrentModel;
 
   return {
     currentLevel,
