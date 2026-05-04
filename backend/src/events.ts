@@ -10,6 +10,7 @@ export const TextChunkEventSchema = z.object({
   sessionId: z.string(),
   messageId: z.string(),
   content: z.string(),
+  replace: z.boolean().optional(),
   timestamp: z.string().datetime(),
 });
 export type TextChunkEvent = z.infer<typeof TextChunkEventSchema>;

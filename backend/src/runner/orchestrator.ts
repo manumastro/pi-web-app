@@ -307,6 +307,14 @@ export function createRunnerOrchestrator(params: {
     return fallbackMessageId;
   }
 
+  function longestCommonPrefix(a: string, b: string): number {
+    const maxLen = Math.min(a.length, b.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (a[i] !== b[i]) return i;
+    }
+    return maxLen;
+  }
+
   function announceAssistantMessage(sessionId: string, active: ActiveTurn): void {
     if (active.assistantAnnounced) return;
     active.assistantAnnounced = true;
@@ -495,15 +503,46 @@ export function createRunnerOrchestrator(params: {
           assistantContent: '',
         };
         announceAssistantMessage(event.sessionId, active);
-        active.assistantContent += event.delta;
-        activeTurns.set(event.sessionId, active);
-        emit(sseManager, {
-          type: 'text_chunk',
-          sessionId: event.sessionId,
-          messageId: assistantMessageId,
-          content: event.delta,
-          timestamp: now(),
-        });
+
+        const delta = event.delta;
+        const currentContent = active.assistantContent;
+
+        // Detect snapshot corrections: incoming text shares significant prefix
+        // with already-emitted content but is NOT a pure extension (typo fix, rephrasing).
+        const isCorrection =
+          currentContent.length > 0
+          && delta.length > 0
+          && !delta.startsWith(currentContent)
+          && longestCommonPrefix(currentContent, delta) > currentContent.length * 0.6;
+
+        if (isCorrection) {
+          active.assistantContent = delta; // replace full text with corrected version
+          activeTurns.set(event.sessionId, active);
+          emit(sseManager, {
+            type: 'text_chunk',
+            sessionId: event.sessionId,
+            messageId: assistantMessageId,
+            content: delta,
+            replace: true,
+            timestamp: now(),
+          });
+          console.info('[runner][diag] text_chunk correction', {
+            sessionId: event.sessionId,
+            prefixLen: longestCommonPrefix(currentContent, delta),
+            oldLen: currentContent.length,
+            newLen: delta.length,
+          });
+        } else {
+          active.assistantContent += delta;
+          activeTurns.set(event.sessionId, active);
+          emit(sseManager, {
+            type: 'text_chunk',
+            sessionId: event.sessionId,
+            messageId: assistantMessageId,
+            content: delta,
+            timestamp: now(),
+          });
+        }
         break;
       }
       case 'thinking': {

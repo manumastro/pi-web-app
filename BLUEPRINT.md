@@ -132,7 +132,7 @@ Earlier versions used a custom multi-layer CLI wrapper and broad OpenChamber UI 
 
 ## 8. Status Snapshot
 
-2026-05-04: Fixed assistant text duplication root cause for some provider event shapes. In `runner-process`, text emission now tracks per-turn emitted text buffer and normalizes incoming text events (delta/snapshot/overlap-aware) before forwarding SSE `text` chunks, preventing repeated cumulative payloads from being appended twice while preserving genuine new suffixes. Added debug-safe normalization skip diagnostics. Backend tests passed, frontend rebuilt, and service restarted.
+2026-05-04: Fixed assistant text duplication root cause for snapshot-correction adapter events. Added orchestrator-level correction detection: incoming text that shares >60% prefix with already-emitted content is now emitted as `message.part.updated` (replacement) instead of `delta` (append), handling typo corrections and rephrasings from adapters that emit cumulative snapshots. Also added `replace` flag to `text_chunk` SSE schema and event-mapper support. Backend tests pass (119/119). Frontend rebuilt and service restarted.
 
 2026-05-04: Fixed model+thinking persistence UX across draft/new/existing sessions. Added persistent thinking-level memory store with session-scoped values, per-model memory, and global last-used pair tracking; migrated draft thinking to the created session on first send; updated send flows to persist session/global model-thinking pairs after successful routing; and adjusted thinking selector visibility/fallback logic to remain visible for reasoning-capable models (including post-first-send) while hiding for non-reasoning models. Frontend rebuilt and service restarted.
 

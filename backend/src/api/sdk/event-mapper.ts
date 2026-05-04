@@ -37,6 +37,27 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
     case 'text_chunk': {
       const id = `${event.messageId}-text`;
       const key = partKey(event.sessionId, event.messageId, 'text');
+
+      // Snapshot correction: replace the entire text part instead of appending a delta
+      if (event.replace) {
+        if (!initializedTextParts.has(key)) {
+          initializedTextParts.add(key);
+        }
+        return {
+          type: 'message.part.updated',
+          properties: {
+            part: {
+              id,
+              sessionID: event.sessionId,
+              messageID: event.messageId,
+              type: 'text',
+              text: event.content,
+              time: { start: new Date(event.timestamp).getTime() },
+            },
+          },
+        };
+      }
+
       const delta: SdkGlobalEvent = {
         type: 'message.part.delta',
         properties: {
