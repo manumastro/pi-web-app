@@ -92,15 +92,16 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
             if (!activeSection) {
               return props.hasSessionSearchQuery ? props.searchEmptyState : props.emptyState;
             }
+            const activeGroups = Array.isArray(activeSection.groups) ? activeSection.groups : [];
             const primaryGroup =
-              activeSection.groups.find((candidate) => candidate.isMain && candidate.sessions.length > 0)
-              ?? activeSection.groups.find((candidate) => candidate.sessions.length > 0)
-              ?? activeSection.groups.find((candidate) => candidate.isMain)
-              ?? activeSection.groups[0];
+              activeGroups.find((candidate) => candidate.isMain && Array.isArray(candidate.sessions) && candidate.sessions.length > 0)
+              ?? activeGroups.find((candidate) => Array.isArray(candidate.sessions) && candidate.sessions.length > 0)
+              ?? activeGroups.find((candidate) => candidate.isMain)
+              ?? activeGroups[0];
             if (!primaryGroup) {
               return <div className="py-1 text-left typography-micro text-muted-foreground">{t('sessions.sidebar.empty.noSessions.title')}</div>;
             }
-            const archivedGroup = activeSection.groups.find((candidate) => candidate.isArchivedBucket);
+            const archivedGroup = activeGroups.find((candidate) => candidate.isArchivedBucket);
             const groupsToRender = [
               primaryGroup,
               ...(archivedGroup && archivedGroup.id !== primaryGroup.id ? [archivedGroup] : []),
@@ -145,7 +146,8 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
                 const isCollapsed = props.collapsedProjects.has(projectKey);
                 const isActiveProject = projectKey === props.activeProjectId;
                 const isRepo = props.projectRepoStatus.get(projectKey);
-                const orderedGroups = props.getOrderedGroups(projectKey, section.groups);
+                const groups = Array.isArray(section.groups) ? section.groups : [];
+                const orderedGroups = props.getOrderedGroups(projectKey, groups);
                 const rootGroup = orderedGroups.find((group) => group.isMain) ?? null;
                 const nestedGroups = rootGroup
                   ? orderedGroups.filter((group) => group.id !== rootGroup.id)
@@ -190,7 +192,7 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
                   >
                     {!isCollapsed ? (
                       <div className="space-y-0 pt-0 pb-0.5 pl-3">
-                        {section.groups.length > 0 ? (
+                        {groups.length > 0 ? (
                           <DndContext
                             sensors={groupSensors}
                             collisionDetection={closestCenter}

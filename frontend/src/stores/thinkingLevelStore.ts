@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
 export const THINKING_LEVELS: ThinkingLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+export const DRAFT_THINKING_LEVEL_KEY = '__draft__';
 
 export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
   minimal: 'Minimal',

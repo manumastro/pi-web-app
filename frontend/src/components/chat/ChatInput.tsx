@@ -72,6 +72,7 @@ import { useRuntimeAPIs } from '@/hooks/useRuntimeAPIs';
 import { createWorktreeDraft } from '@/lib/worktreeSessionCreator';
 import { buildSessionTargetOptions } from '@/sync/session-worktree-contract';
 import { usePermissionStore } from '@/stores/permissionStore';
+import { useThinkingLevelStore, DRAFT_THINKING_LEVEL_KEY } from '@/stores/thinkingLevelStore';
 import { extractGitChangedFiles } from './changedFiles';
 import { useI18n } from '@/lib/i18n';
 import { fetchResponseStyleInstruction } from '@/lib/responseStyle';
@@ -766,6 +767,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const currentDirectory = useDirectoryStore((s) => s.currentDirectory);
     const newSessionDraft = useSessionUIStore((s) => s.newSessionDraft);
     const newSessionDraftOpen = Boolean(newSessionDraft?.open);
+    const selectedThinkingLevel = useThinkingLevelStore((s) =>
+        s.getLevel(currentSessionId ?? (newSessionDraftOpen ? DRAFT_THINKING_LEVEL_KEY : '')),
+    );
     const setNewSessionDraftTarget = useSessionUIStore((s) => s.setNewSessionDraftTarget);
     const availableWorktreesByProject = useSessionUIStore((s) => s.availableWorktreesByProject);
     const abortPromptSessionId = useSessionUIStore((s) => s.abortPromptSessionId);
@@ -1534,6 +1538,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                         [{ text: instructionsText, synthetic: true }],
                         currentVariant,
                         inputMode,
+                        selectedThinkingLevel ?? undefined,
                     );
                     scrollToBottom?.({ instant: true, force: true });
                 } catch (error) {
@@ -1556,6 +1561,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                         [{ text: instructionsText, synthetic: true }],
                         currentVariant,
                         inputMode,
+                        selectedThinkingLevel ?? undefined,
                     );
                     scrollToBottom?.({ instant: true, force: true });
                 } catch (error) {
@@ -1594,7 +1600,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             agentMentionName,
             additionalParts.length > 0 ? additionalParts : undefined,
             currentVariant,
-            inputMode
+            inputMode,
+            selectedThinkingLevel ?? undefined,
         );
 
         if (typeof window === 'undefined') {

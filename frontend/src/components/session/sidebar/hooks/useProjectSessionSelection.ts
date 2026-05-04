@@ -66,15 +66,22 @@ export const useProjectSessionSelection = (args: Args): { currentSessionDirector
         if (!firstSessionByProject.has(projectId)) {
           firstSessionByProject.set(projectId, { id: node.session.id, directory: sessionDirectory });
         }
-        if (node.children.length > 0) {
-          visitNodes(projectId, projectRoot, sessionDirectory, node.children);
+        const nodeChildren = Array.isArray(node.children) ? node.children : [];
+        if (nodeChildren.length > 0) {
+          visitNodes(projectId, projectRoot, sessionDirectory, nodeChildren);
         }
       });
     };
 
     projectSections.forEach((section) => {
-      section.groups.forEach((group) => {
-        visitNodes(section.project.id, section.project.normalizedPath, group.directory, group.sessions);
+      const groups = Array.isArray(section.groups) ? section.groups : [];
+      groups.forEach((group) => {
+        visitNodes(
+          section.project.id,
+          section.project.normalizedPath,
+          group.directory,
+          Array.isArray(group.sessions) ? group.sessions : [],
+        );
       });
     });
 

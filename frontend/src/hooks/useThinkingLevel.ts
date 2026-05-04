@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSessionUIStore } from '@/sync/session-ui-store';
-import { useThinkingLevelStore, type ThinkingLevel, THINKING_LEVELS, THINKING_LEVEL_LABELS } from '@/stores/thinkingLevelStore';
+import { useThinkingLevelStore, type ThinkingLevel, THINKING_LEVELS, THINKING_LEVEL_LABELS, DRAFT_THINKING_LEVEL_KEY } from '@/stores/thinkingLevelStore';
+import { useConfigStore } from '@/stores/useConfigStore';
 
 export type { ThinkingLevel };
 export { THINKING_LEVELS, THINKING_LEVEL_LABELS };
@@ -26,18 +27,34 @@ export interface ThinkingLevelState {
  */
 export function useThinkingLevel(): ThinkingLevelState {
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId);
+  const newSessionDraftOpen = useSessionUIStore((s) => s.newSessionDraft.open);
   const storeGetLevel = useThinkingLevelStore((s) => s.getLevel);
   const storeSetLevel = useThinkingLevelStore((s) => s.setLevel);
+  const currentProviderId = useConfigStore((s) => s.currentProviderId);
+  const currentModelId = useConfigStore((s) => s.currentModelId);
+  const getModelMetadata = useConfigStore((s) => s.getModelMetadata);
   const [availableLevels, setAvailableLevels] = useState<ThinkingLevel[]>([]);
   const [loading, setLoading] = useState(false);
   const fetchRef = useRef<AbortController | null>(null);
 
+  const storeKey = currentSessionId ?? (newSessionDraftOpen ? DRAFT_THINKING_LEVEL_KEY : null);
+
   // Read current level from local store
-  const currentLevel = currentSessionId ? storeGetLevel(currentSessionId) : null;
+  const currentLevel = storeKey ? storeGetLevel(storeKey) : null;
+
+  const supportsThinkingForCurrentModel = Boolean(
+    currentProviderId
+    && currentModelId
+    && getModelMetadata(currentProviderId, currentModelId)?.reasoning,
+  );
 
   const refresh = useCallback(async () => {
     if (!currentSessionId) {
-      setAvailableLevels([]);
+      if (newSessionDraftOpen && supportsThinkingForCurrentModel) {
+        setAvailableLevels(THINKING_LEVELS);
+      } else {
+        setAvailableLevels([]);
+      }
       return;
     }
 
@@ -71,10 +88,14 @@ export function useThinkingLevel(): ThinkingLevelState {
         setLoading(false);
       }
     }
-  }, [currentSessionId, storeGetLevel, storeSetLevel]);
+  }, [currentSessionId, newSessionDraftOpen, supportsThinkingForCurrentModel, storeGetLevel, storeSetLevel]);
 
   const setLevel = useCallback(async (level: ThinkingLevel) => {
-    if (!currentSessionId) return;
+    if (!storeKey) return;
+    if (!currentSessionId) {
+      storeSetLevel(storeKey, level);
+      return;
+    }
     try {
       const response = await fetch(`/api/session/${encodeURIComponent(currentSessionId)}/thinking`, {
         method: 'PUT',
@@ -87,7 +108,7 @@ export function useThinkingLevel(): ThinkingLevelState {
     } catch (err) {
       console.error('[useThinkingLevel] Failed to set thinking level:', err);
     }
-  }, [currentSessionId, storeSetLevel]);
+  }, [currentSessionId, storeKey, storeSetLevel]);
 
   // Refresh when session changes
   useEffect(() => {
@@ -97,7 +118,7 @@ export function useThinkingLevel(): ThinkingLevelState {
     };
   }, [refresh]);
 
-  const supported = availableLevels.length > 0;
+  const supported = availableLevels.length > 0 && (currentSessionId ? true : supportsThinkingForCurrentModel);
 
   return {
     currentLevel,

@@ -106,8 +106,10 @@ export const useSessionSidebarSections = (args: Args) => {
     }, 0);
 
     visibleProjectSections.forEach((section) => {
-      section.groups.forEach((group) => {
-        const filteredNodes = filterSessionNodesForSearch(group.sessions, normalizedSessionSearchQuery);
+      const groups = Array.isArray(section.groups) ? section.groups : [];
+      groups.forEach((group) => {
+        const groupSessions = Array.isArray(group.sessions) ? group.sessions : [];
+        const filteredNodes = filterSessionNodesForSearch(groupSessions, normalizedSessionSearchQuery);
         const matchedSessionCount = countNodes(filteredNodes);
         const groupMatches = buildGroupSearchText(group).includes(normalizedSessionSearchQuery);
         const scopeKey = normalizePath(group.directory ?? null);
@@ -140,10 +142,13 @@ export const useSessionSidebarSections = (args: Args) => {
     }
 
     return visibleProjectSections
-      .map((section) => ({
-        ...section,
-        groups: section.groups.filter((group) => groupSearchDataByGroup.get(group)?.hasMatch === true),
-      }))
+      .map((section) => {
+        const groups = Array.isArray(section.groups) ? section.groups : [];
+        return {
+          ...section,
+          groups: groups.filter((group) => groupSearchDataByGroup.get(group)?.hasMatch === true),
+        };
+      })
       .filter((section) => section.groups.length > 0);
   }, [hasSessionSearchQuery, visibleProjectSections, groupSearchDataByGroup]);
 
@@ -155,7 +160,8 @@ export const useSessionSidebarSections = (args: Args) => {
     }
 
     return sectionsForRender.reduce((total, section) => {
-      return total + section.groups.reduce((groupTotal, group) => {
+      const groups = Array.isArray(section.groups) ? section.groups : [];
+      return total + groups.reduce((groupTotal, group) => {
         const data = groupSearchDataByGroup.get(group);
         if (!data) {
           return groupTotal;

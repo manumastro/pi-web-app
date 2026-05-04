@@ -997,11 +997,12 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     if (hasInitializedArchivedCollapseRef.current || projectSections.length === 0) {
       return;
     }
-    const archivedGroupKeys = projectSections.flatMap((section) =>
-      section.groups
+    const archivedGroupKeys = projectSections.flatMap((section) => {
+      const groups = Array.isArray(section.groups) ? section.groups : [];
+      return groups
         .filter((group) => group.isArchivedBucket)
-        .map((group) => `${section.project.id}:${group.id}`),
-    );
+        .map((group) => `${section.project.id}:${group.id}`);
+    });
     if (archivedGroupKeys.length > 0) {
       setCollapsedGroups((prev) => new Set([...prev, ...archivedGroupKeys]));
     }
@@ -1026,7 +1027,8 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         || formatDirectoryName(section.project.normalizedPath, homeDirectory)
         || section.project.normalizedPath,
       );
-      section.groups.forEach((group) => {
+      const groups = Array.isArray(section.groups) ? section.groups : [];
+      groups.forEach((group) => {
         const secondaryMeta = group.branch && group.branch !== projectLabel
           ? { projectLabel, branchLabel: group.branch }
           : { projectLabel, branchLabel: null };
@@ -1046,13 +1048,14 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
               secondaryMeta,
             });
             projectPathLengthBySessionId.set(node.session.id, nextProjectPathLength);
-            if (node.children.length > 0) {
-              visit(node.children);
+            const nodeChildren = Array.isArray(node.children) ? node.children : [];
+            if (nodeChildren.length > 0) {
+              visit(nodeChildren);
             }
           });
         };
 
-        visit(group.sessions);
+        visit(Array.isArray(group.sessions) ? group.sessions : []);
       });
     });
 
@@ -1143,8 +1146,9 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
           return acc;
         }
 
-        const filteredChildren = filterNodes(node.children);
-        if (filteredChildren.length === node.children.length) {
+        const nodeChildren = Array.isArray(node.children) ? node.children : [];
+        const filteredChildren = filterNodes(nodeChildren);
+        if (filteredChildren.length === nodeChildren.length) {
           acc.push(node);
           return acc;
         }
@@ -1157,19 +1161,23 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       }, []);
     };
 
-    return sectionsForRender.map((section) => ({
-      ...section,
-      groups: section.groups.map((group) => ({
-        ...group,
-        sessions: filterNodes(group.sessions),
-      })),
-    }));
+    return sectionsForRender.map((section) => {
+      const groups = Array.isArray(section.groups) ? section.groups : [];
+      return {
+        ...section,
+        groups: groups.map((group) => ({
+          ...group,
+          sessions: filterNodes(Array.isArray(group.sessions) ? group.sessions : []),
+        })),
+      };
+    });
   }, [isVSCode, hasSessionSearchQuery, recentSessionIds, sectionsForRender]);
 
   const prLookupKeys = React.useMemo(() => {
     const keys = new Set<string>();
     sectionsForSidebarRender.forEach((section) => {
-      section.groups.forEach((group) => {
+      const groups = Array.isArray(section.groups) ? section.groups : [];
+      groups.forEach((group) => {
         const directory = normalizePath(group.directory ?? null);
         const branch = group.branch?.trim() || gitBranches.get(directory || '')?.trim();
         if (!directory || !branch) {
@@ -1196,7 +1204,8 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         return;
       }
 
-      section.groups.forEach((group) => {
+      const groups = Array.isArray(section.groups) ? section.groups : [];
+      groups.forEach((group) => {
         const directory = normalizePath(group.directory ?? null);
         const branch = group.branch?.trim() || gitBranches.get(directory || '')?.trim();
         if (!directory || !branch) {

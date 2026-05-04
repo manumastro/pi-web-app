@@ -159,11 +159,12 @@ export function SessionGroupSection(props: Props): React.ReactNode {
   const maxVisible = hideDirectoryControls ? 10 : 5;
   const groupMatchesSearch = hasSessionSearchQuery ? searchData?.groupMatches === true : false;
   const shouldFilterGroupContents = hasSessionSearchQuery;
-  const sourceGroupNodes = React.useMemo(
-    () => [...(shouldFilterGroupContents ? (searchData?.filteredNodes ?? []) : group.sessions)]
-      .sort(compareSessionNodes),
-    [compareSessionNodes, group.sessions, searchData?.filteredNodes, shouldFilterGroupContents],
-  );
+  const sourceGroupNodes = React.useMemo(() => {
+    const baseNodes = shouldFilterGroupContents
+      ? (searchData?.filteredNodes ?? [])
+      : (Array.isArray(group.sessions) ? group.sessions : []);
+    return [...baseNodes].sort(compareSessionNodes);
+  }, [compareSessionNodes, group.sessions, searchData?.filteredNodes, shouldFilterGroupContents]);
   const folderScopeKey = group.folderScopeKey ?? normalizePath(group.directory ?? null);
   const scopeFolders = React.useMemo(
     () => folderScopeKey ? (foldersMap[folderScopeKey] ?? []) : [],
@@ -175,8 +176,9 @@ export function SessionGroupSection(props: Props): React.ReactNode {
     const collectNodeLookup = (nodes: SessionNode[]) => {
       nodes.forEach((node) => {
         map.set(node.session.id, node);
-        if (node.children.length > 0) {
-          collectNodeLookup(node.children);
+        const children = Array.isArray(node.children) ? node.children : [];
+        if (children.length > 0) {
+          collectNodeLookup(children);
         }
       });
     };
@@ -265,7 +267,8 @@ export function SessionGroupSection(props: Props): React.ReactNode {
     const visit = (list: SessionNode[]) => {
       list.forEach((node) => {
         collected.push(node.session);
-        if (node.children.length > 0) visit(node.children);
+        const children = Array.isArray(node.children) ? node.children : [];
+        if (children.length > 0) visit(children);
       });
     };
     visit(nodes);

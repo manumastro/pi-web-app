@@ -907,7 +907,18 @@ export function createRunnerOrchestrator(params: {
 
   async function getThinkingLevels(sessionId: string): Promise<{ currentLevel: ThinkingLevel | undefined; availableLevels: ThinkingLevel[] }> {
     const session = sessionStore.getSession(sessionId);
-    return { currentLevel: session?.thinkingLevel, availableLevels: THINKING_LEVELS };
+    if (!session?.model) {
+      return { currentLevel: session?.thinkingLevel, availableLevels: [] };
+    }
+
+    try {
+      const models = await listModels(session.model);
+      const current = models.find((model) => model.key === session.model);
+      const supportsReasoning = Boolean(current?.reasoning);
+      return { currentLevel: session?.thinkingLevel, availableLevels: supportsReasoning ? THINKING_LEVELS : [] };
+    } catch {
+      return { currentLevel: session?.thinkingLevel, availableLevels: [] };
+    }
   }
 
   async function dispose(): Promise<void> {

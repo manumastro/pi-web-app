@@ -37,6 +37,7 @@ interface RpcSession {
   client: OfficialRpcClient;
   unsubscribe: (() => void) | null;
   assistantMessageId: string | null;
+  emittedTextInTurn: boolean;
   aborted: boolean;
   model: RunnerModelRef | null;
   modelApi?: string;
@@ -171,7 +172,10 @@ function extractText(value: unknown): string {
   if (Array.isArray(value)) return value.map(extractText).join('').trim();
   if (isRecord(value)) {
     for (const key of ['text', 'content', 'delta', 'refusal', 'thinking']) {
-      if (typeof value[key] === 'string') return value[key];
+      const candidate = value[key];
+      if (typeof candidate === 'string') return candidate;
+      const nested = extractText(candidate);
+      if (nested.trim().length > 0) return nested;
     }
   }
   return '';
@@ -281,6 +285,7 @@ function completeTurn(active: RpcSession): void {
   if (!active.assistantMessageId) return;
   emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId, aborted: active.aborted });
   active.assistantMessageId = null;
+  active.emittedTextInTurn = false;
   active.aborted = false;
 }
 
@@ -303,19 +308,33 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
 
   if (type === 'message_start') {
     const message = isRecord(event.message) ? event.message : undefined;
-    if (isRecord(message) && message.role === 'assistant' && !active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    if (isRecord(message) && message.role === 'assistant' && !active.assistantMessageId) {
+      active.assistantMessageId = crypto.randomUUID();
+      active.emittedTextInTurn = false;
+    }
     return;
   }
 
   if (type === 'message_update') {
-    if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    if (!active.assistantMessageId) {
+      active.assistantMessageId = crypto.randomUUID();
+      active.emittedTextInTurn = false;
+    }
     const update = isRecord(event.assistantMessageEvent) ? event.assistantMessageEvent : {};
     const updateType = typeof update.type === 'string' ? update.type : '';
+
     if (updateType === 'text_delta') {
       emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: typeof update.delta === 'string' ? update.delta : '' });
-    } else if (updateType === 'thinking_delta') {
+      active.emittedTextInTurn = true;
+      return;
+    }
+
+    if (updateType === 'thinking_delta') {
       emit({ type: 'thinking', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: typeof update.delta === 'string' ? update.delta : '' });
-    } else if (updateType === 'toolcall_end' && isRecord(update.toolCall)) {
+      return;
+    }
+
+    if (updateType === 'toolcall_end' && isRecord(update.toolCall)) {
       const toolCall = update.toolCall;
       const toolName = typeof toolCall.name === 'string' ? toolCall.name : 'tool';
       if (toolName === 'set_session_name') return;
@@ -327,14 +346,61 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
         toolName,
         input: toolCall.input ?? toolCall.args ?? {},
       });
+      return;
     }
+
+    // Newer adapters may emit *_start/*_end phases instead of *_delta.
+    if (updateType === 'thinking_start' || updateType === 'text_start') {
+      return;
+    }
+
+    if (updateType === 'thinking_end') {
+      const reasoningText = extractText(update.content ?? update).trim();
+      if (reasoningText.length > 0) {
+        emit({ type: 'thinking', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: reasoningText });
+      }
+      return;
+    }
+
+    if (updateType === 'text_end') {
+      const finalText = extractText(update.content ?? update).trim();
+      if (finalText.length > 0) {
+        emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: finalText });
+        active.emittedTextInTurn = true;
+      }
+      return;
+    }
+
+    // Compatibility fallback: some Pi/RPC adapters emit text in alternative
+    // message_update shapes (without explicit text_delta type).
+    const fallbackText = extractText(update).trim();
+    if (fallbackText.length > 0 && !updateType.includes('tool')) {
+      console.error('[runner-process][diag] message_update text fallback', JSON.stringify({
+        sessionId: active.sessionId,
+        updateType: updateType || null,
+        keys: Object.keys(update),
+        textLength: fallbackText.length,
+      }));
+      emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: fallbackText });
+      active.emittedTextInTurn = true;
+      return;
+    }
+
+    console.error('[runner-process][diag] message_update unsupported shape', JSON.stringify({
+      sessionId: active.sessionId,
+      updateType: updateType || null,
+      keys: Object.keys(update),
+    }));
     return;
   }
 
   if (type === 'tool_execution_start') {
     const toolName = typeof event.toolName === 'string' ? event.toolName : 'tool';
     if (toolName === 'set_session_name') return;
-    if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    if (!active.assistantMessageId) {
+      active.assistantMessageId = crypto.randomUUID();
+      active.emittedTextInTurn = false;
+    }
     emit({
       type: 'tool_call',
       sessionId: active.sessionId,
@@ -355,7 +421,10 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
       return;
     }
 
-    if (!active.assistantMessageId) active.assistantMessageId = crypto.randomUUID();
+    if (!active.assistantMessageId) {
+      active.assistantMessageId = crypto.randomUUID();
+      active.emittedTextInTurn = false;
+    }
     emit({
       type: 'tool_result',
       sessionId: active.sessionId,
@@ -380,6 +449,37 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
     return;
   }
 
+  if (type === 'message_end') {
+    if (!active.assistantMessageId) {
+      active.assistantMessageId = crypto.randomUUID();
+      active.emittedTextInTurn = false;
+    }
+    const message = isRecord(event.message) ? event.message : event;
+    const role = isRecord(message) && typeof message.role === 'string' ? message.role : null;
+    const finalText = extractText(message).trim();
+
+    if (role === 'assistant' && finalText.length > 0 && !active.emittedTextInTurn) {
+      console.error('[runner-process][diag] message_end text fallback', JSON.stringify({
+        sessionId: active.sessionId,
+        role,
+        keys: isRecord(message) ? Object.keys(message) : [],
+        textLength: finalText.length,
+      }));
+      emit({ type: 'text', sessionId: active.sessionId, messageId: active.assistantMessageId, delta: finalText });
+      active.emittedTextInTurn = true;
+      return;
+    }
+
+    console.error('[runner-process][diag] message_end without text', JSON.stringify({
+      sessionId: active.sessionId,
+      role,
+      keys: isRecord(message) ? Object.keys(message) : [],
+      textLength: finalText.length,
+      alreadyEmitted: active.emittedTextInTurn,
+    }));
+    return;
+  }
+
   if (type === 'agent_end') {
     completeTurn(active);
     void emitSessionStats(active, 'idle');
@@ -397,7 +497,7 @@ async function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: s
     env: process.env as Record<string, string>,
     args,
   });
-  const active: RpcSession = { sessionId, cwd, client, unsubscribe: null, assistantMessageId: null, aborted: false, model: null };
+  const active: RpcSession = { sessionId, cwd, client, unsubscribe: null, assistantMessageId: null, emittedTextInTurn: false, aborted: false, model: null };
   active.unsubscribe = client.onEvent((event) => handleRpcEvent(active, isRecord(event) ? event : { type: 'unknown' }));
   await client.start();
   sessions.set(sessionId, active);
@@ -501,6 +601,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       const active = sessions.get(command.sessionId);
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
       active.assistantMessageId = command.messageId ?? crypto.randomUUID();
+      active.emittedTextInTurn = false;
       active.aborted = false;
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       const send = command.deliverAs === 'steer'
@@ -519,6 +620,7 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       const active = sessions.get(command.sessionId);
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
       active.assistantMessageId = crypto.randomUUID();
+      active.emittedTextInTurn = false;
       active.aborted = false;
       await active.client.prompt(command.answer);
       emit({ type: 'question_resolved', sessionId: command.sessionId, questionId: command.questionId });

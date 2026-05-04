@@ -302,7 +302,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   const collectNodeDescendantIds = React.useCallback((root: SessionNode): string[] => {
     const out: string[] = [];
     const walk = (n: SessionNode) => {
-      n.children.forEach((child) => {
+      getNodeChildren(n).forEach((child) => {
         out.push(child.session.id);
         walk(child);
       });
@@ -349,7 +349,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
         const childRecords = buildSessionMessageRecordsSnapshot(directoryStore.getState(), child.session.id).list;
         const childTitle = child.session.title || t('sessions.sidebar.session.export.untitledSubagent');
         const childAgent = (child.session as Session & { agent?: string }).agent;
-        const grandChildren = await collectChildExports(child.children);
+        const grandChildren = await collectChildExports(getNodeChildren(child));
         skipped += grandChildren.skipped;
         results.push({
           title: childTitle,
