@@ -22,6 +22,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
 }) => {
   const { t } = useI18n();
   const [version, setVersion] = React.useState<string | null>(null);
+  const [piVersion, setPiVersion] = React.useState<string | null>(null);
   const [isCopyingDiagnostics, setIsCopyingDiagnostics] = React.useState(false);
   const [copiedDiagnostics, setCopiedDiagnostics] = React.useState(false);
   const [diagnosticsReport, setDiagnosticsReport] = React.useState<string | null>(null);
@@ -77,7 +78,22 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
     };
 
     void fetchVersion();
+    void fetchPiVersion();
   }, [open]);
+
+  const fetchPiVersion = async () => {
+    try {
+      const response = await fetch('/api/system/info');
+      if (response.ok) {
+        const data = await response.json();
+        if (typeof data.piVersion === 'string' && data.piVersion.trim()) {
+          setPiVersion(data.piVersion);
+          return;
+        }
+      }
+    } catch { /* ignore - pi version is optional */ }
+    setPiVersion(null);
+  };
 
   React.useEffect(() => {
     if (!open) {
@@ -121,6 +137,11 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({
             {displayVersion && (
               <p className="typography-meta text-muted-foreground">
                 {t('aboutDialog.versionLabel', { version: displayVersion })}
+              </p>
+            )}
+            {piVersion && (
+              <p className="typography-meta text-muted-foreground">
+                {t('aboutDialog.piVersionLabel', { piVersion })}
               </p>
             )}
           </div>

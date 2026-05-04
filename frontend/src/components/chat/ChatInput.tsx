@@ -42,6 +42,8 @@ import { PendingChangesBar } from './PendingChangesBar';
 import { MobileAgentButton } from './MobileAgentButton';
 import { MobileModelButton } from './MobileModelButton';
 import { MobileSessionStatusBar } from './MobileSessionStatusBar';
+import { ThinkingLevelSelector } from './ThinkingLevelSelector';
+import { SessionContextInfo } from './SessionContextInfo';
 import { useCurrentSessionActivity } from '@/hooks/useSessionActivity';
 import { toast } from '@/components/ui';
 // useMessageStore removed — messages now come from sync system
@@ -3805,7 +3807,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                         />
                                     </div>
                                     <div className="flex items-center min-w-0 gap-x-1 justify-end">
-                                        <div className="flex items-center gap-x-1 min-w-0 max-w-[60vw] flex-shrink">
+                                        <div className="flex items-center gap-x-1 min-w-0 max-w-[80vw] flex-shrink">
+                                            <SessionContextInfo compact className="hidden sm:flex" />
+                                            <ThinkingLevelSelector compact className="hidden sm:flex" />
                                             <MemoMobileModelButton onOpenModel={() => handleOpenMobilePanel('model')} className="min-w-0 flex-shrink" />
                                             <MemoMobileAgentButton
                                                 onOpenAgentPanel={handleOpenAgentPanel}
@@ -3870,6 +3874,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                                     />
                                 </div>
                                 <div className={cn('flex items-center flex-1 justify-end', footerGapClass, 'md:gap-x-3')}>
+                                    <SessionContextInfo compact />
+                                    <ThinkingLevelSelector compact />
                                     <MemoModelControls className={cn('flex-1 min-w-0 justify-end')} />
                                     <MemoBrowserVoiceButton />
                                     <ComposerActionButtons

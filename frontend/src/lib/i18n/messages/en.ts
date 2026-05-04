@@ -1087,6 +1087,7 @@ export const dict = {
   'directoryTree.section.pinned': 'Pinned',
   'directoryTree.section.browse': 'Browse',
   'aboutDialog.versionLabel': 'Version {version}',
+  'aboutDialog.piVersionLabel': 'Pi {piVersion}',
   'aboutDialog.tagline': 'Coding with agents, in a workspace built with care.',
   'aboutDialog.actions.copyDiagnostics': 'Copy diagnostics',
   'aboutDialog.actions.preparingDiagnostics': 'Preparing diagnostics...',
@@ -2102,6 +2103,17 @@ export const dict = {
   'markdownRenderer.mermaid.actions.copySourceTitle': 'Copy source',
   'markdownRenderer.mermaid.actions.downloadSvgTitle': 'Download SVG',
   'markdownRenderer.mermaid.toast.downloadFailed': 'Failed to download diagram',
+
+  // Thinking level
+  'chat.thinkingLevel.label': 'Thinking',
+  'chat.thinkingLevel.default': 'Default',
+  'chat.thinkingLevel.ariaLabel': 'Thinking level',
+  'chat.thinkingLevel.tooltip': 'Set thinking level',
+  'chat.thinkingLevel.reset': 'Reset to default',
+
+  // Session context info
+  'chat.contextInfo.messages': 'messages',
+  'chat.contextInfo.tokens': 'tokens',
 } as const;
 
 export type I18nKey = keyof typeof dict;

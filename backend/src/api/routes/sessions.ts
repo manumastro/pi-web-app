@@ -152,6 +152,22 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
     return trimmed;
   };
 
+  const normalizeModelLookupKey = (value: string): string => {
+    const trimmed = value.trim().toLowerCase();
+    return trimmed.includes('/') ? trimmed : trimmed.replace('.', '/');
+  };
+
+  const resolveCanonicalModelKey = async (requested: string, sessionId: string): Promise<string | undefined> => {
+    const models = await runner.listModels(sessionId);
+    const requestedNormalized = normalizeModelLookupKey(requested);
+    const match = models.find((model) => {
+      const keyNormalized = normalizeModelLookupKey(model.key);
+      const providerIdNormalized = normalizeModelLookupKey(`${model.provider}/${model.id}`);
+      return requestedNormalized === keyNormalized || requestedNormalized === providerIdNormalized;
+    });
+    return match?.key;
+  };
+
   router.post('/session/:sessionId/prompt_async', async (req: Request, res: Response) => {
     const sessionId = paramStr(req.params.sessionId);
     const session = sessionStore.getSession(sessionId);
@@ -167,6 +183,14 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
     const rawModelKey = model ? `${String(model.providerID)}/${String(model.modelID)}` : undefined;
     const modelKey = normalizeIncomingModelKey(rawModelKey);
     const messageId = typeof req.body?.messageID === 'string' ? req.body.messageID : undefined;
+
+    console.info('[api] prompt_async request', {
+      sessionId,
+      messageId,
+      rawModelKey,
+      normalizedModelKey: modelKey,
+      currentSessionModel: session.model,
+    });
 
     if (!message) {
       res.status(400).json({ error: 'Text part is required' });
@@ -188,8 +212,29 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
         promptMessage = `${message}\n\n${header}\n${lines.join('\n')}`;
       }
 
-      const previousModel = session.model;
-      if (modelKey) sessionStore.updateSession(sessionId, { model: modelKey });
+      let effectiveModelKey = modelKey;
+      if (modelKey) {
+        const canonicalModelKey = await resolveCanonicalModelKey(modelKey, sessionId);
+        if (!canonicalModelKey) {
+          console.warn('[api] prompt_async model key not found in capabilities, forwarding as-is', {
+            sessionId,
+            messageId,
+            requestedModel: modelKey,
+          });
+          effectiveModelKey = modelKey;
+        } else {
+          effectiveModelKey = canonicalModelKey;
+          if (canonicalModelKey !== modelKey) {
+            console.info('[api] prompt_async canonicalized model key', {
+              sessionId,
+              messageId,
+              requestedModel: modelKey,
+              canonicalModelKey,
+            });
+          }
+        }
+        sessionStore.updateSession(sessionId, { model: effectiveModelKey });
+      }
       sessionStore.updateSession(sessionId, { status: 'busy' });
 
       publishGlobalEvent({
@@ -200,73 +245,48 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
         },
       });
 
+      // Extract thinkingLevel from request body
+      const thinkingLevel = typeof req.body?.thinkingLevel === 'string' ? req.body.thinkingLevel.trim() : undefined;
+
       const runPrompt = async (): Promise<void> => {
-        try {
-          await runner.prompt({
-            sessionId,
-            cwd: session.cwd,
-            message: promptMessage,
-            displayMessage: message,
-            ...(modelKey !== undefined ? { model: modelKey } : {}),
-            ...(messageId ? { messageId } : {}),
-          });
-          return;
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const isModelNotFound = errorMessage.toLowerCase().includes('model not found');
-          if (modelKey && isModelNotFound) {
-            const models = await runner.listModels();
-            const fallbackModel =
-              models.find((m) => m.available && m.authConfigured)?.key
-              ?? models.find((m) => m.available)?.key
-              ?? models[0]?.key;
-
-            console.warn('[api] prompt_async fallback model', {
-              sessionId,
-              rejectedModel: modelKey,
-              fallbackModel,
-            });
-
-            if (fallbackModel) {
-              sessionStore.updateSession(sessionId, { model: fallbackModel });
-              await runner.prompt({
-                sessionId,
-                cwd: session.cwd,
-                message: promptMessage,
-                displayMessage: message,
-                model: fallbackModel,
-                ...(messageId ? { messageId } : {}),
-              });
-            } else {
-              sessionStore.updateSession(sessionId, { model: previousModel });
-              await runner.prompt({
-                sessionId,
-                cwd: session.cwd,
-                message: promptMessage,
-                displayMessage: message,
-                ...(messageId ? { messageId } : {}),
-              });
-            }
-            return;
-          }
-          throw error;
-        }
+        await runner.prompt({
+          sessionId,
+          cwd: session.cwd,
+          message: promptMessage,
+          displayMessage: message,
+          ...(effectiveModelKey !== undefined ? { model: effectiveModelKey } : {}),
+          ...(messageId ? { messageId } : {}),
+          ...(thinkingLevel ? { thinkingLevel } : {}),
+        });
+        console.info('[api] prompt_async dispatched', {
+          sessionId,
+          messageId,
+          model: effectiveModelKey ?? sessionStore.getSession(sessionId)?.model,
+        });
       };
 
       void runPrompt().catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('[api] prompt_async failed', {
           sessionId,
           modelKey,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage,
         });
         sessionStore.updateSession(sessionId, { status: 'error' });
+        const failedModel = sessionStore.getSession(sessionId)?.model;
+        sessionStore.addMessage(sessionId, {
+          role: 'assistant',
+          content: `Model error: ${errorMessage}`,
+          ...(failedModel ? { model: failedModel } : {}),
+        });
         publishGlobalEvent({
           type: 'session.error',
           properties: {
             sessionID: sessionId,
             error: {
               name: 'UnknownError',
-              data: { message: error instanceof Error ? error.message : String(error) },
+              message: errorMessage,
+              data: { message: errorMessage },
             },
           },
         });
@@ -289,6 +309,44 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
     try {
       await runner.abort(sessionId);
       res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ error: String(error) });
+    }
+  });
+
+  router.get('/session/:sessionId/thinking-levels', async (req: Request, res: Response) => {
+    const sessionId = paramStr(req.params.sessionId);
+    const session = sessionStore.getSession(sessionId);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    try {
+      const result = await runner.getThinkingLevels(sessionId);
+      res.json({ levels: result.availableLevels, current: session.thinkingLevel ?? null });
+    } catch (error) {
+      res.json({ levels: [], current: session.thinkingLevel ?? null });
+    }
+  });
+
+  router.put('/session/:sessionId/thinking', async (req: Request, res: Response) => {
+    const sessionId = paramStr(req.params.sessionId);
+    const session = sessionStore.getSession(sessionId);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    const thinkingLevel = typeof req.body?.level === 'string' ? req.body.level.trim() : undefined;
+    if (!thinkingLevel) {
+      res.status(400).json({ error: 'level is required' });
+      return;
+    }
+
+    try {
+      await runner.setThinkingLevel(sessionId, thinkingLevel);
+      res.json({ ok: true, thinkingLevel });
     } catch (error) {
       res.status(500).json({ error: String(error) });
     }

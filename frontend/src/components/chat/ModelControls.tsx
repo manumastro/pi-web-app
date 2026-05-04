@@ -611,7 +611,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                 });
                 return { ...provider, models: visibleModels };
             })
-            .filter((provider) => provider.models.length > 0);
+            .filter((provider) => Array.isArray(provider.models) && provider.models.length > 0);
     }, [providers, hiddenModels]);
 
     const normalizeModelSearchValue = React.useCallback((value: string) => {
@@ -748,7 +748,8 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
 
     // Compute from current model each render to avoid stale variants
     // in draft/session transitions.
-    const availableVariants = getCurrentModelVariants();
+    const availableVariantsRaw = getCurrentModelVariants();
+    const availableVariants = Array.isArray(availableVariantsRaw) ? availableVariantsRaw : [];
     const hasVariants = availableVariants.length > 0;
 
     const costRows = [
@@ -775,9 +776,10 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
         currentSessionDirectory ?? undefined,
     );
     const currentSessionMessagesFromSync = useSessionMessages(currentSessionId ?? '', currentSessionDirectory ?? undefined);
+    const safeCurrentSessionMessages = Array.isArray(currentSessionMessagesFromSync) ? currentSessionMessagesFromSync : [];
     const latestLoadedUserChoice = React.useMemo(() => {
-        for (let i = currentSessionMessagesFromSync.length - 1; i >= 0; i -= 1) {
-            const message = currentSessionMessagesFromSync[i] as typeof currentSessionMessagesFromSync[number] & {
+        for (let i = safeCurrentSessionMessages.length - 1; i >= 0; i -= 1) {
+            const message = safeCurrentSessionMessages[i] as typeof safeCurrentSessionMessages[number] & {
                 model?: { providerID?: string; modelID?: string; variant?: string };
                 variant?: string;
                 mode?: string;
@@ -805,7 +807,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
             return { id: message.id, agent, providerID, modelID, variant };
         }
         return null;
-    }, [currentSessionMessagesFromSync]);
+    }, [safeCurrentSessionMessages]);
 
     const tryApplyModelSelection = React.useCallback(
         (providerId: string, modelId: string, agentName?: string): ModelApplyResult => {
@@ -2461,7 +2463,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                 });
                 return { ...provider, models: filteredModels };
             })
-            .filter((provider) => provider.models.length > 0);
+            .filter((provider) => Array.isArray(provider.models) && provider.models.length > 0);
 
         const providerSections = filteredProviders.map((provider) => {
             const providerId = typeof provider.id === 'string' ? provider.id : '';

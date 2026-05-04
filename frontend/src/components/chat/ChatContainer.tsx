@@ -41,6 +41,7 @@ import { useSync } from '@/sync/use-sync';
 import { usePlanDetection } from '@/hooks/usePlanDetection';
 import { getAllSyncSessions } from '@/sync/sync-refs';
 import { useI18n } from '@/lib/i18n';
+import { usePiVersion } from '@/hooks/usePiVersion';
 
 const EMPTY_MESSAGES: Array<{ info: Message; parts: Part[] }> = [];
 const EMPTY_PERMISSIONS: PermissionRequest[] = [];
@@ -314,6 +315,19 @@ const HYDRATING_SKELETON_ITEMS: Array<{
         textWidths: ['w-24', 'w-[84%]', 'w-[64%]'],
     },
 ];
+
+/** Small Pi version badge shown in the main chat view */
+const PiVersionBadge: React.FC = () => {
+    const { piVersion } = usePiVersion();
+    if (!piVersion) return null;
+    return (
+        <div className="absolute right-3 top-3 z-20">
+            <span className="text-[10px] text-muted-foreground/40 select-none">
+                Pi {piVersion}
+            </span>
+        </div>
+    );
+};
 
 export const ChatContainer: React.FC = () => {
     const { t } = useI18n();
@@ -930,6 +944,7 @@ export const ChatContainer: React.FC = () => {
 	return (
 		<div className="relative flex flex-col h-full bg-background">
 			{returnToParentButton}
+			<PiVersionBadge />
 			<ChatViewport
 				currentSessionId={currentSessionId}
                 isDesktopExpandedInput={isDesktopExpandedInput}

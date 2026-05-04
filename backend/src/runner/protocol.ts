@@ -76,6 +76,23 @@ export const RunnerCommandSchema = z.discriminatedUnion('type', [
     sessionId: z.string().optional(),
   }),
   BaseCommandSchema.extend({
+    type: z.literal('register_provider'),
+    provider: z.string().min(1),
+    config: z.object({
+      baseUrl: z.string().min(1),
+      api: z.string().min(1),
+      apiKey: z.string().optional(),
+      models: z.array(z.object({
+        id: z.string().min(1),
+        name: z.string().optional(),
+        reasoning: z.boolean().optional(),
+        input: z.array(z.enum(['text', 'image'])).optional(),
+        contextWindow: z.number().optional(),
+        maxTokens: z.number().optional(),
+      })).optional(),
+    }),
+  }),
+  BaseCommandSchema.extend({
     type: z.literal('shutdown'),
   }),
 ]);
@@ -100,6 +117,7 @@ export const RunnerEventSchema = z.discriminatedUnion('type', [
     sessionId: z.string(),
     cwd: z.string(),
     model: ModelRefSchema.nullable(),
+    modelApi: z.string().optional(),
     thinkingLevel: ThinkingLevelSchema.optional(),
     availableModels: z.array(ModelInfoSchema),
     piSessionId: z.string().optional(),
@@ -110,6 +128,7 @@ export const RunnerEventSchema = z.discriminatedUnion('type', [
     type: z.literal('session_metadata_update'),
     sessionId: z.string(),
     model: ModelRefSchema.nullable(),
+    modelApi: z.string().optional(),
     thinkingLevel: ThinkingLevelSchema.optional(),
     availableModels: z.array(ModelInfoSchema),
     piSessionId: z.string().optional(),

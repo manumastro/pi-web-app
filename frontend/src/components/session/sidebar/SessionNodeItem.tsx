@@ -100,13 +100,16 @@ type Props = {
   renderContext?: 'project' | 'recent';
 };
 
+const getNodeChildren = (node: SessionNode): SessionNode[] => Array.isArray(node.children) ? node.children : [];
+
 const getNodeChildSignature = (node: SessionNode): string => {
-  if (node.children.length === 0) {
+  const children = getNodeChildren(node);
+  if (children.length === 0) {
     return '';
   }
 
-  return node.children
-    .map((child) => `${child.session.id}:${child.children.length}`)
+  return children
+    .map((child) => `${child.session.id}:${getNodeChildren(child).length}`)
     .join('|');
 };
 
@@ -119,7 +122,7 @@ const treeContainsSessionId = (node: SessionNode, sessionId: string | null): boo
     return true;
   }
 
-  for (const child of node.children) {
+  for (const child of getNodeChildren(node)) {
     if (treeContainsSessionId(child, sessionId)) {
       return true;
     }
@@ -143,7 +146,7 @@ const treeContainsMenuKey = (
     return true;
   }
 
-  for (const child of node.children) {
+  for (const child of getNodeChildren(node)) {
     if (treeContainsMenuKey(child, menuKey, renderContext, archivedBucket)) {
       return true;
     }
@@ -321,7 +324,8 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   const isMissingDirectory = directoryState === 'missing';
   const isActive = currentSessionId === session.id;
   const sessionTitle = resolvedSession.title || t('sessions.sidebar.session.untitled');
-  const hasChildren = node.children.length > 0;
+  const nodeChildren = getNodeChildren(node);
+  const hasChildren = nodeChildren.length > 0;
   const isPinnedSession = pinnedSessionIds.has(session.id);
   const isExpanded = hasSessionSearchQuery ? true : expandedParents.has(session.id);
   const isSubtaskSession = Boolean((resolvedSession as Session & { parentID?: string | null }).parentID);
@@ -383,8 +387,8 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
 
     let childExports: ChildSessionExport[] | undefined;
     let skippedSubtaskCount = 0;
-    if (includeSubtasks && node.children.length > 0) {
-      const collected = await collectChildExports(node.children);
+    if (includeSubtasks && nodeChildren.length > 0) {
+      const collected = await collectChildExports(nodeChildren);
       childExports = collected.children;
       skippedSubtaskCount = collected.skipped;
     }
@@ -413,15 +417,15 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
     downloadAsMarkdown(markdown, filename);
     toast.success(t('sessions.sidebar.session.export.success'));
     showSkippedSubtasksWarning(skippedSubtaskCount);
-  }, [collectChildExports, directoryStore, node.children, resolvedSession.title, session.id, sessionDirectory, showSkippedSubtasksWarning, sync, t]);
+  }, [collectChildExports, directoryStore, nodeChildren, resolvedSession.title, session.id, sessionDirectory, showSkippedSubtasksWarning, sync, t]);
   const handleExportSession = React.useCallback(async () => {
-    if (node.children.length > 0) {
+    if (nodeChildren.length > 0) {
       setExportIncludeSubtasks(true);
       setExportDialogOpen(true);
       return;
     }
     await doExportSession(false);
-  }, [doExportSession, node.children.length]);
+  }, [doExportSession, nodeChildren.length]);
 
   if (editingId === session.id) {
     return (
@@ -875,7 +879,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
         </div>
       </DraggableSessionRow>
       {hasChildren && isExpanded
-        ? node.children.map((child) => renderSessionNode(child, depth + 1, sessionDirectory ?? groupDirectory, projectId, archivedBucket, undefined, renderContext))
+        ? nodeChildren.map((child) => renderSessionNode(child, depth + 1, sessionDirectory ?? groupDirectory, projectId, archivedBucket, undefined, renderContext))
         : null}
       <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
         <DialogContent showCloseButton={false} className="max-w-sm gap-5">

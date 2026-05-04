@@ -31,6 +31,7 @@ export interface Message {
   content: string;
   timestamp: string;
   messageId?: string;
+  model?: string;
   toolName?: string;
   toolCallId?: string;
   success?: boolean;

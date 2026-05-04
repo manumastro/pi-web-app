@@ -1108,8 +1108,19 @@ function handleEvent(
   // Notification dispatch for session turn-complete and error events.
   // These are NOT handled by the event reducer — only the notification store.
   if (payload.type === "session.idle" || payload.type === "session.error") {
-    const props = payload.properties as { sessionID?: string; error?: { message?: string; code?: string } }
+    const props = payload.properties as {
+      sessionID?: string;
+      error?: { message?: string; code?: string; data?: { message?: string } };
+    }
     const sessionID = props.sessionID
+    if (payload.type === "session.error") {
+      const message = props.error?.message?.trim()
+        || props.error?.data?.message?.trim()
+        || "Session error"
+      toast.error(message, {
+        id: sessionID ? `session-error-${sessionID}` : undefined,
+      })
+    }
     // Skip subtask sessions — only top-level sessions generate notifications
     const storeState = store.getState()
     const session = storeState.session.find((s) => s.id === sessionID)

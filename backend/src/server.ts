@@ -10,6 +10,40 @@ import { createSseManager } from './sse/manager.js';
 import { createRunnerOrchestrator } from './runner/orchestrator.js';
 import { installRelayServer } from './relay/server.js';
 import { installApiRoutes } from './api/routes/install.js';
+import { readFileSync } from 'node:fs';
+
+/**
+ * Get the pi-coding-agent version from the most recent installation.
+ * Prefers the NVM global installation if available.
+ */
+function getPiVersion(): string {
+  // Try NVM global first (preferred - has newer models)
+  const nvmPath = process.env.NVM_DIR
+    ? path.join(process.env.NVM_DIR, 'versions', 'node', 'v24.12.0', 'lib', 'node_modules', '@mariozechner', 'pi-coding-agent', 'package.json')
+    : null;
+
+  const tryRead = (pkgPath: string | null): { version: string | null; isGlobal: boolean } => {
+    if (!pkgPath) return { version: null, isGlobal: false };
+    try {
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { version?: string };
+        return { version: pkg.version ?? null, isGlobal: true };
+      }
+    } catch { /* ignore */ }
+    return { version: null, isGlobal: false };
+  };
+
+  // Check NVM global
+  const nvmResult = tryRead(nvmPath);
+  if (nvmResult.version) {
+    return nvmResult.version;
+  }
+
+  // Check bundled
+  const bundledPath = path.join(process.cwd(), 'node_modules', '@mariozechner', 'pi-coding-agent', 'package.json');
+  const bundled = tryRead(bundledPath);
+  return bundled.version ?? 'unknown';
+}
 
 export function createApp() {
   const config = loadConfig();
@@ -29,6 +63,14 @@ export function createApp() {
 
   app.get('/health', (_req, res) => {
     res.json({ ok: true, clients: sseManager.clientCount() });
+  });
+
+  app.get('/api/system/info', (_req, res) => {
+    res.json({
+      piVersion: getPiVersion(),
+      serviceVersion: '1.0.0',
+      timestamp: new Date().toISOString(),
+    });
   });
 
   const settingsFilePath = path.join(config.homeDir, '.pi', 'agent', 'pi-web-settings.json');

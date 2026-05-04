@@ -616,6 +616,7 @@ class OpencodeService {
     prefaceTextSynthetic?: boolean;
     agent?: string;
     variant?: string;
+    thinkingLevel?: string;
     files?: Array<FileInputLite>;
     /** Additional text/file parts to include (for batch sending queued messages) */
     additionalParts?: Array<{
@@ -757,6 +758,7 @@ class OpencodeService {
             },
             agent: params.agent,
             variant: params.variant,
+            ...(params.thinkingLevel ? { thinkingLevel: params.thinkingLevel } : {}),
             ...(params.messageId ? { messageID: params.messageId } : {}),
             ...(params.format ? { format: params.format } : {}),
             parts,

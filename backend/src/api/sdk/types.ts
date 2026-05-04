@@ -10,6 +10,14 @@ export interface SdkSession {
   summary?: { additions: number; deletions: number; files: number; diffs?: Array<Record<string, unknown>> };
   share?: { url: string };
   revert?: { messageID: string; partID?: string; snapshot?: string; diff?: string };
+  // Pi-specific metadata (exactOptionalPropertyTypes allows undefined)
+  model?: string | undefined;
+  thinkingLevel?: string | undefined;
+  piSessionId?: string | undefined;
+  piSessionFile?: string | undefined;
+  contextWindow?: number | undefined;
+  statusMessage?: string | undefined;
+  statusMetadata?: Record<string, unknown> | undefined;
 }
 
 export interface SdkMessageInfo {

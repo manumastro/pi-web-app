@@ -3,11 +3,13 @@ import { OpenChamberLogo } from '@/components/ui/OpenChamberLogo';
 import { useThemeSystem } from '@/contexts/useThemeSystem';
 import { useGlobalSyncStore } from '@/sync/global-sync-store';
 import { useI18n } from '@/lib/i18n';
+import { usePiVersion } from '@/hooks/usePiVersion';
 
 const ChatEmptyState: React.FC = () => {
     const { t } = useI18n();
     const { currentTheme } = useThemeSystem();
     const initError = useGlobalSyncStore((s) => s.error);
+    const { piVersion } = usePiVersion();
 
     const textColor = currentTheme?.colors?.surface?.mutedForeground || 'var(--muted-foreground)';
 
@@ -22,7 +24,14 @@ const ChatEmptyState: React.FC = () => {
                     </span>
                 </div>
             ) : (
-                <span className="text-body-md" style={{ color: textColor }}>{t('chat.emptyState.startNewChat')}</span>
+                <div className="flex flex-col items-center gap-2">
+                    <span className="text-body-md" style={{ color: textColor }}>{t('chat.emptyState.startNewChat')}</span>
+                    {piVersion && (
+                        <span className="text-body-xs text-muted-foreground/60 mt-1">
+                            Pi {piVersion}
+                        </span>
+                    )}
+                </div>
             )}
         </div>
     );

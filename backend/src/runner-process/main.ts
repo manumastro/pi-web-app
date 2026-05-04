@@ -39,6 +39,7 @@ interface RpcSession {
   assistantMessageId: string | null;
   aborted: boolean;
   model: RunnerModelRef | null;
+  modelApi?: string;
   thinkingLevel?: string;
   suppressExitError?: boolean;
 }
@@ -51,6 +52,11 @@ function emit(event: RunnerEvent): void {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
+function diag(message: string, data?: Record<string, unknown>): void {
+  const payload = data ? ` ${JSON.stringify(data)}` : '';
+  process.stderr.write(`[runner-process][diag] ${message}${payload}\n`);
+}
+
 function commandResult(requestId: string, ok: boolean, data?: unknown, error?: string): void {
   emit({ type: 'command_result', requestId, ok, ...(data !== undefined ? { data } : {}), ...(error !== undefined ? { error } : {}) });
 }
@@ -60,17 +66,58 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function resolvePiCliPath(): string {
+  // 1. Explicit override via env
   if (process.env.PI_WEB_PI_CLI_PATH?.trim()) {
     return fs.realpathSync(path.resolve(process.env.PI_WEB_PI_CLI_PATH.trim()));
   }
 
-  const whichPi = spawnSync('which', ['pi'], { encoding: 'utf8', env: process.env });
-  const fromPath = whichPi.status === 0 ? whichPi.stdout.trim() : '';
-  if (fromPath) {
-    return fs.realpathSync(path.resolve(fromPath));
+  // 2. Detect global pi (NVM-managed) vs bundled
+  const globalPi = resolveGlobalPi();
+  const bundledPi = path.resolve(process.cwd(), 'node_modules', '@mariozechner', 'pi-coding-agent', 'dist', 'cli.js');
+
+  if (globalPi && bundledPi !== globalPi) {
+    // Prefer global pi if it has a newer @mariozechner/pi-ai version
+    const globalVersion = getPackageVersion(path.dirname(path.dirname(globalPi)), 'pi-ai');
+    const bundledVersion = getPackageVersion(path.dirname(path.dirname(bundledPi)), 'pi-ai');
+    if (globalVersion && bundledVersion && globalVersion > bundledVersion) {
+      return fs.realpathSync(globalPi);
+    }
   }
 
-  return path.resolve(process.cwd(), 'node_modules', '@mariozechner', 'pi-coding-agent', 'dist', 'cli.js');
+  if (globalPi) return fs.realpathSync(globalPi);
+
+  return bundledPi;
+}
+
+function resolveGlobalPi(): string | null {
+  // Try NVM-managed global node_modules
+  if (process.env.NVM_DIR) {
+    const nvmNodeModules = path.join(process.env.NVM_DIR, 'versions', 'node', 'v24.12.0', 'lib', 'node_modules', '@mariozechner', 'pi-coding-agent', 'dist', 'cli.js');
+    try {
+      if (fs.existsSync(nvmNodeModules)) return nvmNodeModules;
+    } catch { /* ignore */ }
+  }
+  // Try PATH
+  const whichPi = spawnSync('which', ['pi'], { encoding: 'utf8', env: process.env });
+  const fromPath = whichPi.status === 0 ? whichPi.stdout.trim() : '';
+  return fromPath ? fromPath : null;
+}
+
+function getPackageVersion(packageDir: string, packageName: string): string | null {
+  try {
+    const pkgPath = path.join(packageDir, 'node_modules', '@mariozechner', packageName, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      return pkg.version ?? null;
+    }
+    // Try bundled inside pi-coding-agent
+    const bundledPkgPath = path.join(packageDir, 'node_modules', '@mariozechner', 'pi-coding-agent', 'node_modules', '@mariozechner', packageName, 'package.json');
+    if (fs.existsSync(bundledPkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(bundledPkgPath, 'utf8'));
+      return pkg.version ?? null;
+    }
+  } catch { /* ignore */ }
+  return null;
 }
 
 async function loadOfficialRpcClient(): Promise<{ RpcClient: RpcClientCtor; cliPath: string }> {
@@ -339,9 +386,11 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
   }
 }
 
-async function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: string): Promise<RpcSession> {
+async function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: string, startupModel?: RunnerModelRef): Promise<RpcSession> {
   const { RpcClient, cliPath } = await loadOfficialRpcClient();
-  const args = resumeSession ? ['--session', resumeSession] : [];
+  const args: string[] = [];
+  if (resumeSession) args.push('--session', resumeSession);
+  if (startupModel) args.push('--model', `${startupModel.provider}/${startupModel.id}`);
   const client = new RpcClient({
     cliPath,
     cwd: path.resolve(cwd),
@@ -358,7 +407,7 @@ async function spawnRpcSession(sessionId: string, cwd: string, resumeSession?: s
 async function ensureSession(command: Extract<RunnerCommand, { type: 'start_session' }>): Promise<RpcSession> {
   const existing = sessions.get(command.sessionId);
   if (existing) return existing;
-  return spawnRpcSession(command.sessionId, command.cwd, command.piSessionFile ?? command.piSessionId);
+  return spawnRpcSession(command.sessionId, command.cwd, command.piSessionFile ?? command.piSessionId, command.model ?? undefined);
 }
 
 async function emitSessionActive(active: RpcSession): Promise<void> {
@@ -367,15 +416,32 @@ async function emitSessionActive(active: RpcSession): Promise<void> {
     active.client.getAvailableModels().catch(() => []),
   ]);
   const data = isRecord(state) ? state : {};
+  const stateModel = isRecord(data.model) ? data.model : undefined;
+  const stateModelApi = typeof stateModel?.api === 'string' && stateModel.api.trim().length > 0
+    ? stateModel.api.trim()
+    : undefined;
   active.model = modelFromUnknown(data.model) ?? active.model;
+  if (stateModelApi) active.modelApi = stateModelApi;
+  else delete active.modelApi;
   if (typeof data.thinkingLevel === 'string' && data.thinkingLevel !== 'off') {
     active.thinkingLevel = data.thinkingLevel;
   }
+
+  diag('emit_session_active', {
+    sessionId: active.sessionId,
+    model: active.model ? `${active.model.provider}/${active.model.id}` : null,
+    modelApi: active.modelApi ?? null,
+    thinkingLevel: active.thinkingLevel ?? null,
+    piSessionId: typeof data.sessionId === 'string' ? data.sessionId : null,
+    piSessionFile: typeof data.sessionFile === 'string' ? data.sessionFile : null,
+  });
+
   emit({
     type: 'session_active',
     sessionId: active.sessionId,
     cwd: active.cwd,
     model: active.model,
+    ...(active.modelApi ? { modelApi: active.modelApi } : {}),
     ...(active.thinkingLevel ? { thinkingLevel: active.thinkingLevel as never } : {}),
     availableModels: modelsFromUnknown(models),
     ...(typeof data.sessionId === 'string' ? { piSessionId: data.sessionId } : {}),
@@ -396,7 +462,18 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       const requestedThinkingLevel = command.thinkingLevel;
       const modelChanged = !!requestedModel && !sameModel(active.model, requestedModel);
       const thinkingChanged = !!requestedThinkingLevel && active.thinkingLevel !== requestedThinkingLevel;
-      if (modelChanged) {
+
+      diag('start_session received', {
+        requestId: command.requestId,
+        sessionId: command.sessionId,
+        alreadyStarted,
+        requestedModel: requestedModel ? `${requestedModel.provider}/${requestedModel.id}` : null,
+        requestedThinkingLevel: requestedThinkingLevel ?? null,
+        currentModel: active.model ? `${active.model.provider}/${active.model.id}` : null,
+        currentModelApi: active.modelApi ?? null,
+      });
+
+      if (modelChanged && alreadyStarted) {
         await active.client.setModel(requestedModel.provider, requestedModel.id);
         active.model = requestedModel;
       }
@@ -406,6 +483,17 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
       }
       if (!alreadyStarted || modelChanged || thinkingChanged) await emitSessionActive(active);
       void emitSessionStats(active, 'idle');
+
+      diag('start_session completed', {
+        requestId: command.requestId,
+        sessionId: command.sessionId,
+        modelChanged,
+        thinkingChanged,
+        effectiveModel: active.model ? `${active.model.provider}/${active.model.id}` : null,
+        effectiveModelApi: active.modelApi ?? null,
+        effectiveThinkingLevel: active.thinkingLevel ?? null,
+      });
+
       commandResult(command.requestId, true, { sessionId: command.sessionId });
       break;
     }
@@ -440,10 +528,23 @@ async function handleCommand(command: RunnerCommand): Promise<void> {
     case 'set_model': {
       const active = sessions.get(command.sessionId);
       if (!active) throw new Error(`Session ${command.sessionId} has not been started`);
+      diag('set_model received', {
+        requestId: command.requestId,
+        sessionId: command.sessionId,
+        requestedModel: `${command.model.provider}/${command.model.id}`,
+        currentModel: active.model ? `${active.model.provider}/${active.model.id}` : null,
+        currentModelApi: active.modelApi ?? null,
+      });
       await active.client.setModel(command.model.provider, command.model.id);
       active.model = command.model;
       emit({ type: 'model_set_result', sessionId: command.sessionId, requestId: command.requestId, ok: true, model: command.model });
       await emitSessionActive(active);
+      diag('set_model completed', {
+        requestId: command.requestId,
+        sessionId: command.sessionId,
+        effectiveModel: active.model ? `${active.model.provider}/${active.model.id}` : null,
+        effectiveModelApi: active.modelApi ?? null,
+      });
       commandResult(command.requestId, true, { model: command.model });
       break;
     }

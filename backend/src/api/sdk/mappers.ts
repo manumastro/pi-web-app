@@ -26,15 +26,26 @@ export function toSdkSession(session: Session, projectId = 'pi-web-project'): Sd
       created: new Date(session.createdAt).getTime(),
       updated: new Date(session.updatedAt).getTime(),
     },
+    // Pi-specific metadata (available in session store but was not exposed)
+    model: session.model,
+    thinkingLevel: session.thinkingLevel,
+    piSessionId: session.piSessionId,
+    piSessionFile: session.piSessionFile,
+    statusMessage: session.statusMessage,
+    statusMetadata: session.statusMetadata,
   };
 }
 
-function modelForSession(session: Session): { providerID: string; modelID: string } {
-  const parsedModel = parseModelKey(session.model);
+function modelFromKey(modelKey: string | undefined): { providerID: string; modelID: string } {
+  const parsedModel = parseModelKey(modelKey);
   return {
     providerID: parsedModel?.provider ?? 'openai-codex',
     modelID: parsedModel?.modelId ?? 'gpt-5.4-mini',
   };
+}
+
+function modelForSession(session: Session): { providerID: string; modelID: string } {
+  return modelFromKey(session.model);
 }
 
 export function toSdkAssistantMessageInfo(
@@ -43,8 +54,9 @@ export function toSdkAssistantMessageInfo(
   created = Date.now(),
   parentID = '',
   completed?: number,
+  modelKey?: string,
 ): SdkMessageInfo {
-  const { providerID, modelID } = modelForSession(session);
+  const { providerID, modelID } = modelFromKey(modelKey ?? session.model);
   return {
     id: messageId,
     sessionID: session.id,
@@ -63,13 +75,20 @@ export function toSdkAssistantMessageInfo(
 export function toSdkMessageInfo(session: Session, msg: SessionMessage): SdkMessageInfo {
   const messageId = getExternalMessageId(msg);
   const created = new Date(msg.timestamp).getTime();
-  const { providerID, modelID } = modelForSession(session);
+  const { providerID, modelID } = modelFromKey(msg.model ?? session.model);
 
   if (msg.role === 'assistant') {
     const previousUser = [...session.messages]
       .reverse()
       .find((candidate) => candidate.role === 'user' && new Date(candidate.timestamp).getTime() <= created);
-    return toSdkAssistantMessageInfo(session, messageId, created, previousUser ? getExternalMessageId(previousUser) : '', created);
+    return toSdkAssistantMessageInfo(
+      session,
+      messageId,
+      created,
+      previousUser ? getExternalMessageId(previousUser) : '',
+      created,
+      msg.model,
+    );
   }
 
   return {

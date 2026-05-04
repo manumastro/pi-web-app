@@ -41,6 +41,7 @@ interface ActiveTurn {
   userMessageId: string;
   assistantMessageId: string;
   assistantContent: string;
+  model?: string;
   assistantAnnounced?: boolean;
 }
 
@@ -187,7 +188,9 @@ export function createRunnerOrchestrator(params: {
   const { config, sessionStore, sseManager } = params;
   const runner = params.runner ?? new RunnerProcessClient();
   const availableModelsBySession = new Map<string, RunnerModelInfo[]>();
+  const availableModelKeysBySession = new Map<string, Set<string>>();
   const globalAvailableModels: RunnerModelInfo[] = [];
+  let globalAvailableModelKeys = new Set<string>();
   const activeTurns = new Map<string, ActiveTurn>();
   const hiddenModelKeys = getHiddenModelKeysFromEnv();
   const pendingToolStatus = new Map<string, number>();
@@ -197,6 +200,11 @@ export function createRunnerOrchestrator(params: {
 
   runner.on('event', (event: RunnerEvent) => {
     handleRunnerEvent(event);
+  });
+  runner.on('stderr', (chunk: string) => {
+    const message = chunk.trim();
+    if (!message) return;
+    console.info('[runner][stderr]', message);
   });
   runner.on('error', (cause) => {
     emit(sseManager, {
@@ -233,9 +241,14 @@ export function createRunnerOrchestrator(params: {
   }
 
   function cacheModels(sessionId: string | undefined, models: RunnerModelInfo[]): void {
+    const availableKeys = new Set(models.map((model) => modelKey(model)));
     const visibleModels = applyModelVisibility(models, hiddenModelKeys, readEnabledModelKeys(config.homeDir));
     globalAvailableModels.splice(0, globalAvailableModels.length, ...visibleModels);
-    if (sessionId) availableModelsBySession.set(sessionId, visibleModels);
+    globalAvailableModelKeys = new Set(availableKeys);
+    if (sessionId) {
+      availableModelsBySession.set(sessionId, visibleModels);
+      availableModelKeysBySession.set(sessionId, new Set(availableKeys));
+    }
   }
 
   function selectedKeyFor(sessionIdOrKey?: string): string | undefined {
@@ -251,10 +264,10 @@ export function createRunnerOrchestrator(params: {
     return sessionStore.createSession(cwd, model, sessionId);
   }
 
-  async function startSessionIfNeeded(session: Session): Promise<void> {
-    const parsed = parseModelKey(session.model);
-    const result = await runner.send({
-      type: 'start_session',
+  async function startSessionIfNeeded(session: Session, includeModel = true): Promise<void> {
+    const parsed = includeModel ? parseModelKey(session.model) : undefined;
+    const request = {
+      type: 'start_session' as const,
       requestId: requestId(),
       sessionId: session.id,
       cwd: session.cwd,
@@ -263,6 +276,25 @@ export function createRunnerOrchestrator(params: {
       ...(session.piSessionId ? { piSessionId: session.piSessionId } : {}),
       ...(session.piSessionFile ? { piSessionFile: session.piSessionFile } : {}),
       history: toRunnerHistory(session.messages),
+    };
+
+    console.info('[runner][diag] start_session request', {
+      sessionId: session.id,
+      requestId: request.requestId,
+      includeModel,
+      model: parsed ? `${parsed.provider}/${parsed.modelId}` : null,
+      thinkingLevel: session.thinkingLevel ?? null,
+      piSessionId: session.piSessionId ?? null,
+      piSessionFile: session.piSessionFile ?? null,
+      historyLength: session.messages.length,
+    });
+
+    const result = await runner.send(request);
+    console.info('[runner][diag] start_session result', {
+      sessionId: session.id,
+      requestId: request.requestId,
+      ok: result.ok,
+      error: result.error,
     });
     if (!result.ok) throw new Error(result.error ?? 'Failed to start Pi runner session');
   }
@@ -339,11 +371,14 @@ export function createRunnerOrchestrator(params: {
     const content = active?.assistantContent ?? '';
     let fallbackContent: string | null = null;
 
+    const model = active?.model ?? sessionStore.getSession(sessionId)?.model;
+
     if (content.length > 0 || aborted) {
       sessionStore.addMessage(sessionId, {
         role: 'assistant',
         content,
         messageId,
+        ...(model ? { model } : {}),
       });
     } else {
       const piError = getLatestPiAssistantError(sessionId);
@@ -353,6 +388,7 @@ export function createRunnerOrchestrator(params: {
           role: 'assistant',
           content: fallback,
           messageId,
+          ...(model ? { model } : {}),
         });
         fallbackContent = fallback;
       }
@@ -365,25 +401,53 @@ export function createRunnerOrchestrator(params: {
 
   function handleRunnerEvent(event: RunnerEvent): void {
     switch (event.type) {
-      case 'session_active':
+      case 'session_active': {
         cacheModels(event.sessionId, event.availableModels);
+        const resolvedModel = event.model ? modelKey({ provider: event.model.provider, id: event.model.id }) : undefined;
+        console.info('[runner][diag] session_active', {
+          sessionId: event.sessionId,
+          model: resolvedModel ?? null,
+          modelApi: event.modelApi ?? null,
+          thinkingLevel: event.thinkingLevel ?? null,
+          piSessionId: event.piSessionId ?? null,
+          piSessionFile: event.piSessionFile ?? null,
+        });
         sessionStore.updateSession(event.sessionId, {
           cwd: event.cwd,
-          ...(event.model ? { model: modelKey({ provider: event.model.provider, id: event.model.id }) } : {}),
+          ...(resolvedModel ? { model: resolvedModel } : {}),
           ...(event.thinkingLevel ? { thinkingLevel: event.thinkingLevel } : {}),
           ...(event.piSessionId ? { piSessionId: event.piSessionId } : {}),
           ...(event.piSessionFile ? { piSessionFile: event.piSessionFile } : {}),
         });
+        if (resolvedModel) {
+          const active = activeTurns.get(event.sessionId);
+          if (active) activeTurns.set(event.sessionId, { ...active, model: resolvedModel });
+        }
         break;
-      case 'session_metadata_update':
+      }
+      case 'session_metadata_update': {
         cacheModels(event.sessionId, event.availableModels);
+        const resolvedModel = event.model ? modelKey({ provider: event.model.provider, id: event.model.id }) : undefined;
+        console.info('[runner][diag] session_metadata_update', {
+          sessionId: event.sessionId,
+          model: resolvedModel ?? null,
+          modelApi: event.modelApi ?? null,
+          thinkingLevel: event.thinkingLevel ?? null,
+          piSessionId: event.piSessionId ?? null,
+          piSessionFile: event.piSessionFile ?? null,
+        });
         sessionStore.updateSession(event.sessionId, {
-          ...(event.model ? { model: modelKey({ provider: event.model.provider, id: event.model.id }) } : {}),
+          ...(resolvedModel ? { model: resolvedModel } : {}),
           ...(event.thinkingLevel ? { thinkingLevel: event.thinkingLevel } : {}),
           ...(event.piSessionId ? { piSessionId: event.piSessionId } : {}),
           ...(event.piSessionFile ? { piSessionFile: event.piSessionFile } : {}),
         });
+        if (resolvedModel) {
+          const active = activeTurns.get(event.sessionId);
+          if (active) activeTurns.set(event.sessionId, { ...active, model: resolvedModel });
+        }
         break;
+      }
       case 'model_set_result':
         if (event.ok && event.model) {
           sessionStore.updateSession(event.sessionId, { model: modelKey({ provider: event.model.provider, id: event.model.id }) });
@@ -522,6 +586,13 @@ export function createRunnerOrchestrator(params: {
       }
       case 'done': {
         const assistantMessageId = resolveAssistantMessageId(event.sessionId, event.messageId);
+        const turnModel = activeTurns.get(event.sessionId)?.model ?? sessionStore.getSession(event.sessionId)?.model;
+        console.info('[runner] turn completed', {
+          sessionId: event.sessionId,
+          messageId: assistantMessageId,
+          model: turnModel,
+          aborted: event.aborted ?? false,
+        });
         const fallbackContent = finalizeAssistant(event.sessionId, event.aborted ?? false, assistantMessageId);
         if (fallbackContent && fallbackContent.length > 0) {
           emit(sseManager, {
@@ -633,21 +704,37 @@ export function createRunnerOrchestrator(params: {
       ? (availableModelsBySession.get(sessionId) ?? globalAvailableModels)
       : globalAvailableModels;
     const models = modelsSource.map(toModelLike);
-    const availableKeys = new Set(models.map((model) => modelKey(model)));
+    const availableKeys = sessionId
+      ? (availableModelKeysBySession.get(sessionId) ?? globalAvailableModelKeys)
+      : globalAvailableModelKeys;
     const selectedKey = selectedKeyFor(sessionIdOrKey) ?? session?.model;
     return selectedKey
       ? summarizeModels({ models, availableKeys, selectedKey })
       : summarizeModels({ models, availableKeys });
   }
 
+  function normalizeModelLookupKey(value: string): string {
+    const trimmed = value.trim().toLowerCase();
+    return trimmed.includes('/') ? trimmed : trimmed.replace('.', '/');
+  }
+
+  function findMatchingModelKey(models: ModelSummary[], requested: string): string | undefined {
+    const requestedNormalized = normalizeModelLookupKey(requested);
+    const match = models.find((model) => {
+      const keyNormalized = normalizeModelLookupKey(model.key);
+      const idNormalized = normalizeModelLookupKey(`${model.provider}/${model.id}`);
+      return requestedNormalized === keyNormalized || requestedNormalized === idNormalized;
+    });
+    return match?.key;
+  }
+
   async function prompt(request: PromptRequest): Promise<PromptResult> {
     const sessionId = request.sessionId ?? config.generateSessionId();
     const cwd = request.cwd ?? config.piCwd;
-    const session = ensureStoredSession(sessionId, cwd, request.model);
+    const session = ensureStoredSession(sessionId, cwd, undefined);
     const messageId = request.messageId ?? config.generateSessionId();
     const assistantMessageId = `${messageId}_assistant`;
 
-    if (request.model) sessionStore.updateSession(session.id, { model: request.model });
     if (request.thinkingLevel) sessionStore.updateSession(session.id, { thinkingLevel: request.thinkingLevel });
 
     const latestSession = sessionStore.getSession(session.id) ?? session;
@@ -672,6 +759,7 @@ export function createRunnerOrchestrator(params: {
       role: 'user',
       content: request.displayMessage ?? request.message,
       messageId,
+      ...(latestSession.model ? { model: latestSession.model } : {}),
       ...(request.attachments && request.attachments.length > 0 ? { attachments: request.attachments } : {}),
     });
     emit(sseManager, {
@@ -680,10 +768,12 @@ export function createRunnerOrchestrator(params: {
       messageId,
       timestamp: now(),
     });
+    const turnModel = request.model ?? latestSession.model;
     const activeTurn: ActiveTurn = {
       userMessageId: messageId,
       assistantMessageId,
       assistantContent: '',
+      ...(turnModel ? { model: turnModel } : {}),
     };
     activeTurns.set(session.id, activeTurn);
     announceAssistantMessage(session.id, activeTurn);
@@ -695,7 +785,64 @@ export function createRunnerOrchestrator(params: {
       timestamp: now(),
     });
 
-    await startSessionIfNeeded(sessionStore.getSession(session.id) ?? session);
+    console.info('[runner] prompt dispatch', {
+      sessionId: session.id,
+      messageId,
+      requestedModel: request.model,
+      effectiveSessionModel: latestSession.model,
+    });
+
+    // Ensure the model is set on the session BEFORE startSessionIfNeeded.
+    // This way the pi RPC process is spawned with --model, avoiding a
+    // broken default-model initialisation that can leave the agent with
+    // the wrong API provider (e.g. anthropic-messages for opencode models).
+    //
+    // IMPORTANT: Always update when request.model is provided, not just when
+    // the session has no model. If the session already holds a different model
+    // (e.g. the default), keeping it would cause Pi to spawn with the wrong
+    // --model flag. The subsequent set_model RPC would then fail for providers
+    // without auth in the registry (e.g. opencode), causing Pi to fall back to
+    // a custom model with the wrong API adapter.
+    if (request.model) {
+      sessionStore.updateSession(session.id, { model: request.model });
+    }
+
+    await startSessionIfNeeded(sessionStore.getSession(session.id) ?? session, true);
+    if (request.model) {
+      const visibleModels = await listModels(session.id);
+      const resolvedModelKey = findMatchingModelKey(visibleModels, request.model) ?? request.model;
+      const parsed = parseModelKey(resolvedModelKey);
+      const currentModel = sessionStore.getSession(session.id)?.model;
+      if (parsed && currentModel !== resolvedModelKey) {
+        const setModelResult = await runner.send({
+          type: 'set_model',
+          requestId: requestId(),
+          sessionId: session.id,
+          model: { provider: parsed.provider, id: parsed.modelId },
+        });
+        console.info('[runner] prompt set_model result', {
+          sessionId: session.id,
+          messageId,
+          requestedModel: request.model,
+          resolvedModelKey,
+          ok: setModelResult.ok,
+          error: setModelResult.error,
+        });
+        if (!setModelResult.ok) {
+          console.error('[runner] set_model failed with available models', {
+            sessionId: session.id,
+            messageId,
+            requestedModel: request.model,
+            resolvedModelKey,
+            availableModels: visibleModels.map((model) => model.key),
+          });
+          throw new Error(setModelResult.error ?? `Failed to set model: ${resolvedModelKey}`);
+        }
+      }
+      sessionStore.updateSession(session.id, { model: resolvedModelKey });
+      const active = activeTurns.get(session.id);
+      if (active) activeTurns.set(session.id, { ...active, model: resolvedModelKey });
+    }
     if (request.thinkingLevel) await setThinkingLevel(session.id, request.thinkingLevel);
     const result = await runner.send({
       type: 'send_input',
@@ -726,17 +873,27 @@ export function createRunnerOrchestrator(params: {
   async function setModel(sessionId: string, modelKeyInput: string): Promise<void> {
     const session = sessionStore.getSession(sessionId);
     if (!session) return;
-    await startSessionIfNeeded(session);
-    const parsed = parseModelKey(modelKeyInput);
-    if (!parsed) throw new Error(`Invalid model key: ${modelKeyInput}`);
-    const result = await runner.send({
-      type: 'set_model',
-      requestId: requestId(),
-      sessionId,
-      model: { provider: parsed.provider, id: parsed.modelId },
-    });
-    capabilitiesFetchedAtBySession.delete(sessionId);
-    if (!result.ok) throw new Error(result.error ?? 'Pi runner model switch failed');
+    const previousModel = session.model;
+    // Ensure the model is on the session before startSessionIfNeeded so the
+    // pi RPC process spawns with --model and picks the correct API provider.
+    sessionStore.updateSession(sessionId, { model: modelKeyInput });
+    try {
+      await startSessionIfNeeded(sessionStore.getSession(sessionId)!);
+      const parsed = parseModelKey(modelKeyInput);
+      if (!parsed) throw new Error(`Invalid model key: ${modelKeyInput}`);
+      const result = await runner.send({
+        type: 'set_model',
+        requestId: requestId(),
+        sessionId,
+        model: { provider: parsed.provider, id: parsed.modelId },
+      });
+      capabilitiesFetchedAtBySession.delete(sessionId);
+      if (!result.ok) throw new Error(result.error ?? 'Pi runner model switch failed');
+    } catch (err) {
+      // Roll back session store to previous model on failure.
+      sessionStore.updateSession(sessionId, { model: previousModel });
+      throw err;
+    }
   }
 
   async function setThinkingLevel(sessionId: string, thinkingLevel: ThinkingLevel): Promise<void> {

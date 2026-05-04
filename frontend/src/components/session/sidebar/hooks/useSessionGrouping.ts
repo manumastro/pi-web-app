@@ -46,7 +46,7 @@ export const useSessionGrouping = (args: Args) => {
           return [node];
         }
 
-        const filteredChildren = filterSessionNodesForSearch(node.children, query);
+        const filteredChildren = filterSessionNodesForSearch(Array.isArray(node.children) ? node.children : [], query);
         if (filteredChildren.length === 0) {
           return [];
         }

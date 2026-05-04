@@ -66,6 +66,7 @@ function routeMessage(params: {
   modelID: string
   agent?: string
   variant?: string
+  thinkingLevel?: string
   inputMode?: "normal" | "shell"
   files?: Array<{ type: "file"; mime: string; url: string; filename: string }>
   additionalParts?: Array<{ text: string; synthetic?: boolean; files?: Array<{ type: "file"; mime: string; url: string; filename: string }> }>
@@ -136,6 +137,7 @@ function routeMessage(params: {
       text: params.content,
       agent: params.agent,
       variant: params.variant,
+      thinkingLevel: params.thinkingLevel,
       files: params.files,
       additionalParts: params.additionalParts,
       messageId: messageID,
@@ -239,6 +241,7 @@ export type SessionUIState = {
     additionalParts?: Array<{ text: string; attachments?: AttachedFile[]; synthetic?: boolean }>,
     variant?: string,
     inputMode?: "normal" | "shell",
+    thinkingLevel?: string,
   ) => Promise<void>
 
   createSession: (title?: string, directoryOverride?: string | null, parentID?: string | null) => Promise<Session | null>
@@ -707,6 +710,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     additionalParts?: Array<{ text: string; attachments?: AttachedFile[]; synthetic?: boolean }>,
     variant?: string,
     inputMode?: "normal" | "shell",
+    thinkingLevel?: string,
   ) => {
     // Clear non-Git changed-files bar on new user message for current session
     const sid = get().currentSessionId;
@@ -797,6 +801,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         modelID,
         agent: effectiveDraftAgent,
         variant,
+        thinkingLevel,
         inputMode,
         files,
         additionalParts: mergedAdditionalParts?.map((p) => ({
@@ -859,6 +864,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         modelID,
         agent: effectiveAgent,
         variant,
+        thinkingLevel,
         inputMode,
         files,
         additionalParts: additionalParts?.map((p) => ({
@@ -910,6 +916,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       modelID,
       agent: effectiveAgent,
       variant,
+      thinkingLevel,
       inputMode,
       files,
       additionalParts: additionalParts?.map((p) => ({

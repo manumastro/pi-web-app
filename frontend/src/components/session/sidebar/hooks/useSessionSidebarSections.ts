@@ -100,7 +100,10 @@ export const useSessionSidebarSections = (args: Args) => {
       return result;
     }
 
-    const countNodes = (nodes: SessionNode[]): number => nodes.reduce((total, node) => total + 1 + countNodes(node.children), 0);
+    const countNodes = (nodes: SessionNode[]): number => nodes.reduce((total, node) => {
+      const children = Array.isArray(node.children) ? node.children : [];
+      return total + 1 + countNodes(children);
+    }, 0);
 
     visibleProjectSections.forEach((section) => {
       section.groups.forEach((group) => {
