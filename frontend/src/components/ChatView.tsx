@@ -1,12 +1,19 @@
 /**
- * ChatView — the main chat view component.
- * Connects useSession + useSSE + MessageList + MessageInput.
+ * ChatView — stile openchamber.
+ * Chat completa con SSE streaming.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { sendPrompt, connectSSE, type MessageRecord, type SseEvent } from '../lib/api';
 import { MessageList } from './MessageList';
-import { MessageInput } from './MessageInput';
+import { ChatInput } from './ChatInput';
+
+// Stub stores (non usate ma richieste da ChatInput)
+export const useUIStore = () => ({ theme: 'light' });
+export const useViewportStore = () => ({ viewport: { current: 'desktop' } });
+export const useStreamingStore = () => ({ isStreaming: false, setStreaming: (v: boolean) => {} });
+export const useSync = () => ({ isSyncing: false });
+export const usePlanDetection = () => ({ hasPlan: false });
 
 export const ChatView: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -16,7 +23,6 @@ export const ChatView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [sessionTitle, setSessionTitle] = useState('Pi Web Chat');
 
-  // Ref to track current messages length for polling
   const messagesRef = useRef(messages);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
@@ -81,7 +87,6 @@ export const ChatView: React.FC = () => {
         if (event.type === 'session.status' || event.type === 'session.idle') {
           const status = (props.status as Record<string, unknown> | undefined)?.type as string | undefined;
           if (status === 'idle') {
-            // Re-fetch messages to get final state
             fetch(`http://localhost:3211/api/session/${encodeURIComponent(sessionId)}/message`)
               .then((r) => r.json())
               .then((msgs) => setMessages(msgs))
@@ -91,6 +96,7 @@ export const ChatView: React.FC = () => {
         }
       },
       (err) => console.warn('[SSE] error', err),
+      'http://localhost:3211',
     );
 
     return () => close();
@@ -136,7 +142,7 @@ export const ChatView: React.FC = () => {
       )}
 
       <MessageList messages={messages} sending={sending} />
-      <MessageInput onSend={handleSend} disabled={sending} />
+      <ChatInput onSend={handleSend} disabled={sending} />
     </div>
   );
 };

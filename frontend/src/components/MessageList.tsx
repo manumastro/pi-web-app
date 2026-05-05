@@ -1,16 +1,14 @@
 /**
- * MessageList — renders chat messages with streaming support.
+ * MessageList — stile openchamber, logica semplificata.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import type { MessageRecord } from '../lib/api';
 
 interface MessageListProps {
   messages: MessageRecord[];
   sending: boolean;
 }
-
-const roleLabel: Record<string, string> = { user: 'Tu', assistant: 'AI' };
 
 export const MessageList: React.FC<MessageListProps> = ({ messages, sending }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -29,12 +27,12 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, sending }) =
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4 chat-scroll">
       {messages.map((msg) => {
         const role = msg.info?.role ?? 'unknown';
         const isUser = role === 'user';
-        const textParts = (msg.parts ?? []).filter((p) => p.type === 'text');
-        const content = textParts.map((p) => p.text ?? '').join('');
+        const textParts = (msg.parts ?? []).filter((p: { type: string }) => p.type === 'text');
+        const content = textParts.map((p: { text?: string }) => p.text ?? '').join('');
 
         return (
           <div
@@ -45,15 +43,18 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, sending }) =
               className={`max-w-[80%] rounded-lg px-4 py-2 ${
                 isUser
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-900 border border-gray-200'
+                  : 'bg-white border border-gray-200 text-gray-900'
               }`}
             >
-              <div className="text-xs opacity-60 mb-1">{roleLabel[role] ?? role}</div>
+              <div className="text-xs opacity-60 mb-1">
+                {isUser ? 'Tu' : 'AI'}
+              </div>
               <div className="whitespace-pre-wrap break-words">{content || '...'}</div>
             </div>
           </div>
         );
       })}
+
       {sending && (
         <div className="flex justify-start">
           <div className="bg-gray-100 rounded-lg px-4 py-2 text-gray-400 text-sm">
@@ -61,6 +62,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, sending }) =
           </div>
         </div>
       )}
+
       <div ref={bottomRef} />
     </div>
   );

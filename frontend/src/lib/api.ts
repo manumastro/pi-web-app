@@ -4,7 +4,7 @@
  * Compatible with OpenChamber SDK event format.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3211'; // Direct call, no proxy
+const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3211';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ export type SseEventType =
 
 export interface SseEvent {
   type: SseEventType;
-  properties: Record<string, unknown>;
+  properties?: Record<string, unknown>;
 }
 
 export function connectSSE(
