@@ -4,24 +4,18 @@
   "private": true,
   "description": "Web UI wrapper for the Pi coding agent CLI",
   "workspaces": [
-    "backend",
-    "frontend"
+    "backend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
-    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
-    "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
-    "test:coverage": "npm run test:coverage --workspace=backend && npm run test:coverage --workspace=frontend",
-    "test:e2e:fullstack": "node scripts/e2e-fullstack-stream.mjs",
-    "test:e2e:reentry-replay": "node scripts/e2e-reentry-replay.mjs",
-    "lint": "npm run lint --workspace=backend && npm run lint --workspace=frontend"
+    "dev": "npm run dev --workspace=backend",
+    "build": "npm run build --workspace=backend",
+    "test": "npm run test --workspace=backend",
+    "test:coverage": "npm run test:coverage --workspace=backend",
+    "test:e2e:api": "node scripts/e2e-backend-api.mjs",
+    "test:e2e:api-smoke": "bash test-api-simple.sh",
+    "lint": "npm run lint --workspace=backend"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.19",
-    "autoprefixer": "^10.5.0",
-    "concurrently": "^9.1.2",
-    "playwright": "^1.59.1",
-    "postcss": "^8.5.10",
-    "tailwindcss": "^4.2.2"
+    "playwright": "^1.59.1"
   }
 }
