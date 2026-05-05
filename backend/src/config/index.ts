@@ -96,7 +96,7 @@ function generateSessionId(): string {
  * Load configuration from environment variables with sensible defaults
  */
 export function loadConfig(): Config {
-  const port = parsePort(process.env.PORT);
+  const port = parsePort(process.env.PORT) || parsePort(process.env.PI_WEB_PORT);
   const nodeEnv = parseNodeEnv(process.env.NODE_ENV);
   const homeDir = getHomeDir();
   const sessionsDir = process.env.SESSIONS_DIR ?? getDefaultSessionsDir();

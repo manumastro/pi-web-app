@@ -12,4 +12,10 @@ After each significant change, restart the systemd service (`systemctl --user re
 - E2E backend API test: `node scripts/e2e-backend-api.mjs` (requires running backend)
 - API smoke test: `bash test-api-simple.sh` (curl-based, against running backend)
 
-Current state (2026-05-05): Branch `backend-only-no-frontend` created. Frontend directory removed. Root package.json cleaned to backend-only workspace. E2E backend API test (`scripts/e2e-backend-api.mjs`) fully functional: 16/16 assertions pass, covering health, config, models, session CRUD, prompt streaming via SSE, multi-turn chat, session listing, and message persistence. All 119 unit tests pass. Ready for OpenChamber UI re-implementation.
+Current state (2026-05-05): Branch `backend-only-no-frontend` created. Frontend directory removed, then re-created as minimal chat UI.
+- **Frontend**: Vite + React + Tailwind, minimal chat with SSE streaming
+- **E2E backend API test** (`scripts/e2e-backend-api.mjs`): 16/16 assertions pass
+- **All 119 unit tests pass**, types compile cleanly
+- **Chat E2E working**: frontend ↔ backend via REST + SSE, streaming responses
+- Default model: `opencode-go/deepseek-v4-flash`
+- Ready for incremental UI improvements from ~/openchamber
