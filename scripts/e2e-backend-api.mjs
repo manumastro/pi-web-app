@@ -27,7 +27,7 @@ import http from 'node:http';
 
 // ── Config ──────────────────────────────────────────────────
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3211';
-const MODEL_KEY = process.env.MODEL_KEY ?? 'opencode-go/deepseek-v4-pro';
+const MODEL_KEY = process.env.MODEL_KEY ?? 'opencode-go/deepseek-v4-flash';
 const PROMPT = process.env.PROMPT ?? 'Rispondi esattamente con: BACKEND_E2E_OK';
 const THINKING_LEVEL = process.env.THINKING ?? 'minimal';
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS ?? 180_000);
