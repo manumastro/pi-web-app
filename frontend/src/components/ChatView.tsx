@@ -104,6 +104,7 @@ export const ChatView: React.FC = () => {
       await sendPrompt(sessionId, text, {
         thinkingLevel: 'minimal',
         baseUrl: 'http://localhost:3211',
+        model: { providerID: 'opencode-go', modelID: 'deepseek-v4-flash' },
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
