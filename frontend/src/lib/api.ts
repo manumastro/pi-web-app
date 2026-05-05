@@ -4,7 +4,7 @@
  * Compatible with OpenChamber SDK event format.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3211';
+const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3211'; // Direct call, no proxy
 
 // ── Types ──────────────────────────────────────────────────
 
