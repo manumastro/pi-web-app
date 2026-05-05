@@ -14,8 +14,11 @@ After each significant change, restart the systemd service (`systemctl --user re
 
 Current state (2026-05-05): Branch `backend-only-no-frontend` created. Frontend directory removed, then re-created as minimal chat UI.
 - **Frontend**: Vite + React + Tailwind, minimal chat with SSE streaming
+- **Frontend served by systemd**: backend serves `dist/public`, port 3211
 - **E2E backend API test** (`scripts/e2e-backend-api.mjs`): 16/16 assertions pass
 - **All 119 unit tests pass**, types compile cleanly
 - **Chat E2E working**: frontend ↔ backend via REST + SSE, streaming responses
-- Default model: `opencode-go/deepseek-v4-flash`
+- **Default model**: `opencode-go/deepseek-v4-flash` (set in settings.json)
+- **Systemd service**: `node backend/dist/server.js`, env vars (PORT, CORS_ORIGINS, PI_MODEL) configured
+- **How to run**: `systemctl --user restart pi-web` (production), `npm run dev --workspace=frontend` (dev on :5173)
 - Ready for incremental UI improvements from ~/openchamber
