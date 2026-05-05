@@ -33,3 +33,10 @@ html, body, #root { height: 100%; margin: 0; font-family: Inter, system-ui, sans
 .opacity-20 { opacity: 0.2; }
 .text-body-md { font-size: 0.95rem; line-height: 1.45; }
 .text-muted { color: var(--muted); }
+
+.oc-error-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.oc-error-card { width: 100%; max-width: 560px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 16px; }
+.oc-error-card h3 { margin: 0 0 8px; }
+.oc-error-card p { margin: 0 0 12px; color: var(--muted); }
+.oc-error-card pre { max-height: 160px; overflow: auto; background: #0c121c; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.oc-error-card button { margin-top: 12px; border: 1px solid #3176cc; background: var(--accent); color: #001631; border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
