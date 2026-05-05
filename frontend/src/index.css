@@ -1,8 +1,35 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+:root {
+  color-scheme: dark;
+  --bg: #0b0f14;
+  --panel: #101722;
+  --line: #1f2a3a;
+  --text: #dbe7ff;
+  --muted: #8da2c7;
+  --accent: #5aa4ff;
 }
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+.oc-root { height: 100%; display: grid; grid-template-rows: auto 1fr auto; max-width: 980px; margin: 0 auto; padding: 18px; gap: 14px; }
+.oc-header { border: 1px solid var(--line); background: var(--panel); border-radius: 14px; padding: 12px 16px; }
+.oc-logo { color: #d6e6ff; }
+.oc-chat { border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(180deg,#101722 0%, #0d141f 100%); padding: 14px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.oc-empty { color: var(--muted); margin: auto; }
+.oc-msg { max-width: 85%; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; line-height: 1.4; white-space: pre-wrap; }
+.oc-msg.user { align-self: flex-end; background: #16253a; }
+.oc-msg.assistant { align-self: flex-start; background: #121a28; }
+.oc-input-wrap { display: grid; grid-template-columns: 1fr auto; gap: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 10px; }
+.oc-input-wrap input { background: transparent; border: none; color: var(--text); outline: none; font-size: 15px; }
+.oc-input-wrap button { border: 1px solid #3176cc; background: var(--accent); color: #001631; border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+.oc-input-wrap button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* OpenChamber utility class compatibility for cloned components */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.min-h-full { min-height: 100%; }
+.w-full { width: 100%; }
+.gap-6 { gap: 1.5rem; }
+.opacity-20 { opacity: 0.2; }
+.text-body-md { font-size: 0.95rem; line-height: 1.45; }
+.text-muted { color: var(--muted); }
