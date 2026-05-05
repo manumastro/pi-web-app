@@ -85,8 +85,10 @@ export async function sendPrompt(
     messageID?: string;
     thinkingLevel?: string;
     model?: { providerID: string; modelID: string };
+    baseUrl?: string;
   },
 ): Promise<void> {
+  const base = options?.baseUrl ?? BASE_URL;
   const messageID = options?.messageID ?? `msg-${Date.now()}`;
   const body: Record<string, unknown> = {
     parts: [{ type: 'text', text }],
@@ -96,7 +98,7 @@ export async function sendPrompt(
   if (options?.model) body.model = options.model;
 
   const res = await fetch(
-    `${BASE_URL}/api/session/${encodeURIComponent(sessionId)}/prompt_async`,
+    `${base}/api/session/${encodeURIComponent(sessionId)}/prompt_async`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -134,8 +136,10 @@ export interface SseEvent {
 export function connectSSE(
   onEvent: (event: SseEvent) => void,
   onError?: (err: Event) => void,
+  baseUrl?: string,
 ): { close: () => void } {
-  const url = `${BASE_URL}/api/global/event`;
+  const base = baseUrl ?? BASE_URL;
+  const url = `${base}/api/global/event`;
   const evtSource = new EventSource(url);
 
   evtSource.onmessage = (ev) => {

@@ -1,60 +1,115 @@
 /**
- * ChatView — simplified version without SSE.
+ * ChatView — the main chat view component.
+ * Connects useSession + useSSE + MessageList + MessageInput.
  */
 
-import React, { useState, useEffect } from 'react';
-import { createSession, getMessages, sendPrompt, type MessageRecord } from '../lib/api';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { sendPrompt, connectSSE, type MessageRecord, type SseEvent } from '../lib/api';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 
 export const ChatView: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [sessionTitle, setSessionTitle] = useState('Pi Web Chat');
+
+  // Ref to track current messages length for polling
+  const messagesRef = useRef(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // Create session on mount
   useEffect(() => {
-    createSession('/home/manu/pi-web-app', '')
+    fetch('http://localhost:3211/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ directory: '/home/manu/pi-web-app', title: '' }),
+    })
+      .then((r) => r.json())
       .then((s) => {
         setSessionId(s.id);
-        return getMessages(s.id);
+        return fetch(`http://localhost:3211/api/session/${encodeURIComponent(s.id)}/message`);
       })
+      .then((r) => r.json())
       .then((msgs) => setMessages(msgs))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSend = async (text: string) => {
+  // SSE connection for streaming
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const { close } = connectSSE(
+      (event: SseEvent) => {
+        const props = event.properties ?? {};
+        const propsAny = props as Record<string, unknown>;
+        const eventSessionId =
+          (propsAny.sessionID as string | undefined) ??
+          (propsAny.info as Record<string, unknown> | undefined)?.sessionID as string | undefined ??
+          (propsAny.part as Record<string, unknown> | undefined)?.sessionID as string | undefined;
+
+        if (eventSessionId !== sessionId) return;
+
+        // message.part.delta → streaming text
+        if (event.type === 'message.part.delta') {
+          const messageID = props.messageID as string | undefined;
+          const partID = props.partID as string | undefined;
+          const delta = props.delta as string | undefined;
+          if (messageID && partID && delta) {
+            setMessages((prev) => {
+              const updated = [...prev];
+              const msgIdx = updated.findIndex((m) => m.info?.id === messageID);
+              if (msgIdx === -1) return prev;
+              const msg = { ...updated[msgIdx] };
+              const parts = [...(msg.parts ?? [])];
+              const partIdx = parts.findIndex((p: { id: string }) => p.id === partID);
+              if (partIdx === -1) return prev;
+              const part = { ...parts[partIdx] };
+              part.text = (part.text ?? '') + delta;
+              parts[partIdx] = part;
+              msg.parts = parts;
+              updated[msgIdx] = msg;
+              return updated;
+            });
+          }
+        }
+
+        // session.status → check if done
+        if (event.type === 'session.status' || event.type === 'session.idle') {
+          const status = (props.status as Record<string, unknown> | undefined)?.type as string | undefined;
+          if (status === 'idle') {
+            // Re-fetch messages to get final state
+            fetch(`http://localhost:3211/api/session/${encodeURIComponent(sessionId)}/message`)
+              .then((r) => r.json())
+              .then((msgs) => setMessages(msgs))
+              .catch(() => {});
+            setSending(false);
+          }
+        }
+      },
+      (err) => console.warn('[SSE] error', err),
+    );
+
+    return () => close();
+  }, [sessionId]);
+
+  const handleSend = useCallback(async (text: string) => {
     if (!sessionId || sending) return;
     setSending(true);
     setError(null);
     try {
-      await sendPrompt(sessionId, text, { thinkingLevel: 'minimal' });
-      // Poll for response: check if we have new messages
-      const deadline = Date.now() + 180_000;
-      let lastCount = messages.length;
-      const poll = async (): Promise<void> => {
-        if (Date.now() > deadline) throw new Error('timeout');
-        const msgs = await getMessages(sessionId);
-        const newCount = msgs.length;
-        setMessages(msgs);
-        // Check if we have assistant reply (last message is assistant)
-        const lastMsg = msgs[msgs.length - 1];
-        const hasReply = lastMsg && lastMsg.info?.role === 'assistant';
-        if (hasReply && newCount > lastCount) return;
-        lastCount = newCount;
-        await new Promise((r) => setTimeout(r, 500));
-        return poll();
-      };
-      await poll();
+      await sendPrompt(sessionId, text, {
+        thinkingLevel: 'minimal',
+        baseUrl: 'http://localhost:3211',
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
       setSending(false);
     }
-  };
+  }, [sessionId, sending]);
 
   if (loading) {
     return (
@@ -66,8 +121,11 @@ export const ChatView: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      <header className="border-b border-gray-200 bg-white px-4 py-3">
-        <h1 className="text-lg font-semibold text-gray-900">Pi Web Chat</h1>
+      <header className="border-b border-gray-200 bg-white px-4 py-3 flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-gray-900">{sessionTitle}</h1>
+        <span className="text-xs text-gray-400">
+          {sessionId ? `Session: ${sessionId.slice(0, 8)}...` : ''}
+        </span>
       </header>
 
       {error && (
