@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { OpenCodeLogo } from '../ui/OpenCodeLogo';
 import { MessageList } from './MessageList.openchamber';
-import { ChatInput } from './ChatInput.openchamber';
+import { ChatInput } from './ChatInput';
 import type { ChatMessage } from './types';
 
 export function ChatContainer() {

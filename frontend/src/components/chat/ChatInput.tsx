@@ -1,1 +1,1 @@
-export { ChatInput } from './ChatInput.openchamber';
+export { ChatInput } from './ChatInput.adapter';
