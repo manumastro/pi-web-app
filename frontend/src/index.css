@@ -17,6 +17,12 @@ html, body, #root { height: 100%; margin: 0; font-family: Inter, system-ui, sans
 .oc-msg { max-width: 85%; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; line-height: 1.4; white-space: pre-wrap; }
 .oc-msg.user { align-self: flex-end; background: #16253a; }
 .oc-msg.assistant { align-self: flex-start; background: #121a28; }
+.oc-markdown p { margin: 0; }
+.oc-markdown p + p { margin-top: 0.6rem; }
+.oc-markdown pre { overflow: auto; background: #0c121c; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.oc-markdown code { background: #0c121c; border-radius: 6px; padding: 0.1rem 0.35rem; }
+.oc-markdown ul, .oc-markdown ol { margin: 0.4rem 0 0 1.1rem; padding: 0; }
+.oc-markdown a { color: #89bcff; }
 .oc-input-wrap { display: grid; grid-template-columns: 1fr auto; gap: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 10px; }
 .oc-input-wrap input { background: transparent; border: none; color: var(--text); outline: none; font-size: 15px; }
 .oc-input-wrap button { border: 1px solid #3176cc; background: var(--accent); color: #001631; border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
