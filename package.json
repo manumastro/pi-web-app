@@ -4,7 +4,8 @@
   "private": true,
   "description": "Web UI wrapper for the Pi coding agent CLI",
   "workspaces": [
-    "backend"
+    "backend",
+    "frontend"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=backend",
@@ -13,6 +14,8 @@
     "test:coverage": "npm run test:coverage --workspace=backend",
     "test:e2e:api": "node scripts/e2e-backend-api.mjs",
     "test:e2e:api-smoke": "bash test-api-simple.sh",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build:frontend": "npm run build --workspace=frontend",
     "lint": "npm run lint --workspace=backend"
   },
   "devDependencies": {
