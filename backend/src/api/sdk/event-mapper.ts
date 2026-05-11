@@ -21,10 +21,32 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
         && (getExternalMessageId(message) === event.messageId || message.id === event.messageId)
       );
       if (stored) {
-        return {
+        const messageUpdated: SdkGlobalEvent = {
           type: 'message.updated',
           properties: { info: toSdkMessageInfo(session, stored) },
         };
+
+        if (stored.role === 'user') {
+          const textPartId = `${event.messageId}-text`;
+          return [
+            messageUpdated,
+            {
+              type: 'message.part.updated',
+              properties: {
+                part: {
+                  id: textPartId,
+                  sessionID: event.sessionId,
+                  messageID: event.messageId,
+                  type: 'text',
+                  text: stored.content ?? '',
+                  time: { start: new Date(event.timestamp).getTime() },
+                },
+              },
+            },
+          ];
+        }
+
+        return messageUpdated;
       }
       const parent = session.messages.filter((message) => message.role === 'user').at(-1);
       return {
@@ -173,22 +195,17 @@ export function toSdkGlobalEvent(event: SseEvent, sessionStore: SessionStore): S
       };
     }
     case 'done': {
-      const session = sessionStore.getSession(event.sessionId);
-      const stored = session?.messages.find((message) =>
-        message.role === 'assistant'
-        && (getExternalMessageId(message) === event.messageId || message.id === event.messageId)
-      );
-      const messageUpdated = session && stored
-        ? {
-            type: 'message.updated' as const,
-            properties: { info: toSdkMessageInfo(session, stored) },
-          }
-        : null;
-      const idle = {
+      // No message.updated emitted here — the initial message_updated event
+      // (from announceAssistantMessage) already created the SDK message.updated.
+      // Sending a second one with the same ID is redundant and was a source of
+      // duplicate entries when IDs diverged between the two emission paths.
+      //
+      // The frontend's session.idle handler sets time.completed on the last
+      // assistant message, so completion is still signaled.
+      return {
         type: 'session.idle' as const,
         properties: { sessionID: event.sessionId },
       };
-      return messageUpdated ? [messageUpdated, idle] : idle;
     }
     case 'session_name': {
       const session = sessionStore.getSession(event.sessionId);

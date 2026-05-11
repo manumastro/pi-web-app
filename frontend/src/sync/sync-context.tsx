@@ -37,6 +37,8 @@ import type { PermissionRequest } from "@/types/permission"
 import type { QuestionRequest } from "@/types/question"
 import * as sessionActions from "./session-actions"
 import { mergeMessages } from "./optimistic"
+import { canonicalizeParts } from "./part-canonical"
+import { withCanonicalAssistantMessageId, withCanonicalAssistantPartMessageId } from "./message-canonical"
 
 // ---------------------------------------------------------------------------
 // Context
@@ -223,20 +225,46 @@ async function repairSessionParts(
 
   store.setState((state: DirectoryStore) => {
     const nextPartState = { ...state.part }
+    const existingMessages = state.message[sessionID] ?? []
+    const canonicalIdByFetchedId = new Map<string, string>()
+    const canonicalMessages: Message[] = []
     for (const record of records) {
-      const messageId = record?.info?.id
-      if (!messageId) continue
-      const newParts = (record.parts ?? [])
-        .filter((part: Part) => !!part?.id && !RECONNECT_SKIP_PARTS.has(part.type))
-        .sort((a: Part, b: Part) => cmp(a.id, b.id))
+      const info = record.info
+      if (!info?.id) {
+        continue
+      }
+      const canonicalInfo = withCanonicalAssistantMessageId([...existingMessages, ...canonicalMessages], info)
+      canonicalMessages.push(canonicalInfo)
+      canonicalIdByFetchedId.set(info.id, canonicalInfo.id)
+    }
+    const fetchedMessages = canonicalMessages.sort((a, b) => cmp(a.id, b.id))
+
+    for (const record of records) {
+      const fetchedMessageId = record?.info?.id
+      if (!fetchedMessageId) continue
+      const messageId = canonicalIdByFetchedId.get(fetchedMessageId) ?? fetchedMessageId
+      const newParts = canonicalizeParts((record.parts ?? [])
+        .filter((part) => !!part?.id && !RECONNECT_SKIP_PARTS.has(part.type))
+        .map((part) => ({
+          ...part,
+          messageID: messageId,
+        }))
+        .sort((a: Part, b: Part) => cmp(a.id, b.id)))
 
       const existing = nextPartState[messageId]
       // Repair when parts are missing, truncated, or stale-but-same-length.
       if (!haveEquivalentPartSnapshots(existing, newParts)) {
-        nextPartState[messageId] = newParts
+        nextPartState[messageId] = withCanonicalAssistantPartMessageId(newParts, messageId)
       }
     }
-    return { part: nextPartState }
+
+    return {
+      message: {
+        ...state.message,
+        [sessionID]: mergeMessages(existingMessages, fetchedMessages),
+      },
+      part: nextPartState,
+    }
   })
 }
 
@@ -351,6 +379,8 @@ const getSessionIdFromPayload = (event: Event): string | null => {
   if (
     event.type === "message.removed"
     || event.type === "session.status"
+    || event.type === "session.idle"
+    || event.type === "session.error"
     || event.type === "todo.updated"
     || event.type === "permission.asked"
     || event.type === "permission.replied"
@@ -776,9 +806,9 @@ async function resyncDirectoryAfterReconnect(
       for (const record of records) {
         const messageId = record?.info?.id
         if (!messageId) continue
-        const nextParts = (record.parts ?? [])
+        const nextParts = canonicalizeParts((record.parts ?? [])
           .filter((part) => !!part?.id && !RECONNECT_SKIP_PARTS.has(part.type))
-          .sort((a, b) => cmp(a.id, b.id))
+          .sort((a, b) => cmp(a.id, b.id)))
         if (!haveEquivalentPartSnapshots(state.part[messageId], nextParts)) {
           if (!partsChanged) {
             nextPartState = { ...state.part }
@@ -1135,6 +1165,11 @@ function handleEvent(
   if (payload.type === "session.idle") {
     const idleSessionId = getSessionIdFromPayload(payload)
     if (idleSessionId && resolvedDirectory && resolvedDirectory !== "global") {
+      // Reconcile message+parts at turn end in case message.updated was missed
+      // or only part events arrived. This guarantees persisted assistant output
+      // is reflected in the chat list.
+      enqueuePartsRepair(resolvedDirectory, idleSessionId, childStores)
+
       const sessionState = store.getState()
       const idleSession = sessionState.session.find((s) => s.id === idleSessionId)
       const parentID = idleSession

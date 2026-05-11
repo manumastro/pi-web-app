@@ -1,4 +1,5 @@
 import type { Part } from '@opencode-ai/sdk/v2';
+import { canonicalizeParts } from '@/sync/part-canonical';
 
 type PartWithText = Part & { text?: string; content?: string; value?: string };
 
@@ -7,7 +8,12 @@ export const isValidPart = (part: unknown): part is Part => {
 };
 
 export const normalizeParts = (parts: Part[]): Part[] => {
-    return parts.filter(isValidPart);
+    const validParts = parts.filter(isValidPart);
+    if (validParts.length < 2) {
+        return validParts;
+    }
+
+    return canonicalizeParts(validParts);
 };
 
 export const extractTextContent = (part: Part): string => {

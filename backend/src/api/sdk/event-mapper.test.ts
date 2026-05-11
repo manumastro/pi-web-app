@@ -82,6 +82,34 @@ describe('sdk event mapper', () => {
     });
   });
 
+  it('emits a text part for user messages on message.updated', () => {
+    const store = createStore([
+      message({ id: 'u1', role: 'user', content: 'ciao', messageId: 'msg-user-1' }),
+    ]);
+
+    const mapped = toSdkGlobalEvent({
+      type: 'message_updated',
+      sessionId: 'session-1',
+      messageId: 'msg-user-1',
+      timestamp: '2026-05-02T12:00:00.000Z',
+    }, store);
+
+    expect(mapped).toMatchObject([
+      { type: 'message.updated', properties: { info: { id: 'msg-user-1', role: 'user' } } },
+      {
+        type: 'message.part.updated',
+        properties: {
+          part: {
+            id: 'msg-user-1-text',
+            messageID: 'msg-user-1',
+            type: 'text',
+            text: 'ciao',
+          },
+        },
+      },
+    ]);
+  });
+
   it('finalizes the assistant message, not earlier tool records with the same external id', () => {
     const store = createStore([
       message({ id: 'u1', role: 'user', content: 'search', messageId: 'msg-1' }),
@@ -98,9 +126,9 @@ describe('sdk event mapper', () => {
       timestamp: '2026-05-02T12:00:01.000Z',
     }, store);
 
-    expect(mapped).toMatchObject([
-      { type: 'message.updated', properties: { info: { id: 'msg-1_assistant', role: 'assistant' } } },
-      { type: 'session.idle', properties: { sessionID: 'session-1' } },
-    ]);
+    expect(mapped).toMatchObject({
+      type: 'session.idle',
+      properties: { sessionID: 'session-1' },
+    });
   });
 });

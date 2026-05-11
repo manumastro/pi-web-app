@@ -9,6 +9,7 @@ import {
   mergeMessages,
   type OptimisticItem,
 } from "./optimistic"
+import { withCanonicalAssistantMessageId, withCanonicalAssistantPartMessageId } from "./message-canonical"
 import { useDirectoryStore, useSyncSDK, useSyncDirectory, useChildStoreManager } from "./sync-context"
 import { dropSessionCaches } from "./session-cache"
 import { stripMessageDiffSnapshots } from "./sanitize"
@@ -214,15 +215,34 @@ export function useSync() {
         const limit = m.limit
         const page = await fetchMessages(sessionID, limit, options?.before)
 
+        const current = store.getState()
+        const cached = current.message[sessionID] ?? []
+        const canonicalIdByFetchedId = new Map<string, string>()
+        const canonicalSession: Message[] = []
+        for (const message of page.session) {
+          const canonicalMessage = withCanonicalAssistantMessageId([...cached, ...canonicalSession], message)
+          canonicalSession.push(canonicalMessage)
+          canonicalIdByFetchedId.set(message.id, canonicalMessage.id)
+        }
+        const canonicalPage = {
+          ...page,
+          session: canonicalSession,
+          part: page.part.map((record) => {
+            const canonicalId = canonicalIdByFetchedId.get(record.id) ?? record.id
+            return {
+              id: canonicalId,
+              part: withCanonicalAssistantPartMessageId(record.part, canonicalId),
+            }
+          }),
+        }
+
         // Merge optimistic items
         const items = getOptimistic(sessionID)
-        const merged = mergeOptimisticPage(page, items)
+        const merged = mergeOptimisticPage(canonicalPage, items)
         for (const messageID of merged.confirmed) {
           clearOptimistic(sessionID, messageID)
         }
 
-        const current = store.getState()
-        const cached = current.message[sessionID] ?? []
         const messages = options?.mode === "prepend"
           ? mergeMessages(cached, merged.session)
           : (cached.length > 0 ? mergeMessages(cached, merged.session) : merged.session)

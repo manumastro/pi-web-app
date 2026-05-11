@@ -97,7 +97,11 @@ export function toSdkMessageInfo(session: Session, msg: SessionMessage): SdkMess
     role: 'user',
     time: { created },
     agent: 'build',
-    model: { providerID, modelID },
+    model: {
+      providerID,
+      modelID,
+      ...(session.thinkingLevel ? { variant: session.thinkingLevel } : {}),
+    },
   };
 }
 

@@ -36,6 +36,7 @@ import {
     useSessions,
     useDirectorySync,
     useSessionStatus,
+    useSessionDirectory,
 } from '@/sync/sync-context';
 import { useSync } from '@/sync/use-sync';
 import { usePlanDetection } from '@/hooks/usePlanDetection';
@@ -359,15 +360,17 @@ export const ChatContainer: React.FC = () => {
             [streamingMessageId],
         ),
     );
-    const sessionMessageCount = useSessionMessageCount(currentSessionId ?? '');
+    const currentSessionDirectory = useSessionDirectory(currentSessionId ?? null);
+    const sessionMessageCount = useSessionMessageCount(currentSessionId ?? '', currentSessionDirectory);
     const hasLoadedSessionMessages = useDirectorySync(
         React.useCallback(
-            (state) => (currentSessionId ? state.message[currentSessionId] !== undefined : false),
+            (state) => (currentSessionId ? state.message[currentSessionId] !== undefined && state.message[currentSessionId].length > 0 : false),
             [currentSessionId],
         ),
+        currentSessionDirectory,
     );
     // Messages from sync system
-    const sessionMessageRecords = useSessionMessageRecords(currentSessionId ?? '');
+    const sessionMessageRecords = useSessionMessageRecords(currentSessionId ?? '', currentSessionDirectory);
     const sessionMessages = currentSessionId ? sessionMessageRecords : EMPTY_MESSAGES;
 
     // Sessions from sync system
@@ -377,7 +380,7 @@ export const ChatContainer: React.FC = () => {
     usePlanDetection(currentSessionId ?? '');
 
     // Session status from sync system
-    const sessionStatusForCurrent = useSessionStatus(currentSessionId ?? '') ?? IDLE_SESSION_STATUS;
+    const sessionStatusForCurrent = useSessionStatus(currentSessionId ?? '', currentSessionDirectory) ?? IDLE_SESSION_STATUS;
 
     // Permissions & questions from sync system
     const allPermissions = useDirectorySync(

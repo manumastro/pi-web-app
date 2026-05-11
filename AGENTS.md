@@ -1,24 +1,44 @@
-# Pi Web — Project Guide (backend-only branch)
-Use BLUEPRINT.md as the source of truth for scope, architecture, and phase priorities.
-Keep changes modular, type-safe, config-driven, and within file-size budgets.
-Prefer explicit dependency injection; avoid globals, magic refs, and dead code.
-Backend: Express + TypeScript + SSE/REST with sessions, models, api, and sse layers.
-**Frontend has been removed** from this branch. UI will be re-implemented from ~/openchamber.
-Add or update tests for every meaningful change; keep builds green.
-After each significant change, restart the systemd service (`systemctl --user restart pi-web`).
+# Pi Web — Project Guide (OpenChamber UI import phase)
 
-**Testing**:
-- Unit/API tests: `npm run test --workspace=backend` (vitest, 119 tests)
-- E2E backend API test: `node scripts/e2e-backend-api.mjs` (requires running backend)
-- API smoke test: `bash test-api-simple.sh` (curl-based, against running backend)
+Use `BLUEPRINT.md` as the single source of truth.
 
-Current state (2026-05-05): Branch `backend-only-no-frontend` created. Frontend directory removed, then re-created as minimal chat UI.
-- **Frontend**: Vite + React + Tailwind, minimal chat with SSE streaming
-- **Frontend served by systemd**: backend serves `dist/public`, port 3211
-- **E2E backend API test** (`scripts/e2e-backend-api.mjs`): 16/16 assertions pass
-- **All 119 unit tests pass**, types compile cleanly
-- **Chat E2E working**: frontend ↔ backend via REST + SSE, streaming responses
-- **Default model**: `opencode-go/deepseek-v4-flash` (set in settings.json)
-- **Systemd service**: `node backend/dist/server.js`, env vars (PORT, CORS_ORIGINS, PI_MODEL) configured
-- **How to run**: `systemctl --user restart pi-web` (production), `npm run dev --workspace=frontend` (dev on :5173)
-- Ready for incremental UI improvements from ~/openchamber
+## Current fixed baseline (DO NOT regress)
+
+- Backend wrapper around Pi CLI/RPC is **tested and stable (100%)** for project scope.
+- Backend test status to preserve:
+  - `npm run test --workspace=backend` → **119/119 pass**
+  - `node scripts/e2e-backend-api.mjs` → **16/16 pass**
+- Backend must remain green while frontend migration continues.
+
+## Current project phase
+
+We are importing the OpenChamber UI **step by step** into `frontend/`, adapting it to this backend.
+
+Priority order:
+1. Chat core UI parity (layout/interaction/streaming)
+2. Runtime wiring parity required by chat
+3. Progressive cleanup of adapters/temporary bridges
+4. Frontend tests for every stabilized imported area
+
+## Rules for all changes
+
+- Keep backend behavior/API contracts stable.
+- Prefer original OpenChamber files when importing UI.
+- Avoid custom rewrites if a direct upstream file can be used.
+- Remove temporary adapters once original component works.
+- Add/update tests for meaningful frontend changes.
+- Keep build green.
+- After significant changes: `systemctl --user restart pi-web`.
+
+## Validation checklist
+
+- Frontend build: `npm run build:frontend`
+- Backend unit/API tests: `npm run test --workspace=backend`
+- Backend E2E API: `node scripts/e2e-backend-api.mjs`
+- Service health: `curl http://localhost:3211/health`
+
+## Runtime notes
+
+- Active branch: `backend-only-no-frontend`
+- Production service serves `dist/public` on port `3211`
+- Default model target: `opencode-go/deepseek-v4-flash`

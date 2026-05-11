@@ -175,6 +175,7 @@ export const RunnerEventSchema = z.discriminatedUnion('type', [
     sessionId: z.string(),
     messageId: z.string(),
     aborted: z.boolean().optional(),
+    finalText: z.string().optional(),
   }),
   z.object({
     type: z.literal('status'),

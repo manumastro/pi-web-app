@@ -375,9 +375,10 @@ export function createRunnerOrchestrator(params: {
     return null;
   }
 
-  function finalizeAssistant(sessionId: string, aborted: boolean, messageId: string): string | null {
+  function finalizeAssistant(sessionId: string, aborted: boolean, messageId: string, finalText?: string): string | null {
     const active = activeTurns.get(sessionId);
-    const content = active?.assistantContent ?? '';
+    const streamedContent = active?.assistantContent ?? '';
+    const content = typeof finalText === 'string' && finalText.length > 0 ? finalText : streamedContent;
     let fallbackContent: string | null = null;
 
     const model = active?.model ?? sessionStore.getSession(sessionId)?.model;
@@ -509,69 +510,49 @@ export function createRunnerOrchestrator(params: {
         const delta = event.delta;
         const currentContent = active.assistantContent;
 
-        // Strip thinking prefix from text deltas: some adapters emit the same
-        // content as both thinking_delta and text_delta, causing visual duplication.
+        // Strip thinking overlap from text deltas: some adapters emit the same
+        // content as both thinking_delta and text_delta (sometimes as full snapshot,
+        // sometimes with only a suffix overlap), causing visual duplication.
         let cleanedDelta = delta;
-        if (active.thinkingContent.length > 0 && delta.startsWith(active.thinkingContent)) {
-          cleanedDelta = delta.slice(active.thinkingContent.length);
+        if (active.thinkingContent.length > 0) {
+          if (delta.startsWith(active.thinkingContent)) {
+            cleanedDelta = delta.slice(active.thinkingContent.length);
+          } else {
+            const maxOverlap = Math.min(active.thinkingContent.length, delta.length);
+            for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+              if (active.thinkingContent.endsWith(delta.slice(0, overlap))) {
+                cleanedDelta = delta.slice(overlap);
+                break;
+              }
+            }
+          }
           if (cleanedDelta.length === 0) return; // pure thinking duplicate, skip
-          console.info('[runner][diag] text_chunk stripped thinking prefix', {
-            sessionId: event.sessionId,
-            thinkingLen: active.thinkingContent.length,
-            deltaLen: delta.length,
-            cleanedLen: cleanedDelta.length,
-          });
+          if (cleanedDelta.length !== delta.length) {
+            console.info('[runner][diag] text_chunk stripped thinking overlap', {
+              sessionId: event.sessionId,
+              thinkingLen: active.thinkingContent.length,
+              deltaLen: delta.length,
+              cleanedLen: cleanedDelta.length,
+            });
+          }
         }
 
-        // Detect snapshot corrections: incoming text shares significant prefix
-        // with already-emitted content but is NOT a pure extension (typo fix, rephrasing).
-        // Also trigger if the delta is a large snapshot (>=50% of current content length)
-        // that shares >50% prefix — common in single-chunk adapter responses.
-        const isCorrection =
-          currentContent.length > 0
-          && cleanedDelta.length > 0
-          && !cleanedDelta.startsWith(currentContent)
-          && (() => {
-            const prefixLen = longestCommonPrefix(currentContent, cleanedDelta);
-            const prefixRatio = prefixLen / Math.max(currentContent.length, 1);
-            const deltaRatio = cleanedDelta.length / Math.max(currentContent.length, 1);
-            // High prefix overlap (>50%) indicates a correction, not new content
-            return prefixRatio > 0.5 && deltaRatio > 0.4;
-          })();
-
-        if (isCorrection) {
-          active.assistantContent = cleanedDelta; // replace full text with corrected version
-          activeTurns.set(event.sessionId, active);
-          emit(sseManager, {
-            type: 'text_chunk',
-            sessionId: event.sessionId,
-            messageId: assistantMessageId,
-            content: cleanedDelta,
-            replace: true,
-            timestamp: now(),
-          });
-          console.info('[runner][diag] text_chunk correction', {
-            sessionId: event.sessionId,
-            prefixLen: longestCommonPrefix(currentContent, cleanedDelta),
-            oldLen: currentContent.length,
-            newLen: cleanedDelta.length,
-          });
-        } else {
-          active.assistantContent += cleanedDelta;
-          activeTurns.set(event.sessionId, active);
-          emit(sseManager, {
-            type: 'text_chunk',
-            sessionId: event.sessionId,
-            messageId: assistantMessageId,
-            content: cleanedDelta,
-            timestamp: now(),
-          });
-          console.info('[runner][diag] text_chunk delta', {
-            sessionId: event.sessionId,
-            deltaLen: cleanedDelta.length,
-            totalLen: active.assistantContent.length,
-          });
-        }
+        // Keep behavior aligned with CLI/RPC stream semantics:
+        // append text deltas as they arrive (no heuristic correction/replacement).
+        active.assistantContent += cleanedDelta;
+        activeTurns.set(event.sessionId, active);
+        emit(sseManager, {
+          type: 'text_chunk',
+          sessionId: event.sessionId,
+          messageId: assistantMessageId,
+          content: cleanedDelta,
+          timestamp: now(),
+        });
+        console.info('[runner][diag] text_chunk delta', {
+          sessionId: event.sessionId,
+          deltaLen: cleanedDelta.length,
+          totalLen: active.assistantContent.length,
+        });
         break;
       }
       case 'thinking': {
@@ -665,7 +646,7 @@ export function createRunnerOrchestrator(params: {
           model: turnModel,
           aborted: event.aborted ?? false,
         });
-        const fallbackContent = finalizeAssistant(event.sessionId, event.aborted ?? false, assistantMessageId);
+        const fallbackContent = finalizeAssistant(event.sessionId, event.aborted ?? false, assistantMessageId, event.finalText);
         if (fallbackContent && fallbackContent.length > 0) {
           emit(sseManager, {
             type: 'text_chunk',

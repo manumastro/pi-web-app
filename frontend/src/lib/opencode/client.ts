@@ -22,6 +22,7 @@ import {
   shouldRetry,
   getRetryDelayMs,
 } from "./provider-tracker";
+import { normalizeBackendProviders } from './providers-normalizer';
 
 // Use relative path by default (works with both dev and nginx proxy server)
 // Can be overridden with VITE_OPENCODE_URL for absolute URLs in special deployments
@@ -1193,6 +1194,30 @@ class OpencodeService {
     providers: Provider[];
     default: { [key: string]: string };
   }> {
+    const base = this.baseUrl.replace(/\/+$/, '');
+    const query = this.currentDirectory
+      ? `?${new URLSearchParams({ directory: this.currentDirectory }).toString()}`
+      : '';
+
+    try {
+      const response = await fetch(`${base}/config/providers${query}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      if (response.ok) {
+        const data = (await response.json()) as {
+          providers?: unknown[];
+          default?: { [key: string]: string };
+        };
+        return {
+          providers: normalizeBackendProviders(Array.isArray(data.providers) ? data.providers : []),
+          default: data.default ?? {},
+        };
+      }
+    } catch {
+      // Fallback below
+    }
+
     const response = await this.client.config.providers(
       this.currentDirectory ? { directory: this.currentDirectory } : undefined
     );

@@ -25,7 +25,7 @@ import { useSelectionStore } from '@/sync/selection-store';
 import { useInputStore } from '@/sync/input-store';
 import type { AttachedFile } from '@/stores/types/sessionTypes';
 import * as sessionActions from '@/sync/session-actions';
-import { useUserMessageHistory } from '@/sync/sync-context';
+import { useUserMessageHistory, useSessionDirectory } from '@/sync/sync-context';
 import { useInlineCommentDraftStore, type InlineCommentDraft } from '@/stores/useInlineCommentDraftStore';
 import { appendInlineComments } from '@/lib/messages/inlineComments';
 import { renderMagicPrompt } from '@/lib/magicPrompts';
@@ -42,7 +42,7 @@ import { PendingChangesBar } from './PendingChangesBar';
 import { MobileAgentButton } from './MobileAgentButton';
 import { MobileModelButton } from './MobileModelButton';
 import { MobileSessionStatusBar } from './MobileSessionStatusBar';
-import { useCurrentSessionActivity } from '@/hooks/useSessionActivity';
+import { useSessionActivity } from '@/hooks/useSessionActivity';
 import { toast } from '@/components/ui';
 // useMessageStore removed — messages now come from sync system
 import { isTauriShell, isVSCodeRuntime } from '@/lib/desktop';
@@ -1209,7 +1209,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }, [clearPendingDraftPersist, persistChatDraft, persistDraftImmediately]);
 
     // Session activity for queue availability and controls
-    const { phase: sessionPhase } = useCurrentSessionActivity();
+    const sessionDirectoryFromUiStore = useSessionUIStore((state) => {
+        if (!currentSessionId) return null;
+        return state.getDirectoryForSession(currentSessionId);
+    });
+    const sessionDirectoryFromSync = useSessionDirectory(currentSessionId ?? null);
+    const currentSessionDirectory = sessionDirectoryFromUiStore ?? sessionDirectoryFromSync ?? currentDirectory ?? undefined;
+    const { phase: sessionPhase } = useSessionActivity(currentSessionId, currentSessionDirectory);
 
     const handleOpenMobilePanel = React.useCallback((panel: MobileControlsPanel) => {
         if (!isMobile) {

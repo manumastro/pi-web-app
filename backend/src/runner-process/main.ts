@@ -46,6 +46,7 @@ interface RpcSession {
   modelApi?: string;
   thinkingLevel?: string;
   suppressExitError?: boolean;
+  finalAssistantText?: string | undefined;
 }
 
 const sessions = new Map<string, RpcSession>();
@@ -195,9 +196,9 @@ function summarizeAssistantContentParts(message: unknown): Record<string, number
 }
 
 function extractAssistantFinalText(message: unknown): string {
-  if (!isRecord(message)) return extractText(message).trim();
+  if (!isRecord(message)) return '';
   const content = message.content;
-  if (!Array.isArray(content)) return extractText(content ?? message).trim();
+  if (!Array.isArray(content)) return '';
 
   const textParts = content
     .filter((part) => isRecord(part) && part.type === 'text')
@@ -208,7 +209,9 @@ function extractAssistantFinalText(message: unknown): string {
     return textParts.join('').trim();
   }
 
-  return extractText(content).trim();
+  // Do not fallback to generic extractText(content): that would include
+  // reasoning/tool-call payloads and leak them as assistant text.
+  return '';
 }
 
 function extractSessionName(value: unknown): string | undefined {
@@ -375,12 +378,19 @@ function emitThinkingDelta(active: RpcSession, delta: string): void {
 
 function completeTurn(active: RpcSession): void {
   if (!active.assistantMessageId) return;
-  emit({ type: 'done', sessionId: active.sessionId, messageId: active.assistantMessageId, aborted: active.aborted });
+  emit({
+    type: 'done',
+    sessionId: active.sessionId,
+    messageId: active.assistantMessageId,
+    aborted: active.aborted,
+    ...(active.finalAssistantText ? { finalText: active.finalAssistantText } : {}),
+  });
   active.assistantMessageId = null;
   active.emittedTextInTurn = false;
   active.lastTextDelta = null;
   active.emittedTextBuffer = '';
   active.emittedThinkingBuffer = '';
+  delete active.finalAssistantText;
   active.aborted = false;
 }
 
@@ -568,7 +578,8 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
       : extractText(message).trim();
 
     if (role === 'assistant' && finalText.length > 0) {
-      console.error('[runner-process][diag] message_end text fallback', JSON.stringify({
+      active.finalAssistantText = finalText;
+      console.error('[runner-process][diag] message_end text captured', JSON.stringify({
         sessionId: active.sessionId,
         role,
         keys: isRecord(message) ? Object.keys(message) : [],
@@ -576,6 +587,9 @@ function handleRpcEvent(active: RpcSession, event: Record<string, unknown>): voi
         textLength: finalText.length,
         alreadyEmitted: active.emittedTextInTurn,
       }));
+      if (active.emittedTextInTurn) {
+        return;
+      }
       emitTextDelta(active, finalText);
       return;
     }

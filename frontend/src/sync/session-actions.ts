@@ -385,7 +385,8 @@ export async function optimisticSend(input: {
 
   await waitForConnectionOrThrow()
 
-  const store = dirStore()
+  const sessionDirectory = getSessionDirectory(input.sessionId)
+  const store = getDirectoryStore(sessionDirectory)
   const messageID = ascendingId("msg")
   const textPartId = ascendingId("prt")
 
@@ -453,7 +454,8 @@ export async function optimisticSend(input: {
 
 export async function abortCurrentOperation(sessionId: string): Promise<void> {
   try {
-    await sdk().session.abort({ sessionID: sessionId, directory: dir() })
+    const directory = getSessionDirectory(sessionId)
+    await getSessionReplyClient(sessionId).session.abort({ sessionID: sessionId, ...(directory ? { directory } : {}) })
   } catch (error) {
     console.error("[session-actions] abort failed", error)
   }

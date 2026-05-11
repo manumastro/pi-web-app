@@ -1,5 +1,6 @@
 import express, { type Request, type Response } from 'express';
 import type { ApiRouteContext } from './context.js';
+import { THINKING_LEVELS } from '../../types/thinking.js';
 
 interface ProviderDescriptor {
   id: string;
@@ -18,6 +19,19 @@ function defaultModelSelection(modelKey: string | undefined): { providerID: stri
   return { providerID: providerID || 'openai-codex', modelID: rest.join('/') || 'gpt-5.4-mini' };
 }
 
+function resolveThinkingLevelsForModel(model: { provider: string; id: string; reasoning: boolean }): string[] {
+  if (!model.reasoning) {
+    return [];
+  }
+
+  // Pi CLI currently exposes only none/high/xhigh for DeepSeek V4 Flash.
+  if (model.provider === 'opencode-go' && model.id === 'deepseek-v4-flash') {
+    return ['none', 'high', 'xhigh'];
+  }
+
+  return THINKING_LEVELS;
+}
+
 function modelCapability(model: {
   provider: string;
   id: string;
@@ -27,11 +41,17 @@ function modelCapability(model: {
   contextWindow: number;
   maxTokens: number;
 }) {
+  const thinkingLevels = resolveThinkingLevelsForModel(model);
+  const variants = thinkingLevels.length > 0
+    ? Object.fromEntries(thinkingLevels.map((level) => [level, { name: level }]))
+    : undefined;
+
   return {
     id: model.id,
     providerID: model.provider,
     api: { id: model.provider, url: '', npm: '' },
     name: model.name,
+    ...(variants ? { variants } : {}),
     capabilities: {
       temperature: true,
       reasoning: model.reasoning,

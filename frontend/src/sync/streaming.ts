@@ -38,6 +38,27 @@ export const useStreamingStore = create<StreamingStore>()(() => ({
 /** Only update lastUpdateAt every this many ms to avoid 60Hz store churn */
 const STREAMING_HEARTBEAT_MS = 1000
 
+function getLastAssistantMessage(messages: Message[] | undefined): Message | null {
+  if (!messages || messages.length === 0) {
+    return null
+  }
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "assistant") {
+      return messages[i]
+    }
+  }
+
+  return null
+}
+
+function isMessageCompleted(message: Message | null): boolean {
+  if (!message) {
+    return false
+  }
+  return typeof (message as { time?: { completed?: unknown } }).time?.completed === "number"
+}
+
 export function updateStreamingState(state: State) {
   const now = Date.now()
   const currentStore = useStreamingStore.getState()
@@ -48,66 +69,69 @@ export function updateStreamingState(state: State) {
   const nextStreamStates = new Map(currentStreamStates)
   let changed = false
 
-  // Fast path: only scan sessions that are actually busy.
-  // Idle sessions are handled by checking against currentStreamingIds below.
-  const busySessionIds = new Set<string>()
+  const activeSessionIds = new Set<string>()
   for (const [sessionID, status] of Object.entries(state.session_status ?? {})) {
-    if ((status as SessionStatus).type === "busy") {
-      busySessionIds.add(sessionID)
+    if ((status as SessionStatus).type === "busy" || (status as SessionStatus).type === "retry") {
+      activeSessionIds.add(sessionID)
     }
   }
 
-  for (const sessionID of busySessionIds) {
+  const allSessionIds = new Set<string>([
+    ...Object.keys(state.message ?? {}),
+    ...Object.keys(state.session_status ?? {}),
+    ...currentStreamingIds.keys(),
+  ])
+
+  for (const sessionID of allSessionIds) {
     const messages = state.message[sessionID]
-    if (!messages || messages.length === 0) continue
+    const lastAssistant = getLastAssistantMessage(messages)
+    const isAssistantStreaming = lastAssistant !== null && !isMessageCompleted(lastAssistant)
+    const isActive = activeSessionIds.has(sessionID)
+    const currentStreamingMessageId = currentStreamingIds.get(sessionID) ?? null
 
-    // Find the last assistant message — that's the one streaming
-    let streamingMsg: Message | null = null
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "assistant") {
-        streamingMsg = messages[i]
-        break
+    const streamingMsg = isAssistantStreaming
+      ? lastAssistant
+      : (isActive && currentStreamingMessageId && !lastAssistant
+        ? (messages?.find((message) => message.id === currentStreamingMessageId) ?? null)
+        : null)
+    const msgId = streamingMsg?.id ?? null
+
+    if (msgId) {
+      nextStreamingIds.set(sessionID, msgId)
+
+      const existing = nextStreamStates.get(msgId)
+      if (!existing || existing.phase !== "streaming") {
+        nextStreamStates.set(msgId, {
+          phase: "streaming",
+          startedAt: existing?.startedAt ?? now,
+          lastUpdateAt: now,
+        })
+        changed = true
+      } else if (now - existing.lastUpdateAt >= STREAMING_HEARTBEAT_MS) {
+        // Throttle lastUpdateAt writes to ~1Hz instead of 60Hz
+        nextStreamStates.set(msgId, {
+          ...existing,
+          lastUpdateAt: now,
+        })
+        changed = true
       }
+      if (currentStreamingIds.get(sessionID) !== msgId) {
+        changed = true
+      }
+      continue
     }
 
-    if (!streamingMsg) continue
-
-    const prevId = currentStreamingIds.get(sessionID)
-    if (prevId !== streamingMsg.id) changed = true
-    nextStreamingIds.set(sessionID, streamingMsg.id)
-
-    const existing = nextStreamStates.get(streamingMsg.id)
-    if (!existing || existing.phase !== "streaming") {
-      nextStreamStates.set(streamingMsg.id, {
-        phase: "streaming",
-        startedAt: existing?.startedAt ?? now,
-        lastUpdateAt: now,
-      })
-      changed = true
-    } else if (now - existing.lastUpdateAt >= STREAMING_HEARTBEAT_MS) {
-      // Throttle lastUpdateAt writes to ~1Hz instead of 60Hz
-      nextStreamStates.set(streamingMsg.id, {
-        ...existing,
-        lastUpdateAt: now,
-      })
-      changed = true
-    }
-  }
-
-  // Mark completed any previously streaming sessions that are now idle or gone
-  for (const [sessionID, msgId] of currentStreamingIds) {
-    if (!msgId) continue
-    const isStillBusy = busySessionIds.has(sessionID)
-    if (isStillBusy) continue
-
-    nextStreamingIds.set(sessionID, null)
-    const existing = nextStreamStates.get(msgId)
-    if (existing && existing.phase === "streaming") {
-      nextStreamStates.set(msgId, {
-        ...existing,
-        phase: "completed",
-        completedAt: now,
-      })
+    if (currentStreamingMessageId) {
+      nextStreamingIds.set(sessionID, null)
+      const existing = nextStreamStates.get(currentStreamingMessageId)
+      if (existing && existing.phase === "streaming") {
+        nextStreamStates.set(currentStreamingMessageId, {
+          ...existing,
+          phase: "completed",
+          completedAt: now,
+        })
+        changed = true
+      }
       changed = true
     }
   }

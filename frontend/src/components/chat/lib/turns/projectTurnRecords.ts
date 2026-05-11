@@ -1,6 +1,7 @@
 import { projectTurnActivity } from './projectTurnActivity';
 import { projectTurnIndexes } from './projectTurnIndexes';
 import { projectTurnDiffStats, projectTurnSummary } from './projectTurnSummary';
+import { stabilizeTurnProjection } from './stabilizeTurnProjection';
 import type {
     ChatMessageEntry,
     TurnMessageRecord,
@@ -190,8 +191,11 @@ export const projectTurnRecords = (
         }
     });
 
-    return {
-        ...projection,
-        ungroupedMessageIds,
-    };
+    return stabilizeTurnProjection(
+        {
+            ...projection,
+            ungroupedMessageIds,
+        },
+        effectiveOptions.previousProjection,
+    );
 };

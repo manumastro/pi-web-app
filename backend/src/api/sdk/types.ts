@@ -28,7 +28,7 @@ export interface SdkMessageInfo {
   error?: unknown;
   // UserMessage shape
   agent?: string;
-  model?: { providerID: string; modelID: string };
+  model?: { providerID: string; modelID: string; variant?: string };
   // AssistantMessage shape
   parentID?: string;
   modelID?: string;

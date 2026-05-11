@@ -429,33 +429,23 @@ export function useAssistantStatus(): AssistantStatusSnapshot {
 
         const hasPendingPermission = sessionPermissionRequests.length > 0;
         const hasPendingQuestion = sessionQuestionRequests.length > 0;
-
         if (!hasPendingPermission && !hasPendingQuestion) {
             return baseWorking;
         }
 
-        if (hasPendingQuestion) {
-            return {
-                ...baseWorking,
-                statusText: null,
-                isWorking: false,
-                hasWorkingContext: false,
-                hasActiveTools: false,
-                canAbort: false,
-                activePartType: undefined,
-                activeToolName: undefined,
-                retryInfo: null,
-            };
-        }
-
         return {
             ...baseWorking,
-            statusText: 'waiting for permission',
+            activity: 'permission',
+            isWorking: true,
+            hasWorkingContext: true,
             isWaitingForPermission: true,
-            canAbort: false,
+            canAbort: true,
+            statusText: hasPendingPermission ? 'waiting for permission' : null,
+            activePartType: undefined,
+            activeToolName: undefined,
             retryInfo: null,
         };
-    }, [baseWorking, sessionPermissionRequests, sessionQuestionRequests]);
+    }, [baseWorking, sessionPermissionRequests.length, sessionQuestionRequests.length]);
 
     return {
         forming,

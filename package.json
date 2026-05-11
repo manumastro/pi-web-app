@@ -13,6 +13,7 @@
     "test": "npm run test --workspace=backend",
     "test:coverage": "npm run test:coverage --workspace=backend",
     "test:e2e:api": "node scripts/e2e-backend-api.mjs",
+    "test:e2e:model-thinking": "node scripts/e2e-model-thinking-flow.mjs",
     "test:e2e:api-smoke": "bash test-api-simple.sh",
     "dev:frontend": "npm run dev --workspace=frontend",
     "build:frontend": "npm run build --workspace=frontend",

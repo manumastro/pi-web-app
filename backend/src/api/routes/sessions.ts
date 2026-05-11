@@ -2,6 +2,7 @@ import express, { type Request, type Response } from 'express';
 import type { ApiRouteContext } from './context.js';
 import { paramStr, queryStr } from '../shared/request.js';
 import { getExternalMessageId, toSdkMessageInfo, toSdkMessages, toSdkParts, toSdkSession, toSdkSessionStatus } from '../sdk/mappers.js';
+import { THINKING_LEVELS, type ThinkingLevel } from '../../types/thinking.js';
 
 export function createSessionRoutes(ctx: ApiRouteContext) {
   const { runner, sessionStore, config, publishGlobalEvent } = ctx;
@@ -245,8 +246,22 @@ export function createSessionRoutes(ctx: ApiRouteContext) {
         },
       });
 
-      // Extract thinkingLevel from request body
-      const thinkingLevel = typeof req.body?.thinkingLevel === 'string' ? req.body.thinkingLevel.trim() : undefined;
+      // Extract thinkingLevel from request body (also accept OpenChamber "variant")
+      const rawThinkingLevel =
+        typeof req.body?.thinkingLevel === 'string'
+          ? req.body.thinkingLevel.trim()
+          : typeof req.body?.variant === 'string'
+            ? req.body.variant.trim()
+            : typeof req.body?.model?.variant === 'string'
+              ? req.body.model.variant.trim()
+              : undefined;
+      const thinkingLevel = THINKING_LEVELS.includes(rawThinkingLevel as ThinkingLevel)
+        ? (rawThinkingLevel as ThinkingLevel)
+        : undefined;
+
+      if (thinkingLevel) {
+        sessionStore.updateSession(sessionId, { thinkingLevel });
+      }
 
       const runPrompt = async (): Promise<void> => {
         await runner.prompt({

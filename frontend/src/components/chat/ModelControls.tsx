@@ -974,13 +974,15 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
 
         if (latestLoadedUserChoice.agent) {
             saveSessionAgentSelection(currentSessionId, latestLoadedUserChoice.agent);
-            saveAgentModelVariantForSession(
-                currentSessionId,
-                latestLoadedUserChoice.agent,
-                latestLoadedUserChoice.providerID,
-                latestLoadedUserChoice.modelID,
-                latestLoadedUserChoice.variant,
-            );
+            if (latestLoadedUserChoice.variant !== undefined) {
+                saveAgentModelVariantForSession(
+                    currentSessionId,
+                    latestLoadedUserChoice.agent,
+                    latestLoadedUserChoice.providerID,
+                    latestLoadedUserChoice.modelID,
+                    latestLoadedUserChoice.variant,
+                );
+            }
         }
         saveSessionModelSelection(currentSessionId, latestLoadedUserChoice.providerID, latestLoadedUserChoice.modelID);
         latestLoadedUserChoiceRestoreRef.current = restoreKey;
@@ -1006,6 +1008,14 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
         }
 
         if (!contextHydrated || providers.length === 0 || agents.length === 0) {
+            return;
+        }
+
+        if (
+            hasCurrentSessionMessagesEntry
+            && latestLoadedUserChoice?.providerID
+            && latestLoadedUserChoice.modelID
+        ) {
             return;
         }
 
@@ -1207,7 +1217,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
             if (!currentVariant && !manualVariantSelectionRef.current) {
                 const desired = settingsDefaultVariant && availableVariants.includes(settingsDefaultVariant)
                     ? settingsDefaultVariant
-                    : undefined;
+                    : (availableVariants.includes('none') ? 'none' : availableVariants[0]);
                 setCurrentVariant(desired);
             }
             return;
@@ -1222,7 +1232,9 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
 
         const resolvedSaved = savedVariant && availableVariants.includes(savedVariant)
             ? savedVariant
-            : undefined;
+            : (settingsDefaultVariant && availableVariants.includes(settingsDefaultVariant)
+                ? settingsDefaultVariant
+                : (availableVariants.includes('none') ? 'none' : availableVariants[0]));
 
         setCurrentVariant(resolvedSaved);
         manualVariantSelectionRef.current = false;
@@ -1715,8 +1727,8 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
             const resolvedVariant = resolveModelVariantSelection(providerId, modelId);
             const variantLabel = hasVariants ? formatEffortLabel(resolvedVariant) : null;
             const isExpanded = expandedMobileModelKey === rowKey;
-            const inlineVariantOptions = [undefined, ...variantOptions].slice(0, MAX_INLINE_MOBILE_VARIANT_OPTIONS);
-            const hasVariantOverflow = inlineVariantOptions.length < variantOptions.length + 1;
+            const inlineVariantOptions = variantOptions.slice(0, MAX_INLINE_MOBILE_VARIANT_OPTIONS);
+            const hasVariantOverflow = inlineVariantOptions.length < variantOptions.length;
             const capabilityIcons = getCapabilityIcons(metadata).map((icon) => ({
                 ...icon,
                 label: localizeMetaLabel(icon.label),
@@ -2005,7 +2017,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
         if (targetVariants.length === 0) return null;
 
         const selectedVariant = resolveModelVariantSelection(targetProviderId, targetModelId);
-        const isDefault = !selectedVariant;
 
         const handleBack = () => {
             setActiveMobilePanel('model');
@@ -2045,19 +2056,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                 )) : undefined}
             >
                 <div className="flex flex-col gap-1.5">
-                    <button
-                        type="button"
-                        className={cn(
-                            'flex w-full items-center justify-between gap-2 rounded-xl border px-2 py-1.5 text-left',
-                            'focus:outline-none focus-visible:ring-1 focus-visible:ring-primary',
-                            isDefault ? 'border-primary/30 bg-primary/10' : 'border-border/40'
-                        )}
-                        onClick={() => handleSelect(undefined)}
-                    >
-                        <span className="typography-meta font-medium text-foreground">{t('chat.modelControls.default')}</span>
-                        {isDefault && <RiCheckLine className="h-4 w-4 text-primary flex-shrink-0" />}
-                    </button>
-
                     {targetVariants.map((variant) => {
                         const selected = selectedVariant === variant;
                         const label = formatEffortLabel(variant);
@@ -3090,9 +3088,8 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
             return null;
         }
 
-        const displayVariant = currentVariant ?? t('chat.modelControls.default');
-        const isDefault = !currentVariant;
-        const colorClass = isDefault ? 'text-muted-foreground' : 'text-[color:var(--status-info)]';
+        const displayVariant = currentVariant ?? (availableVariants.includes('none') ? 'none' : availableVariants[0]);
+        const colorClass = 'text-[color:var(--status-info)]';
 
         if (isCompact) {
             return (
@@ -3147,13 +3144,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({
                     </TooltipTrigger>
                     <DropdownMenuContent align="end" alignOffset={-40} className="w-[min(180px,calc(100vw-2rem))]">
                         <DropdownMenuLabel className="typography-ui-header font-semibold text-foreground">{t('chat.modelControls.thinking')}</DropdownMenuLabel>
-                        <DropdownMenuItem className="typography-meta" onSelect={() => handleVariantSelect(undefined)}>
-                            <div className="flex items-center justify-between gap-2 w-full min-w-0">
-                                <span className="typography-meta font-medium text-foreground truncate min-w-0">{t('chat.modelControls.default')}</span>
-                                {isDefault && <RiCheckLine className="h-4 w-4 text-primary flex-shrink-0" />}
-                            </div>
-                        </DropdownMenuItem>
-                        {availableVariants.length > 0 && <DropdownMenuSeparator />}
                         {availableVariants.map((variant) => {
                             const selected = currentVariant === variant;
                             const label = variant.charAt(0).toUpperCase() + variant.slice(1);

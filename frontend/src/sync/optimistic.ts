@@ -7,6 +7,10 @@ function sortParts(parts: Part[]) {
   return parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id))
 }
 
+function markOptimisticPart(part: Part): Part {
+  return { ...part, __optimistic: true } as Part
+}
+
 export type OptimisticStore = {
   message: Record<string, Message[] | undefined>
   part: Record<string, Part[] | undefined>
@@ -97,7 +101,7 @@ export function applyOptimisticAdd(draft: OptimisticStore, input: OptimisticAddI
   } else {
     draft.message[input.sessionID] = [input.message]
   }
-  draft.part[input.message.id] = sortParts(input.parts)
+  draft.part[input.message.id] = sortParts(input.parts.map(markOptimisticPart))
 }
 
 /** Apply optimistic remove to a mutable draft (for immer/produce) */

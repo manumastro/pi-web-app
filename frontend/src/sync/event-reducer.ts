@@ -13,15 +13,19 @@ import { Binary } from "./binary"
 import type { FileDiff, GlobalState, State } from "./types"
 import { dropSessionCaches } from "./session-cache"
 import { stripSessionDiffSnapshots } from "./sanitize"
+import { canonicalizeParts } from "./part-canonical"
+import { withCanonicalAssistantMessageId } from "./message-canonical"
 import { syncDebug } from "./debug"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
-const DELTA_OVERLAP_FIELDS = ["text", "output"] as const
+const DELTA_OVERLAP_FIELDS = ["text", "output", "thinking"] as const
 const FINAL_TOOL_STATUSES = new Set(["completed", "error", "aborted", "failed", "timeout", "cancelled"])
 
 type DedupeMetadata = {
   __dedupeNextDeltaFields?: string[]
 }
+
+type PartRecord = Record<string, unknown>
 
 function appendNonOverlappingDelta(existingValue: string | undefined, delta: string) {
   if (!existingValue || delta.length === 0) return (existingValue ?? "") + delta
@@ -88,6 +92,75 @@ function shouldPreserveExistingPart(previous: Part, next: Part): boolean {
   }
 
   return false
+}
+
+function getPartIdentityKey(part: Part): string {
+  const record = part as PartRecord
+  if (part.type === "tool") {
+    const toolName = typeof record.tool === "string"
+      ? record.tool
+      : typeof record.name === "string"
+        ? record.name
+        : ""
+    const callId = typeof record.callID === "string"
+      ? record.callID
+      : typeof record.toolCallID === "string"
+        ? record.toolCallID
+        : ""
+    return `${part.type}:${toolName}:${callId}`
+  }
+  return part.type
+}
+
+function isPartFinalized(part: Part): boolean {
+  if (typeof getPartEndTime(part) === "number") {
+    return true
+  }
+  const status = getToolStatus(part)
+  return Boolean(status && FINAL_TOOL_STATUSES.has(status))
+}
+
+function shouldReplaceStreamingEquivalentPart(previous: Part, next: Part): boolean {
+  if (previous.type !== next.type) return false
+  if (isPartFinalized(previous)) return false
+  if (getPartIdentityKey(previous) !== getPartIdentityKey(next)) return false
+
+  if (next.type === "text" || next.type === "reasoning") {
+    const previousText = (previous as PartRecord).text
+    const nextText = (next as PartRecord).text
+    if (typeof previousText === "string" && typeof nextText === "string") {
+      return nextText.startsWith(previousText) || previousText.startsWith(nextText)
+    }
+  }
+
+  return true
+}
+
+function dedupeCompletedAssistantParts(parts: Part[]): Part[] {
+  if (parts.length < 2) return parts
+
+  const byIdentity = new Map<string, Part>()
+  for (const part of parts) {
+    const key = getPartIdentityKey(part)
+    const existing = byIdentity.get(key)
+    if (!existing) {
+      byIdentity.set(key, part)
+      continue
+    }
+
+    if (isPartFinalized(part) && !isPartFinalized(existing)) {
+      byIdentity.set(key, part)
+      continue
+    }
+
+    const existingText = (existing as PartRecord).text
+    const partText = (part as PartRecord).text
+    if (typeof existingText === "string" && typeof partText === "string" && partText.length > existingText.length) {
+      byIdentity.set(key, part)
+    }
+  }
+
+  return parts.filter((part) => byIdentity.get(getPartIdentityKey(part)) === part)
 }
 
 // ---------------------------------------------------------------------------
@@ -209,6 +282,26 @@ export function applyDirectoryEvent(
     case "session.idle": {
       const props = event.properties as { sessionID: string }
       draft.session_status[props.sessionID] = { type: "idle" }
+
+      // Mark the last assistant message as completed if not already.
+      // The backend no longer emits a second message.updated from done;
+      // completion is signaled solely via session.idle.
+      const messages = draft.message[props.sessionID]
+      if (messages) {
+        for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+          const msg = messages[idx] as { role?: string; time?: { completed?: number } }
+          if (msg.role !== 'assistant') continue
+          if (typeof msg.time?.completed === 'number' && msg.time.completed > 0) break
+          const next = [...messages]
+          next[idx] = {
+            ...next[idx],
+            time: { ...(next[idx] as { time?: Record<string, unknown> }).time, completed: Date.now() },
+          } as Message
+          draft.message[props.sessionID] = next
+          break
+        }
+      }
+
       return true
     }
 
@@ -219,8 +312,11 @@ export function applyDirectoryEvent(
     }
 
     case "message.updated": {
-      const info = (event.properties as { info: Message }).info
-      const messages = draft.message[info.sessionID]
+      const rawInfo = (event.properties as { info: Message }).info
+      const messages = draft.message[rawInfo.sessionID]
+      const info = messages
+        ? withCanonicalAssistantMessageId(messages, rawInfo)
+        : rawInfo
       if (!messages) {
         draft.message[info.sessionID] = [info]
         return true
@@ -234,16 +330,29 @@ export function applyDirectoryEvent(
           && (existing.time as { completed?: number })?.completed === (info.time as { completed?: number })?.completed
         if (unchanged) {
           syncDebug.reducer.messageUpdatedUnchanged(info.sessionID, info.id, info.role, (info as { finish?: unknown }).finish, (info.time as { completed?: number })?.completed)
-          return false
+        } else {
+          const next = [...messages]
+          next[result.index] = info
+          draft.message[info.sessionID] = next
         }
-        const next = [...messages]
-        next[result.index] = info
-        draft.message[info.sessionID] = next
       } else {
         const next = [...messages]
         next.splice(result.index, 0, info)
         draft.message[info.sessionID] = next
       }
+
+      const isCompletedAssistant = info.role === "assistant"
+        && typeof (info.time as { completed?: unknown })?.completed === "number"
+      if (isCompletedAssistant) {
+        const parts = draft.part[info.id]
+        if (parts && parts.length > 1) {
+          const deduped = canonicalizeParts(parts)
+          if (deduped.length !== parts.length || deduped.some((part, index) => part !== parts[index])) {
+            draft.part[info.id] = deduped
+          }
+        }
+      }
+
       return true
     }
 
@@ -287,21 +396,25 @@ export function applyDirectoryEvent(
           ? { ...part, __dedupeNextDeltaFields: dedupeFields } as unknown as Part
           : part
       } else {
-        // Replace optimistic part (no sessionID) with server part of same type.
-        // Gate: only scan if the first part lacks sessionID (optimistic parts are
-        // always inserted first). Assistant messages never have optimistic parts,
-        // so this check is effectively free during streaming.
-        const hasOptimistic = next.length > 0 && !(next[0] as { sessionID?: string }).sessionID
-        const optimisticIdx = hasOptimistic && (part.type === "text" || part.type === "file")
-          ? next.findIndex((p) => p.type === part.type && !(p as { sessionID?: string }).sessionID)
-          : -1
-        if (optimisticIdx >= 0) {
-          next.splice(optimisticIdx, 1)
+        const equivalentIndex = next.findIndex((existingPart) => shouldReplaceStreamingEquivalentPart(existingPart, part))
+        if (equivalentIndex >= 0) {
+          next[equivalentIndex] = part
+        } else {
+          // Replace optimistic part (no sessionID) with server part of same type.
+          // Gate: only scan if the first part lacks sessionID (optimistic parts are
+          // always inserted first). Assistant messages never have optimistic parts,
+          // so this check is effectively free during streaming.
+          const optimisticIdx = (part.type === "text" || part.type === "file")
+            ? next.findIndex((p) => p.type === part.type && Boolean((p as { __optimistic?: boolean }).__optimistic))
+            : -1
+          if (optimisticIdx >= 0) {
+            next.splice(optimisticIdx, 1)
+          }
+          const insertResult = Binary.search(next, part.id, (p) => p.id)
+          next.splice(insertResult.index, 0, part)
         }
-        const insertResult = Binary.search(next, part.id, (p) => p.id)
-        next.splice(insertResult.index, 0, part)
       }
-      draft.part[messageID] = next
+      draft.part[messageID] = canonicalizeParts(next)
       return true
     }
 
@@ -343,7 +456,7 @@ export function applyDirectoryEvent(
       const existing = parts[result.index] as Record<string, unknown>
       const existingValue = existing[props.field] as string | undefined
       const dedupeFields = (existing as DedupeMetadata).__dedupeNextDeltaFields ?? []
-      const shouldDedupe = dedupeFields.includes(props.field)
+      const shouldDedupe = dedupeFields.includes(props.field) || DELTA_OVERLAP_FIELDS.includes(props.field as typeof DELTA_OVERLAP_FIELDS[number])
       // Create new Part object + new array so React detects the change
       const next = [...parts]
       next[result.index] = {
@@ -351,7 +464,7 @@ export function applyDirectoryEvent(
         [props.field]: shouldDedupe ? appendNonOverlappingDelta(existingValue, props.delta) : (existingValue ?? "") + props.delta,
         __dedupeNextDeltaFields: dedupeFields.filter((field) => field !== props.field),
       } as unknown as Part
-      draft.part[props.messageID] = next
+      draft.part[props.messageID] = canonicalizeParts(next)
       return true
     }
 

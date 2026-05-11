@@ -127,7 +127,7 @@ describe('installApiRoutes', () => {
     expect(deleteResp.status).toBe(200);
   });
 
-  it('supports prompt_async contract', async () => {
+  it('supports prompt_async contract and maps variant to thinking level', async () => {
     const session = sessionStore.createSession('/tmp/project', 'demo/model-a', 'session-1');
     expect(session.id).toBe('session-1');
 
@@ -139,15 +139,17 @@ describe('installApiRoutes', () => {
         messageID: clientMessageId,
         parts: [{ type: 'text', text: 'hello' }],
         model: { providerID: 'demo', modelID: 'model-a' },
+        variant: 'medium',
       }),
     });
 
     expect(resp.status).toBe(204);
     expect(prompt).toHaveBeenCalledTimes(1);
-    const called = prompt.mock.calls[0]?.[0] as { message: string; displayMessage: string; model: string; messageId?: string };
+    const called = prompt.mock.calls[0]?.[0] as { message: string; displayMessage: string; model: string; messageId?: string; thinkingLevel?: string };
     expect(called.displayMessage).toBe('hello');
     expect(called.model).toBe('demo/model-a');
     expect(called.messageId).toBe(clientMessageId);
+    expect(called.thinkingLevel).toBe('medium');
   });
 
   it('returns provider and model payloads as arrays', async () => {
@@ -157,8 +159,9 @@ describe('installApiRoutes', () => {
     expect(Array.isArray(providers.all[0]?.models)).toBe(true);
 
     const configProvidersResp = await fetch(`${baseUrl}/config/providers`);
-    const configProviders = await configProvidersResp.json() as { providers: Array<{ models: unknown[] }> };
+    const configProviders = await configProvidersResp.json() as { providers: Array<{ models: Array<{ variants?: Record<string, unknown> }> }> };
     expect(Array.isArray(configProviders.providers[0]?.models)).toBe(true);
+    expect(Object.keys(configProviders.providers[0]?.models?.[0]?.variants ?? {})).toContain('medium');
 
     const modelsResp = await fetch(`${baseUrl}/models`);
     const models = await modelsResp.json() as { models: Array<{ id: string }> };
